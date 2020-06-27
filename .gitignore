@@ -1,1 +1,3 @@
 .idea/*
+/doc/*.pdf
+/doc/*.gz
