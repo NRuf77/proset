@@ -1,0 +1,50 @@
+\documentclass[a4paper, 11pt, openany]{book}
+%
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bbold}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+%
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{0}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{\medskipamount}
+\linespread{1.1}
+%
+\newtheorem{lemma}{Lemma}[chapter]
+\newtheorem{remark}{Remark}[chapter]
+%
+\newcommand*{\1}{\ensuremath{\mathbb{1}}}
+\newcommand*{\R}{\ensuremath{\mathbb{R}}}
+%
+\title{\Huge\textbf{Prototype set classifier and regressor}}
+\author{\Large\textcopyright\ by Nikolaus Ruf}
+\date{}
+%
+\begin{document}
+\maketitle
+%
+\pagestyle{empty}
+\begin{center}
+\vspace*{2in}
+\Large For Shuo
+\end{center}
+\newpage
+\pagestyle{plain}
+%
+\frontmatter
+\tableofcontents
+\input{about.tex}
+%
+\mainmatter
+\input{classifier.tex}
+\input{regressor.tex}
+\input{implementation.tex}
+\input{examples.tex}
+%
+\appendix
+\input{bibliography.tex}
+\end{document}

@@ -1,7 +1,7 @@
 # proset
 Prototype set classifier and regressor implemented in Python
 
-proset (C) 2020 by Nikolaus Ruf
+proset copyright by Nikolaus Ruf
 
 Released under the MIT license - see LICENSE file for details
 

@@ -1,0 +1,290 @@
+\chapter{Prototype set classifier}
+\label{ch_classifier}
+%
+We observe $N\gg1$ pairs $(X_n,Y_n)$ of random variables such that $X_n$ takes values in $\R^D$, $D\geq1$, and $Y_n$ is one of $K>1$ states represented by the integers from 1 to $K$.
+Our goal is to estimate the conditional distribution of the class $Y_n$ given features $X_n$, presuming that the $Y_n$ are independent conditional on $X_n$.
+The distribution of $X_n$ is of no concern, so that we just deal with the observed realizations $x_n\in\R^D$ for practical purposes.
+Nominal or ordinal features can be included in the model by encoding them as real vectors.\par
+%
+The model we consider is built from $B\geq0$ ``batches'' of points selected from the available samples.
+Each batch is defined by a a non-empty subset $S_1,\dots,S_B\subset\{1,\dots,N\}$ of the observation indices.
+The collection of batches is denoted by
+%
+\begin{equation}
+\mathcal{S}:=\{S_b:b\in\{1,\dots,B\}\}\label{eq_batches}
+\end{equation}
+%
+or $\mathcal{S}=\emptyset$ if $B=0$.
+The indices of each batch are $S_b=:\{s_{b,1},\dots,s_{b,J_b}\}$ where $J_b:=|S_b|$.
+We refer to the points $(x_{s_{b,j}},y_{s_{b,j}})$ as ``prototypes''.
+The model treats each as a representative example for the distribution of $Y_n$ when $X_n$ is in a neighbourhood of $x_{s_{b,j}}$.
+To make this notion more precise, we require additional notation:\par
+%
+The empirical marginal probabilities of $Y$ are
+%
+\begin{equation}
+\hat{p}_{0,k}:=\frac{1}{N}\sum_{n=1}^N\1_{\{k\}}(y_k)\label{eq_p0k}
+\end{equation}
+%
+where $\1_A$ is the indicator function of a set $A$.\par
+%
+The unscaled Gaussian kernel $K_v$ with feature weights (inverse bandwidths) $v\in\R^D$, $v_d\geq0$, is
+%
+\begin{equation}
+K_v:\R^D\rightarrow(0,1],
+z\mapsto K_v(z):=\exp\left(-\frac{1}{2}\sum_{d=1}^D(v_dx_d)^2\right)\label{eq_kernel}
+\end{equation}
+%
+We associate each batch $b$ with a vector $v_b\in\R^D$, $v_{b,d}\geq0$, and each prototype with a weight $w_{b,j}>0$ to express the desired conditional distribution as
+%
+\begin{equation}
+P(Y=k|X=x)=\hat{p}_k(x):=
+\frac{\hat{p}_{0,k}+\sum_{b=1}^B\sum_{j=1}^{J_b}\1_{\{k\}}(y_{s_{b,j}})w_{b,j}K_{v_b}(x-x_{s_{b,j}})}
+{1+\sum_{b=1}^B\sum_{j=1}^{J_b}w_{b,j}K_{v_b}(x-x_{s_{b,j}})}
+\label{eq_pkx}
+\end{equation}
+%
+\begin{remark}
+\begin{enumerate}
+\item The sets $S_b$ are not required to be disjoint, so the same point can appear multiple times in (\ref{eq_pkx}).
+As each batch is associated with its own $v_b$, the impact on the model may be different every time the point appears.
+%
+\item The kernels are parameterized in terms of inverse bandwidth to enable features selection via an $l_1$ penalty on the $v_{b,d}$.
+If $v_{b,d}$ is forced to zero by the penalty, the values of the corresponding feature in points of batch $b$ cease to affect the model.
+Conversely, a large value of $v_{b,d}$ means that the model is very sensitive to variations in the feature.
+We limit the kernels to a diagonal bandwidth structure instead of a full semi-positive definite matrix to be able to fit on large feature spaces with reasonable effort.
+%
+\item The form of the conditional probability (\ref{eq_pkx}) resembles kernel-based estimators used in non-parameteric statistics.
+A key difference is that it includes a subset of the samples with individual weights instead of the entire sample with unit weights.
+This is done to reduce the computational effort for training and scoring if sample size is large.
+Also, studying the prototypes selected for the model may help to understand its local structure.
+%
+\item Including the empirical probabilities in the model serves two important functions.
+First, they set the scale for the weights $w_{b,j}$, which would otherwise be determined only up to a multiplicative constant.
+Second, they define a natural baseline for $B=0$ , i.e., the model that treats $Y_n$ as independent of the features.
+\end{enumerate}
+\end{remark}
+%
+Finding an optimal representation of the form (\ref{eq_pkx}) for a sample of any size appears intractable.
+We thus focus on providing a heuristic that results in models of sufficient quality.
+The general idea is to iteratively add batches of prototypes to a base model consisting of the constant probabilities $p_{0,k}$.
+In each iteration, the available samples are split into a set of candidates for prototypes and a remainder used for scoring.
+The weights for the candidates and the feature weights for the new batch are chosen to maximize a modified log-likelihood function for the scoring set.
+Modifications to the likelihood are
+%
+\begin{enumerate}
+\item reweighting the terms such that each class has the same overall weight as in the set of all samples.
+This enables us to use sampling schemes for candidates that do not draw proportionally from each class.
+%
+\item adding a combination of $l_1$- and $l_2$-penalty terms (elastic net penalty) for both prototype and feature weights.
+The $l_1$-penalty is used to suppress candidates and features with negligible impact on the model.
+\end{enumerate}
+%
+The method is greedy in so far that parameters selected during earlier iterations remain constant.
+Hyperparameters -- penalty weights and the number of batches -- are selected via cross-validation.\par
+%
+To state the modified likelihood and its derivatives, we make use of the following expression representing the unscaled class weights truncated at batch $c\geq0$:
+%
+\begin{equation}
+\hat{q}_{c,k}(x)=\hat{p}_{0,k}
++\sum_{b=1}^c\sum_{j=1}^{J_b}\1_{\{k\}}(y_{s_{b,j}})w_{b,j}K_{v_b}(x-x_{s_{b,j}})
+\label{eq_qckx}
+\end{equation}
+%
+These satisfy
+%
+\begin{align}
+\hat{p}_{k}(x)&=\frac{\hat{q}_{B,k}(x)}{\sum_{l=1}^K\hat{q}_{B,l}(x)}\label{eq_q_properties}\\
+\hat{q}_{0,k}(x)&=\hat{p}_{0,k}\notag\\
+\forall c>0:\hat{q}_{c,k}(x)&
+=\hat{q}_{c-1,k}(x)+\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}K_{v_c}(x-x_{s_{c,j}})
+\notag
+\end{align}
+%
+During the training phase, we do not yet know the final number of batches $B$ but grow the model iteratively.
+The conditional probabilities using only batches up to $c$ are given by
+%
+\begin{equation}
+\hat{p}_{c,k}(x)=\frac{\hat{q}_{c,k}(x)}{\sum_{l=1}^K\hat{q}_{c,l}(x)}\label{eq_pckx}
+\end{equation}
+%
+which also satisfy $\hat{p}_{0,k}(x)=\hat{p}_{0,k}$.\par
+%
+Given the first $c-1$ batches, the parameters for batch $c>0$ are chosen to minimize the negative log-likelihood function
+%
+\begin{align}
+l\left(v_c,\{w_{c,j}\}_j|\{x_n\}_n\right)
+&=-\frac{1}{N}\sum_{k=1}^K\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
+\1_{\{k\}}(y_n)\log(\hat{p}_{c,k}(x_n))\label{eq_log_likelihood}\\
+&+\lambda\left(\frac{\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2
++(1-\alpha_v)\sum_{d=1}^D|v_{c,d}|
++\beta\left(\frac{\alpha_w}{2}\sum_{j=1}^{J_c}w_{c,j}^2
++(1-\alpha_w)\sum_{j=1}^{J_c}|w_{c,j}|\right)\right)\notag
+\end{align}
+%
+The following expressions still need to be defined:
+%
+\begin{itemize}
+\item $N_k:=\left|\{n\in\{1,\dots,N\}:y_n=k\}\right|$ is the number of all samples that have class $k$.
+%
+\item $J_{c,k}:=\left|\{j\in\{1,\dots,J_c\}:y_{s_{c,j}}=k\}\right|$
+is the number of all candidates in batch $c>0$ that have class $k$.
+%
+\item $T_c:=\{1,\dots,N\}\setminus S_c$ is the set of samples not included as prototypes in batch $c>0$.
+%
+\item $\lambda\geq0$ is the overall weight for the elastic net penalty.
+%
+\item $\alpha_v\in[0,1]$ is the portion of $\lambda$ assigned to the $l_2$ penalty for the feature weights.
+%
+\item $\alpha_w\in[0,1]$ is the portion of $\beta\lambda$ assigned to the $l_2$ penalty for the prototype weights.
+%
+\item $\beta>0$ is importance of the prototype weights relative to the feature weights.
+\end{itemize}
+%
+Given a set of prototypes $S_c$, the penalized log-likelihood (\ref{eq_log_likelihood}) is maximized subject to $v_{c,d}\geq0$ and $w_{c,j}\geq0$.
+Note that we permit $w_{c,j}=0$ as solution of the optimization problem which contradicts our earlier definition.
+However, as points with zero weight have no impact on the model and can simply be excluded, this does not cause any issues.\par
+%
+The structure of the penalty weights allows us to choose $\lambda$ via grid search in one dimension given fixed values for $\alpha_v$, $\alpha_w$, and $\beta$.
+This approach is commonly used, e.g., for generalized linear models subject to an elastic net penalty.\par
+%
+As all parameters are constrained to the first orthant, the fact that the $l_1$ penalty is not differentiable in zero does not pose a problem.
+In fact, we can simply replace the absolute value with the identity function and solve the optimization task using a standard implementation of algorithm L-BFGS-B.
+This approach does not benefit from any performance gain for exploiting sparse model structure.
+However, being able to rely on a trusted implementation of a fast solver has its own benefits.\par
+%
+To gain the full advantage of using L-BFGS-B, we need to compute the gradient of (\ref{eq_log_likelihood}) analytically.
+The partial derivatives of $\log(\hat{p}_{c,k}(x))$, $c>0$, are:
+%
+\begin{align}
+\frac{\partial}{\partial v_{c,d}}\log(\hat{p}_{c,k}(x))&
+=\frac{\frac{\partial}{\partial v_{c,d}}
+\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}K_{v_c}(x-x_{s_{c,j}})}
+{\hat{q}_{c,k}(x)}
+\label{eq_p_partial_v}\\
+&-\frac{\frac{\partial}{\partial v_{c,d}}
+\sum_{j=1}^{J_c}w_{c,j}K_{v_c}(x-x_{s_{c,j}})}
+{\sum_{l=1}^K\hat{q}_{c,l}(x)}\notag\\
+&=v_{c,d}\left(\frac{\sum_{j=1}^{J_c}w_{c,j}
+(x_d-x_{s_{c,j},d})^2K_{v_c}(x-x_{s_{c,j}})}
+{\sum_{l=1}^K\hat{q}_{c,l}(x)}\right.\notag\\
+&\left.-\frac{\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}
+(x_d-x_{s_{c,j},d})^2K_{v_c}(x-x_{s_{c,j}})}
+{\hat{q}_{c,k}(x)}\right)\notag\\
+\frac{\partial}{\partial w_{c,i}}\log(\hat{p}_{c,k}(x))&
+=\frac{\frac{\partial}{\partial w_{c,i}}
+\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}K_{v_c}(x-x_{s_{c,j}})}
+{\hat{q}_{c,k}(x)}
+\label{eq_p_partial_w}\\
+&-\frac{\frac{\partial}{\partial w_{c,i}}
+\sum_{j=1}^{J_c}w_{c,j}K_{v_c}(x-x_{s_{c,j}})}
+{\sum_{l=1}^K\hat{q}_{c,l}(x)}\notag\\
+&=\frac{\1_{\{k\}}(y_{s_{c,i}})K_{v_c}(x-x_{s_{c,i}})}
+{\hat{q}_{c,k}(x)}
+-\frac{K_{v_c}(x-x_{s_{c,i}})}
+{\sum_{l=1}^K\hat{q}_{c,l}(x)}\notag
+\end{align}
+%
+The partial derivatives of the negative log-likelihood on the first orthant are
+%
+\begin{align}
+\frac{\partial}{\partial v_{c,d}}l(v_c,\{w_{c,j}\}_j|\{x_n\}_n)
+&=-\frac{1}{N}\sum_{k=1}^K\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
+\1_{\{k\}}(y_n)\frac{\partial}{\partial v_{c,d}}\log(\hat{p}_{c,k}(x_n))
+\label{eq_l_partial_v}\\
+&+\lambda(\alpha_v v_{c,d}+(1-\alpha_v))\notag\\
+\frac{\partial}{\partial w_{c,j}}l(v_c,\{w_{c,j}\}_j|\{x_n\}_n)
+&=-\frac{1}{N}\sum_{k=1}^K\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
+\1_{\{k\}}(y_n)\frac{\partial}{\partial w_{c,j}}\log(\hat{p}_{c,k}(x_n))
+\notag\\
+&+\lambda\beta(\alpha_w w_{c,j}+(1-\alpha_w))\notag
+\end{align}
+%
+It remains to consider how to choose the prototypes for each batch and the starting points for optimization.
+For the former, we score the model for iteration $c-1$ on all samples to get a probability distribution for each $Y_n$.
+A sample is considered correctly classified iff the probability assigned to its true class is greater than that for the other classes.
+This enables us to split the samples into $2K$ bins, i.e., the correctly and incorrectly classified samples for each class.
+We now draw prototypes from these bins as evenly as possible, subject to the constraint that no bin is depleted, i.e., some samples from each bin should remain for scoring.\par
+%
+To make the above notion more precise, let $M>0$ be the total number of prototypes we want to consider for the new batch and $\eta\in(0,1)$ the  maximum fraction of samples we want to take from one bin.
+Also, let $g_1,\dots, g_{2K}\geq0$ be the number of samples actually available in each bin which can be ordered to satisfy $g_1\leq g_2\leq\dots\leq g_{2K}$.
+To arrive at a number of samples $h_1,\dots,h_{2K}$ to draw from each bin, we use the following algorithm:
+%
+\begin{description}
+\item{[1]} Assign $i\leftarrow1$ and $R\leftarrow M$.
+%
+\item{[2]} Compute $r:=\frac{R}{2K+1-i}$.
+%
+\item{[3]} If $r\leq\eta g_i$: assign $h_i,\dots,h_{2K}\leftarrow r$ and go to [5].
+%
+\item{[4]} Assign $h_i\leftarrow\eta g_i$, $i\leftarrow i+1$, $R\leftarrow R-h_i$, and go to [2].
+%
+\item{[5]} Round each $h_i$ to the closest integer number.
+\end{description}
+%
+Thus, we draw the maximum number of samples from the smallest bin that has not been processed until the remaining bins are large enough to draw an equal amount from each.
+In case $\sum_{i=1}^{2K}g_i<M$,  we draw the maximum admissible number of samples from each bin.
+In case $g_i\leq\frac{M}{2K}$ for all $i$, we draw an even amount $\frac{M}{2K}$ from each bin.\par
+%
+\begin{remark}
+This choice of sampling prototypes is motivated by the desire to give equal consideration to each class, as well as to `easy wins' -- samples that are classfied correctly but could be assigned higher certainty -- and `hard cases' - samples that are not classified correctly by the current state of the model.
+For a very unbalanced population, it may not be possible to treat the rare classes exactly equal to the frequent ones.
+However, the rare classes are still assigned greater weight in model building than their proportion in the population.\par
+%
+Note also that at the start of iteration $c=1$, when the model consists only of the marginal probabilities, a sample is classified correctly iff it belongs to the most frequent class.
+Thus, half of all bins are completely empty in this situation.
+\end{remark}
+%
+In order to identify good prototypes for every class, we need to include samples from each both among the candidates and the remainder used for scoring. Using the proposed algorithm for distribution, the following condition is necessary and sufficient:
+%
+\begin{align}
+&\forall k\in\{1,\dots,K\}:\forall n\in\{0,\dots,N_k\}:\label{eq_min_cases}\\
+&(\eta n\geq0.5\vee\eta(N_k-n)\geq0.5)\wedge(\eta n<n-0.5\vee\eta(N_k-n)<N_k-n-0.5)\notag
+\end{align}
+%
+The $n$ represents the number of samples of class $k$ that are correctly classified in iteration $c-1$.
+Thus, the first conditions states that the fraction $\eta$ of either the correctly or incorrectly classified cases needs to be large enough to result in a single prototype being drawn after rounding.
+Likewise, the second condition states that the fraction $\eta$ of either group needs to be small enough such that at least one sample remains for scoring.\par
+%
+\begin{lemma}
+Condition (\ref{eq_min_cases}) can be restated more compactly as
+%
+\begin{equation}
+\forall k\in\{1,\dots,K\}:\lceil0.5N_k\rceil\geq0.5\eta^{-1}\wedge\lceil0.5N_k\rceil>0.5(1-\eta)^{-1}\label{eq_min_cases_2}
+\end{equation}
+%
+where the brackets indicate rounding up.
+\end{lemma}
+%
+\paragraph{Proof:} we show first that for any $k$ holds
+%
+\begin{equation}
+\forall n\in\{0,\dots,N_k\}:\eta n\geq0.5\vee\eta(N_k-n)\geq0.5\iff\lceil0.5N_k\rceil\geq0.5\eta^{-1}\label{eq_condition_proof}
+\end{equation}
+%
+The left-hand side implies the right-hand if we choose $n=\lceil0.5N_k\rceil$.\par
+%
+The right-hand side implies the left-hand side since for any admissible $n$, either $n$ or $N_k-n$ has to be greater or equal to $\lceil0.5N_k\rceil$.\par
+%
+For the remaining clauses, note that $\eta n<n-0.5$ is equivalent to $(1-\eta)N>0.5$ so that we can use a similar argument to the one above.$\quad\Box$\par
+%
+A check for condition (\ref{eq_min_cases_2}) is implemented in the software to ensure that samples of each class are available both as prototypes and for scoring.
+However, it does not guarantee that the algorithm is able to find meaningful structure in the data.
+For example, the recommended default $\eta=0.5$ requires only that $N_k\geq3$ for all $k$, which is inadequate for supervised learning.\par
+%
+Regarding the starting values for optimization, we simply initialize all $w_{c,j}$ and $v_{c,d}$ to 1.
+%
+\begin{remark}
+\begin{enumerate}
+\item As the marginal probabilities serve to set the absolute scale of the prototype weights, it makes sense to initialize the latter with a value of similar magnitude.
+%
+\item The feature weights need to be inversely proportional to the scale of the corresponding features.
+Thus, we also require that the features are normalized to an order of magnitude near 1.
+This is satisified by most common normalizing transforms, e.g., scaling with the standard deviation for continuous features.
+Note that elastic net regularization also requires the features to be on a similar scale to each other as the size of the penalty depends on the scale of the partial derivatives.
+\end{enumerate}
+\end{remark}
+
+
+
+\endinput
