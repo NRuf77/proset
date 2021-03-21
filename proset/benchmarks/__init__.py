@@ -5,4 +5,4 @@ Released under the MIT license - see LICENSE file for details
 """
 
 from proset.benchmarks.auxiliary import start_console_log
-from proset.benchmarks.samples import create_checkerboard, create_sign_of_product
+from proset.benchmarks.samples import create_checkerboard, create_continuous_xor

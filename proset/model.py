@@ -45,10 +45,10 @@ class Model(BaseEstimator, metaclass=ABCMeta):
     def __init__(
             self,
             n_iter=1,
-            lambda_v=1e-5,
+            lambda_v=1e-3,
             lambda_w=1e-8,
-            alpha_v=0.05,
-            alpha_w=0.05,
+            alpha_v=0.95,
+            alpha_w=0.95,
             num_candidates=1000,
             max_fraction=0.5,
             random_state=None,

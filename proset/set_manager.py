@@ -40,11 +40,27 @@ class SetManager(metaclass=ABCMeta):
 
     @property
     def num_features(self):
-        """Get required number of features.
+        """Get number of features expected for input matrices.
 
-        :return: integer or None; required number of features; None if no batch has been added yet
+        :return: integer or None; expected number of features; None if no batch has been added yet
         """
         return self._meta["num_features"]
+
+    @property
+    def num_active_features(self):
+        """Get number features with positive weight for at least one batch.
+
+        :return: integer; number of active features
+        """
+        return self.get_feature_weights()["feature_index"].shape[0]
+
+    @property
+    def num_prototypes(self):
+        """Get number prototypes across all batches.
+
+        :return: integer; number of prototypes
+        """
+        return np.sum([batch["scaled_prototypes"].shape[0] for batch in self._batches if batch is not None])
 
     @staticmethod
     @abstractmethod

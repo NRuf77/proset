@@ -4,4 +4,5 @@ doc/*.gz
 proset/__pycache__/*
 proset/benchmarks/__pycache__/*
 test/.pytest_cache/*
+scripts/data/*.csv
 scripts/results/*.gz

@@ -24,8 +24,7 @@ data = load_digits()
 X = data["data"]
 y = data["target"]
 del data
-model = ClassifierModel(lambda_w=1e-5, random_state=random_state)
-# for the default lambda_w = 1e-8, the solver converges too fast to give useful profiling results
+model = ClassifierModel(random_state=random_state)
 
 print("* Profile model fit")
 profiler = Profile()

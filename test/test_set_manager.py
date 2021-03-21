@@ -74,9 +74,11 @@ class TestClassifierSetManager(TestCase):
         manager = ClassifierSetManager(target=TARGET)
         self.assertEqual(manager.num_batches, 0)
         self.assertEqual(manager.num_features, None)
+        self.assertEqual(manager.num_active_features, 0)
+        self.assertEqual(manager.num_prototypes, 0)
         np.testing.assert_allclose(manager.marginals, MARGINALS)
 
-    # method _get_baseline_distribution() already tested by the above
+    # method _get_baseline_distribution() already tested by test_init_1() above
 
     def test_add_batch_fail_1(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -291,12 +293,27 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         self.assertEqual(manager.num_batches, 1)
         self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
+        self.assertEqual(manager.num_active_features, np.sum(FEATURE_WEIGHTS > 0.0))
+        self.assertEqual(manager.num_prototypes, np.sum(PROTOTYPE_WEIGHTS > 0.0))
 
-    def test_add_batch_3(self):
+    def test_add_batch_2(self):
         manager = ClassifierSetManager(target=TARGET)
         manager.add_batch(BATCH_INFO)
         manager.add_batch(BATCH_INFO)
         self.assertEqual(manager.num_batches, 2)
+        self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
+        self.assertEqual(manager.num_active_features, np.sum(FEATURE_WEIGHTS > 0.0))
+        self.assertEqual(manager.num_prototypes, 2 * np.sum(PROTOTYPE_WEIGHTS > 0.0))
+        # the same training sample added to two different batches counts as two prototypes
+
+    def test_add_batch_3(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO_NO_PROTOTYPES)
+        self.assertEqual(manager.num_batches, 1)
+        self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
+        self.assertEqual(manager.num_active_features, 0)
+        # batch with no prototypes is counted but oes not contribute anything
+        self.assertEqual(manager.num_prototypes, 0)
 
     # method _check_batch() already tested by the above
 

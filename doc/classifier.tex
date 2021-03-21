@@ -1,7 +1,7 @@
 \chapter{Prototype set classifier}
 \label{ch_classifier}
 %
-We observe $N\gg1$ pairs $(X_n,Y_n)$ of random variables such that $X_n$ takes values in $\R^D$, $D\geq1$, and $Y_n$ is one of $K>1$ states represented by the integers from 1 to $K$.
+We observe $N\gg1$ pairs $(X_n,Y_n)$ of random variables such that $X_n$ takes values in $\R^D$, $D\geq1$, and $Y_n$ is one of $K>1$ classes represented by the integers from 1 to $K$.
 Our goal is to estimate the conditional distribution of the class $Y_n$ given features $X_n$, presuming that the $Y_n$ are independent conditional on $X_n$.
 The distribution of $X_n$ is of no concern, so that we just deal with the observed realizations $x_n\in\R^D$ for practical purposes.
 Nominal or ordinal features can be included in the model by encoding them as real vectors.\par
@@ -55,8 +55,8 @@ Conversely, a large value of $v_{b,d}$ means that the model is very sensitive to
 We limit the kernels to a diagonal bandwidth structure instead of a full semi-positive definite matrix to be able to fit on large feature spaces with reasonable effort.
 %
 \item The form of the conditional probability (\ref{eq_pkx}) resembles kernel-based estimators used in non-parameteric statistics.
-A key difference is that it includes a subset of the samples with individual weights instead of the entire sample with unit weights.
-This is done to reduce the computational effort for training and scoring if sample size is large.
+A key difference is that we use a subset of the training data with individual weights instead of the entire data with unit weights.
+This is done to reduce the computational effort for training and scoring if data size is large.
 Also, studying the prototypes selected for the model may help to understand its local structure.
 %
 \item Including the empirical probabilities in the model serves two important functions.
@@ -83,7 +83,7 @@ The $l_1$-penalty is used to suppress candidates and features with negligible im
 The method is greedy in so far that parameters selected during earlier iterations remain constant.
 Hyperparameters -- penalty weights and the number of batches -- are selected via cross-validation.\par
 %
-To state the modified likelihood and its derivatives, we make use of the following expression representing the unscaled class weights truncated at batch $c\geq0$:
+To state the modified likelihood and its derivatives, we make use of the following expression representing the unscaled class probabilities truncated at batch $c\geq0$:
 %
 \begin{equation}
 \hat{q}_{c,k}(x)=\hat{p}_{0,k}
@@ -116,10 +116,10 @@ Given the first $c-1$ batches, the parameters for batch $c>0$ are chosen to mini
 l\left(v_c,\{w_{c,j}\}_j|\{x_n\}_n\right)
 &=-\frac{1}{N}\sum_{k=1}^K\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
 \1_{\{k\}}(y_n)\log(\hat{p}_{c,k}(x_n))\label{eq_log_likelihood}\\
-&+\lambda\left(\frac{\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2
-+(1-\alpha_v)\sum_{d=1}^D|v_{c,d}|
-+\beta\left(\frac{\alpha_w}{2}\sum_{j=1}^{J_c}w_{c,j}^2
-+(1-\alpha_w)\sum_{j=1}^{J_c}|w_{c,j}|\right)\right)\notag
+&+\lambda_v\left(\frac{\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2
++(1-\alpha_v)\sum_{d=1}^D|v_{c,d}|\right)\notag\\
+&+\lambda_w\left(\frac{\alpha_w}{2}\sum_{j=1}^{J_c}w_{c,j}^2
++(1-\alpha_w)\sum_{j=1}^{J_c}|w_{c,j}|\right)\notag
 \end{align}
 %
 The following expressions still need to be defined:
@@ -132,26 +132,21 @@ is the number of all candidates in batch $c>0$ that have class $k$.
 %
 \item $T_c:=\{1,\dots,N\}\setminus S_c$ is the set of samples not included as prototypes in batch $c>0$.
 %
-\item $\lambda\geq0$ is the overall weight for the elastic net penalty.
+\item $\lambda_v\geq0$ is the weight for the elastic net penalty applied to feature weights.
 %
-\item $\alpha_v\in[0,1]$ is the portion of $\lambda$ assigned to the $l_2$ penalty for the feature weights.
+\item $\lambda_w\geq0$ is the weight for the elastic net penalty applied to prototype weights.
 %
-\item $\alpha_w\in[0,1]$ is the portion of $\beta\lambda$ assigned to the $l_2$ penalty for the prototype weights.
+\item $\alpha_v\in[0,1]$ is the portion of $\lambda_v$ assigned to the $l_2$ penalty for feature weights.
 %
-\item $\beta>0$ is importance of the prototype weights relative to the feature weights.
+\item $\alpha_w\in[0,1]$ is the portion of $\lambda_w$ assigned to the $l_2$ penalty for prototype weights.
 \end{itemize}
 %
 Given a set of prototypes $S_c$, the penalized log-likelihood (\ref{eq_log_likelihood}) is maximized subject to $v_{c,d}\geq0$ and $w_{c,j}\geq0$.
 Note that we permit $w_{c,j}=0$ as solution of the optimization problem which contradicts our earlier definition.
-However, as points with zero weight have no impact on the model and can simply be excluded, this does not cause any issues.\par
-%
-The structure of the penalty weights allows us to choose $\lambda$ via grid search in one dimension given fixed values for $\alpha_v$, $\alpha_w$, and $\beta$.
-This approach is commonly used, e.g., for generalized linear models subject to an elastic net penalty.\par
+However, since assigning zero weight to a point is equivalent to excluding it from the model, this does not cause any issues.\par
 %
 As all parameters are constrained to the first orthant, the fact that the $l_1$ penalty is not differentiable in zero does not pose a problem.
-In fact, we can simply replace the absolute value with the identity function and solve the optimization task using a standard implementation of algorithm L-BFGS-B.
-This approach does not benefit from any performance gain for exploiting sparse model structure.
-However, being able to rely on a trusted implementation of a fast solver has its own benefits.\par
+In fact, we can simply replace the absolute value with the identity function and solve the optimization task using a standard implementation of algorithm L-BFGS-B.\par
 %
 To gain the full advantage of using L-BFGS-B, we need to compute the gradient of (\ref{eq_log_likelihood}) analytically.
 The partial derivatives of $\log(\hat{p}_{c,k}(x))$, $c>0$, are:
@@ -210,6 +205,10 @@ To make the above notion more precise, let $M>0$ be the total number of prototyp
 Also, let $g_1,\dots, g_{2K}\geq0$ be the number of samples actually available in each bin which can be ordered to satisfy $g_1\leq g_2\leq\dots\leq g_{2K}$.
 To arrive at a number of samples $h_1,\dots,h_{2K}$ to draw from each bin, we use the following algorithm:
 %
+\begin{samepage}
+\begin{algorithm}[Choose number of prototpes per bin]~
+\label{alg_bins}
+%
 \begin{description}
 \item{[1]} Assign $i\leftarrow1$ and $R\leftarrow M$.
 %
@@ -221,13 +220,15 @@ To arrive at a number of samples $h_1,\dots,h_{2K}$ to draw from each bin, we us
 %
 \item{[5]} Round each $h_i$ to the closest integer number.
 \end{description}
+\end{algorithm}
+\end{samepage}
 %
 Thus, we draw the maximum number of samples from the smallest bin that has not been processed until the remaining bins are large enough to draw an equal amount from each.
 In case $\sum_{i=1}^{2K}g_i<M$,  we draw the maximum admissible number of samples from each bin.
 In case $g_i\leq\frac{M}{2K}$ for all $i$, we draw an even amount $\frac{M}{2K}$ from each bin.\par
 %
 \begin{remark}
-This choice of sampling prototypes is motivated by the desire to give equal consideration to each class, as well as to `easy wins' -- samples that are classfied correctly but could be assigned higher certainty -- and `hard cases' - samples that are not classified correctly by the current state of the model.
+This choice of sampling prototypes is motivated by the desire to give equal consideration to each class, as well as to `easy wins' -- samples that are classfied correctly but could be assigned still higher probability -- and `hard cases' -- samples that are not classified correctly by the current iteration.
 For a very unbalanced population, it may not be possible to treat the rare classes exactly equal to the frequent ones.
 However, the rare classes are still assigned greater weight in model building than their proportion in the population.\par
 %
@@ -235,7 +236,7 @@ Note also that at the start of iteration $c=1$, when the model consists only of 
 Thus, half of all bins are completely empty in this situation.
 \end{remark}
 %
-In order to identify good prototypes for every class, we need to include samples from each both among the candidates and the remainder used for scoring. Using the proposed algorithm for distribution, the following condition is necessary and sufficient:
+In order to identify good prototypes for every class, we need to include samples from each among the candidates and the remainder used for scoring. Using the proposed algorithm for distribution, the following condition is necessary and sufficient:
 %
 \begin{align}
 &\forall k\in\{1,\dots,K\}:\forall n\in\{0,\dots,N_k\}:\label{eq_min_cases}\\
@@ -264,7 +265,7 @@ where the brackets indicate rounding up.
 %
 The left-hand side implies the right-hand if we choose $n=\lceil0.5N_k\rceil$.\par
 %
-The right-hand side implies the left-hand side since for any admissible $n$, either $n$ or $N_k-n$ has to be greater or equal to $\lceil0.5N_k\rceil$.\par
+The right-hand side implies the left-hand side since for any $n$, either $n$ or $N_k-n$ has to be greater or equal to $\lceil0.5N_k\rceil$.\par
 %
 For the remaining clauses, note that $\eta n<n-0.5$ is equivalent to $(1-\eta)N>0.5$ so that we can use a similar argument to the one above.$\quad\Box$\par
 %
@@ -272,19 +273,20 @@ A check for condition (\ref{eq_min_cases_2}) is implemented in the software to e
 However, it does not guarantee that the algorithm is able to find meaningful structure in the data.
 For example, the recommended default $\eta=0.5$ requires only that $N_k\geq3$ for all $k$, which is inadequate for supervised learning.\par
 %
-Regarding the starting values for optimization, we simply initialize all $w_{c,j}$ and $v_{c,d}$ to 1.
+Regarding the starting values for optimization, we initialize all $v_{c,d}$ to $10D^{-1}$ and all $w_{c,j}$ to 1.
+The former choice assumes that the features have a scale on the order of magnitude of 1, e.g., they have been scaled to unit variance.
+Thus, setting the inverse bandwidth for a single feature to 10 means the kernels for the starting solution describe a structure that is more granular than the whole distribution.
+For multiple features, normalizing by their number ensures that the sum of squares in the exponent of (\ref{eq_kernel}) is always of a similar magnitude and the exponential function does not vanish.\par
+%
+A prototype weight of 1 is of the same order of magnitude as the marginal probabilities.
 %
 \begin{remark}
-\begin{enumerate}
-\item As the marginal probabilities serve to set the absolute scale of the prototype weights, it makes sense to initialize the latter with a value of similar magnitude.
+The optimization problem does in general have multiple stationary points, including the trivial solution where all weights are equal to zero.
+Provided the features are scaled, the proposed starting value for the feature weights appears to work well in practice.
+I.e., it usually leads to a choice of prototypes that improve the predictive abilities of the model.\par
 %
-\item The feature weights need to be inversely proportional to the scale of the corresponding features.
-Thus, we also require that the features are normalized to an order of magnitude near 1.
-This is satisified by most common normalizing transforms, e.g., scaling with the standard deviation for continuous features.
-Note that elastic net regularization also requires the features to be on a similar scale to each other as the size of the penalty depends on the scale of the partial derivatives.
-\end{enumerate}
+Scaling the features is also recommended for a different reason.
+The size of the elastic net penalty can only be interpreted relative to the scale of the partial derivatives.
+Thus, to penalize all features equally, they need to be equally scaled.
 \end{remark}
-
-
-
 \endinput

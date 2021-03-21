@@ -739,6 +739,48 @@ class TestClassifierObjective(TestCase):
             ref_feature_gradient_1 + ref_feature_gradient_2, ref_prototype_gradient_1 + ref_prototype_gradient_2
         ]))
 
+    def test_evaluate_2(self):
+        objective = ClassifierObjective(
+            features=FEATURES,
+            target=TARGET,
+            weights=WEIGHTS,
+            num_candidates=NUM_CANDIDATES,
+            max_fraction=MAX_FRACTION,
+            set_manager=MockSetManager(),
+            lambda_v=LAMBDA_V,
+            lambda_w=LAMBDA_W,
+            alpha_v=ALPHA_V,
+            alpha_w=ALPHA_W,
+            random_state=RANDOM_STATE
+        )
+        dimensions = objective._sample_data["cand_features"].shape
+        parameter = np.zeros(dimensions[1] + dimensions[0])
+        # test that penalties are correctly applied even if optimization for sparseness is in effect
+        value, gradient = objective.evaluate(parameter)
+        ref_value_1, ref_feature_gradient_1, ref_prototype_gradient_1 = objective._evaluate_penalty(
+            feature_weights=parameter[:dimensions[1]],
+            prototype_weights=parameter[dimensions[1]:],
+            lambda_v=LAMBDA_V,
+            lambda_w=LAMBDA_W,
+            alpha_v=ALPHA_V,
+            alpha_w=ALPHA_W
+        )
+        similarity = objective._compute_similarity(
+            feature_weights=parameter[:dimensions[1]],
+            sample_data=objective._sample_data
+        )
+        ref_value_2, ref_feature_gradient_2, ref_prototype_gradient_2 = objective._evaluate_likelihood(
+            feature_weights=parameter[:dimensions[1]],
+            prototype_weights=parameter[dimensions[1]:],
+            sample_data=objective._sample_data,
+            similarity=similarity,
+            meta=objective._meta
+        )
+        self.assertAlmostEqual(value, ref_value_1 + ref_value_2)
+        np.testing.assert_allclose(gradient, np.hstack([
+            LAMBDA_V * (1.0 - ALPHA_V) * np.ones(dimensions[0]), ref_prototype_gradient_1 + ref_prototype_gradient_2
+        ]))
+
     # method _check_evaluate_parameter() not tested as it deals with logging only
 
     def test_verify_sparseness_1(self):

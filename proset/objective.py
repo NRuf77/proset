@@ -24,7 +24,7 @@ LOG_MESSAGE = "  ".join(["{:>10s}", "{:10d}", "{:10d}"])
 
 START_FEATURE_WEIGHT = 10.0  # this is divided by the number of features
 START_PROTOTYPE_WEIGHT = 1.0
-SPARSE_THRESHOLD_FEATURES = 0.75
+SPARSE_THRESHOLD_FEATURES = 0.7
 # exploit sparse structure if the fraction of feature weights that are non-zero is at most equal to this value
 
 
@@ -349,9 +349,7 @@ class Objective(metaclass=ABCMeta):
         :return: a float value and a 1D numpy float array; function value and gradient
         """
         parameter = self._check_evaluate_parameter(parameter, self._meta)
-        feature_weights, active_features = self._verify_sparseness(
-            parameter=parameter[:self._meta["num_features"]], sparse_threshold=SPARSE_THRESHOLD_FEATURES
-        )
+        feature_weights = parameter[:self._meta["num_features"]]
         prototype_weights = parameter[self._meta["num_features"]:]
         penalty_value, feature_penalty_gradient, prototype_penalty_gradient = self._evaluate_penalty(
             feature_weights=feature_weights,
@@ -360,6 +358,10 @@ class Objective(metaclass=ABCMeta):
             lambda_w=self._lambda_w,
             alpha_v=self._alpha_v,
             alpha_w=self._alpha_w
+        )
+        feature_weights, active_features = self._verify_sparseness(
+            parameter=feature_weights,
+            sparse_threshold=SPARSE_THRESHOLD_FEATURES
         )
         sample_data, self._sample_cache = self._shrink_sample_data(
             sample_data=self._sample_data,
@@ -376,8 +378,10 @@ class Objective(metaclass=ABCMeta):
         )
         return nll_value + penalty_value, np.hstack([
             self._expand_gradient(
-                feature_gradient + feature_penalty_gradient, active_features, self._meta["num_features"]
-            ),
+                gradient=feature_gradient,
+                active_parameters=active_features,
+                num_parameters=self._meta["num_features"]
+            ) + feature_penalty_gradient,
             prototype_gradient + prototype_penalty_gradient
         ])
 

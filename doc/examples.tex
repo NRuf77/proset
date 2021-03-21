@@ -1,5 +1,553 @@
-\chapter{Examples}
+\chapter{Fit strategy with examples}
 \label{ch_examples}
 %
-
+\section{Fit strategy}
+\label{sec_fit_strategy}
+%
+Fitting a proset model is controlled by seven hyperparameters:
+%
+\begin{itemize}
+\item The number of batches $B$.
+%
+\item The number $M$ of candidates for prototypes evaluated per batch.
+%
+\item The maximum fraction $\eta$ of candidates drawn from one bin (see Algorithm \ref{alg_bins}).
+%
+\item The penalty term $\lambda_v$ for the feature weights.
+%
+\item The penalty term $\lambda_w$ for the prototype weights.
+%
+\item The ratio $\alpha_v$ of $\lambda_v$ assigned as $l_2$ penalty term.
+%
+\item The ratio $\alpha_w$ of $\lambda_w$ assigned as $l_2$ penalty term.
+\end{itemize}
+%
+One goal of the case studies in this section is to identify good default values and indicate which parameters are be worthwhile to tune.
+Some of the key findings are summarized here:
+%
+\begin{enumerate}
+\item Fitting a few large batches is preferrable to many smaller ones.
+The first batch has the largest impact on the model score and a large first batch results in a better overall score.
+We believe the reason for this is that model quality depends on finding good constellations of prototypes, not just individual prototypes.
+Suitable constellations are more likely to occur in larger batches.\par
+%
+Adding too many batches to a model leads to saturation, not overfitting.
+The number of prototypes chosen per batch decreases, possibly down to zero.
+The corresponding model scores fluctuate slightly around a common level.
+Thus, using a small number of batches is mostly a question of reducing computational effort.\par
+%
+We recommend $M=1,000$ candidates per batch and a single batch ($B=1$) as default.
+If optimizing with respect to the number of batches, $B=10$ is a reasonable upper limit.
+%
+\item If the number of samples in a bin is too small for drawing the desired number of candidates, a reasonable compromise is to use half of the samples as candidates and the others as reference points for computing the likelihood.
+Thus, we fix $\eta=0.5$.
+%
+\item The penalty $\lambda_v$ for the feature weights controls the smoothness of the model.
+It is the main safeguard against overfitting.\par
+%
+In the case study for the classifier, good values lie in the range from $10^{-6}$ to $10^{-1}$.
+Choosing $10^{-3}$ as default works for all cases.
+However, if an experimenter wants to tune only one parameter, it should be $\lambda_v$.
+%
+\item The penalty $\lambda_w$ for the prototype weights controls how much weight can be assigned to a single prototype.
+We observe that increasing $\lambda_w$ within a certain range can actually lead to more candidate points being included in the model with non-zero weight.
+Further increases gradually lead to underfitting.
+However, reducing $\lambda_w$ does not lead to appreciable overfitting.
+It appears that values below a certain threshold mostly control the preference for few prototypes with large weights versus more prototypes with smaller weights.
+Above the threshold, the predicted distribution is shrunk towards the marginal probabilities.
+This is desirable to some degree for avoiding overfitting.\par
+%
+In the case study for the classifier, good values lie in the range from $10^{-9}$ to $10^{-4}$.
+Choosing $10^{-8}$ as default works for all cases.
+%
+\item If the $l_2$-penalty is dominant ($\alpha_v$ and $\alpha_w$ close to 1.0), the fitting procedure tends to select slightly more features and produce slightly better model scores than if the $l_1$-penalty is dominant ($\alpha_v$ and $\alpha_w$ close to 0.0).
+While this can be seen as a matter of taste, we recommend giving a larger impact to the $l_2$-penalty.
+This is because we have observed unstable behavior using a dominant $l_1$-penalty for small sample sizes.
+If the model is re-fitted on the entire training data after cross-validation, the final model may underfit.
+Too few features are included with a corresponding decrease in model quality.
+The likely cause is the random candidate selection, which may result in less suitable constellations of points if sample size is small.\par
+%
+The default values used by the algorithm are $\alpha_v=\alpha_w=0.95$.
+\end{enumerate}
+%
+The case study uses the following procedure for parameter search:
+%
+\begin{algorithm}[Hyperparameter selection]~
+\label{alg_hyperparameters}
+\begin{enumerate}
+\item Choose $M$, $\eta$, $\alpha_v$, and $\alpha_w$ based on the above recommendations.
+Choose a range for $\lambda_v$, a range for $\lambda_w$, and a set of candidates for $B$ (e.g., the numbers from 0 to 10).
+%
+\item Split the data into a training set (70 \%) and test set (30 \%), stratified by class in case of classification.
+%
+\item\textbf{Stage 1}
+%
+\begin{enumerate}
+\item Randomly generate 50 pairs $(\lambda_v,\lambda_w)$.
+Each $\lambda$ is sampled uniformly on the log-scale from the chosen range.
+%
+\item Perform 5-fold cross-validation on the training set using $B=1$.
+%
+\item Compute the mean and standard deviation of log-loss per pair over the left-out folds.
+%
+\item Determine a threshold for model quality by taking the minimal mean log-loss and adding the corresponding standard deviation.
+%
+\item Among all pairs whose mean log-loss is less than or equal to the threshold, choose the one maximizing the geometric mean $\sqrt{\lambda_v\lambda_w}$.
+\end{enumerate}
+%
+\item\textbf{Stage 2}
+\begin{enumerate}
+\item Perform 5-fold cross-validation on the training set using the parameters from stage 1 and the maximal number of batches.
+%
+\item For each candidate value of $B$, evaluate the models on the left-out fold and compute mean and standard deviation of log-loss.
+%
+\item Determine a threshold for model quality by taking the minimal mean log-loss and adding the corresponding standard deviation.
+%
+\item Among all candidates whose mean log-loss is less than or equal to the threshold, choose the smallest $B$.
+\end{enumerate}
+%
+\item Refit the model with parameters selected in stages 1 and 2 on all training data.
+%
+\item Score the final model on the test data.
+\end{enumerate}
+\end{algorithm}
+%
+The purpose of stage 1 is to identify good values for the most important parameters $\lambda_v$ and $\lambda_w$.
+Based on the observation that the first batch has the most impact, we fix $B=1$ during this stage to save computation time.
+Controlling $B$ can be treated as a secondary concern, since it appears to be impossible to overfit by increasing $B$.
+It is still necessary to test larger values as more complex problems may be underfitted with $B=1$.\par
+%
+Note that stage 2 only fits five models up to the maximum number of batches, but these can be evaluated also for smaller values of $B$.
+This introduces a dependency between the means and standard deviations as estimates reuse the same initial batches.
+However, as keeping $B$ small is a secondary concern, we consider this time-saving approach acceptable.\par
+%
+The `one standard error rule' for replacing the optimal value found via cross-validation by a sparser solution of similar quality is a recommendation from R package \texttt{glmnet} \cite{Friedman_10}.
+The authors observe that the maximizer from cross-validation tends to slightly overfit the cross-validation sample, which is mitigated by the rule.
+%
+\section{Classification}
+\label{sec_classification}
+%
+In this section, we consider how to choose hyperparameters for the proset classifier and compare the results to those obtainable for other machine learning models.
+%
+\subsection{Fitting the proset classifier}
+\label{sec_fit_classifier}
+%
+For the parameter study, we use four small data sets provided as `toy examples' by Python package \texttt{sklearn} \cite{Pedregosa_11}, plus two slightly larger artificial data sets:
+%
+\begin{enumerate}
+\item\textbf{Iris 2f:} this data set consists of the first two features of Fisher's famous iris data set \cite{Fisher_36}.
+We limit the analysis to two of four features (sepal length and width) as this allows us to visualize the decision surface of the classifer as a 2d plot.
+The data set comprises 150 samples for three species of iris flower, with 50 samples per class.
+One class is linearly separable from the others, but measurements for the remaining two overlap.
+%
+\item\textbf{Wine:} this data set available from the  UCI Machine Learning Repository \cite{Dua_19} consists of chemical analysis data for wines from three different cultivators.
+It consists of 178 samples with between 48 and 71 samples per class.
+The data is known to be separable \cite{Aeberhard_92}.
+%
+\item\textbf{Cancer:} this data set available from the UCI Machine Learning Repository \cite{Dua_19} consists of medical analysis data from breast tissue samples.
+The 569 samples are classified as either malignant (212 samples) or benign (357 samples).
+%
+\item\textbf{Digits:} this data set available from the UCI Machine Learning Repository \cite{Dua_19} consists of monochrome images of handwritten digits downsampled to an eight-by-eight grid.
+The 1,797 samples are approximately balanced among the 10 digits.
+%
+\item\textbf{Checker:} for this artificial data set, we sample two features uniformly on the unit square and assign class labels deterministically to create an eight-by-eight checkerboard.
+The pattern defeats methods that rely on global properties of the data like correlation, e.g., logistic regression.
+It can be recovered successfully by methods that model local structure, e.g., a k-nearest neighbour classifier or decision tree.
+The total number of samples is 6,400, so each square of the pattern contains approximately 100 data points.
+%
+\item\textbf{XOR 6f:} for this artifial data set, we sample six features independently and uniformly on the interval $[-1.0, 1.0]$.
+The class label is assigned deterministically based on the sign of the product of features: a positve (or zero) sign is class 1, a negative sign is class 0.
+This is similar to the `continuous XOR' problem found in the \texttt{mlbench} library for R \cite{Leisch_21}, except that we only distinguish two classes.
+Despite being deterministic, this problem appears to be a hard even for classifiers that model local structure.
+The total number of samples is 6,400, so each orthant of the feature space contains approximately 100 data points.
+\end{enumerate}
+%
+The first three experiments in this section consider the impact of $\alpha_v$ and $\alpha_w$ on model behavior.
+Proset classifiers are fitted to all six data sets with fixed $M=1,000$ and $\eta=0.5$.
+Penalty weights are sampled from the ranges $\lambda_v\in(10^{-6},10^{-1})$ and $\lambda_w\in(10^{-9},10^{-4})$, while the number of batches is allowed to vary between 0 and 10.
+The first experiment uses a dominant $l_1$-penalty ($\alpha_v=\alpha_w=0.05$), the second uses balanced penalties ($\alpha_v=\alpha_w=0.50$), and the third a dominant $l_2$-penalty ($\alpha_v=\alpha_w=0.95$).
+Results are shown in tables \ref{tab_e1}, \ref{tab_e2}, and \ref{tab_e3}.
+A comparison of the first six experiments is found in table \ref{tab_e1_to_e6}.\par
+%
+The tables describing individual experiments each list the following information:
+%
+\begin{description}
+\item[Data:] the number of classes, as well as the size of the whole data set and train-test split.
+%
+\item[Candidates:] the approximate number of candidates for prototypes that are actually used.
+While $M=1,000$ candidates are specified for each model, the effective maximum for small data sets is 28 \% of the available samples (training data is 70 \% of all samples, 5-fold cross-validation leaves 80 \% of training data for model building, $\eta=0.5$ allows at most 50 \% of data in one bin to be used as prototypes).
+%
+\item[Stage 1:] results for selecting $\lambda_v$ and $\lambda_w$ using a single batch.
+Lists the optimal and chosen parameters according to the `one standard error rule' (see algorithm \ref{alg_hyperparameters}), together with the achieved mean log-loss from cross-validation.
+The given threshold is the sum of the lowest mean log-loss and the corresponding standard deviation.
+%
+\item[Stage 2:] results for selecting the $B$ using the penalty weights chosen in stage 1.
+%
+\item[Final model:] information about the final model fitted on all training data with parameters determined in stages 1 and 2.
+The number of features and prototypes, as well as the scores achieved for the test data.
+Apart from log-loss, the measures used for evaluation are ROC-AUC and balanced accuracy.\par
+%
+For multi-class problems, the stated ROC-AUC values is the unweighted average for all pairwise comparisons of two classes.
+This generalisation to more than two classes is recommended in \cite{Hand_01} as being robust to class imbalance.\par
+%
+To compute balanced accuracy, we use the `naive' rule that assigns each sample the class label with the highest predicted probability.
+The reported score is the unweighted average of the correct classification rates for each class.
+\end{description}
+%
+\begin{table}
+\caption{[E1] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}
+\label{tab_e1}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim40$&$\sim50$&$\sim160$&$\sim500$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$2.5\times10^{-2}$&$6.7\times10^{-6}$&$5.1\times10^{-6}$&$5.6\times10^{-5}$&$1.5\times10^{-3}$&$8.2\times10^{-3}$\\
+Selected $\lambda_v$&$5.1\times10^{-2}$&$7.9\times10^{-3}$&$2.9\times10^{-2}$&$1.9\times10^{-3}$&$3.5\times10^{-3}$&$6.0\times10^{-3}$\\
+Optimal $\lambda_w$&$3.9\times10^{-5}$&$1.1\times10^{-9}$&$7.0\times10^{-8}$&$2.9\times10^{-9}$&$5.9\times10^{-9}$&$1.4\times10^{-7}$\\
+Selected $\lambda_w$&$4.5\times10^{-5}$&$4.6\times10^{-6}$&$7.1\times10^{-5}$&$4.8\times10^{-8}$&$3.9\times10^{-7}$&$2.3\times10^{-6}$\\
+Optimal log-loss&0.49&0.11&0.12&0.16&0.17&0.53\\
+Threshold&0.65&0.18&0.18&0.19&0.19&0.54\\
+Selected log-loss&0.56&0.16&0.14&0.19&0.19&0.54\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&2&2&4&5&1&5\\
+Selected batches&2&2&1&1&1&2\\
+Optimal log-loss&0.49&0.10&0.13&0.19&0.19&0.53\\
+Threshold&0.57&0.18&0.20&0.24&0.20&0.55\\
+Selected log-loss&0.49&0.10&0.14&0.20&0.19&0.53\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&1&6&1&18&2&6\\
+Prototypes&14&93&22&525&288&415\\
+Log-loss&0.62&0.10&0.31&0.15&0.17&0.52\\
+ROC-AUC&0.90&1.00&0.94&1.00&0.99&0.82\\
+Balanced acc.&0.80&0.96&0.87&0.97&0.95&0.73\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E2] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.50$)}
+\label{tab_e2}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim40$&$\sim50$&$\sim160$&$\sim500$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$1.8\times10^{-4}$&$6.7\times10^{-6}$&$6.7\times10^{-3}$&$5.6\times10^{-5}$&$2.6\times10^{-5}$&$8.2\times10^{-3}$\\
+Selected $\lambda_v$&$1.0\times10^{-2}$&$3.5\times10^{-2}$&$2.9\times10^{-2}$&$7.3\times10^{-3}$&$3.8\times10^{-4}$&$8.2\times10^{-3}$\\
+Optimal $\lambda_w$&$1.1\times10^{-8}$&$1.1\times10^{-9}$&$2.7\times10^{-7}$&$2.9\times10^{-9}$&$3.6\times10^{-9}$&$1.4\times10^{-7}$\\
+Selected $\lambda_w$&$6.5\times10^{-6}$&$3.4\times10^{-6}$&$7.1\times10^{-5}$&$8.6\times10^{-9}$&$1.4\times10^{-7}$&$1.4\times10^{-7}$\\
+Optimal log-loss&0.52&0.10&0.11&0.17&0.18&0.54\\
+Threshold&0.71&0.17&0.15&0.19&0.19&0.54\\
+Selected log-loss&0.60&0.16&0.14&0.19&0.19&0.54\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&7&8&9&5&1&1\\
+Selected batches&1&1&1&1&1&1\\
+Optimal log-loss&0.50&0.17&0.14&0.20&0.19&0.55\\
+Threshold&0.58&0.25&0.20&0.23&0.20&0.56\\
+Selected log-loss&0.54&0.18&0.14&0.21&0.19&0.55\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&3&2&17&2&6\\
+Prototypes&20&17&47&495&382&407\\
+Log-loss&0.46&0.12&0.16&0.14&0.18&0.51\\
+ROC-AUC&0.91&1.00&0.98&1.00&0.99&0.83\\
+Balanced acc.&0.77&0.96&0.91&0.97&0.94&0.74\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E3] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}
+\label{tab_e3}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim40$&$\sim50$&$\sim160$&$\sim500$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$1.8\times10^{-4}$&$6.7\times10^{-6}$&$6.7\times10^{-3}$&$1.3\times10^{-5}$&$2.6\times10^{-5}$&$7.1\times10^{-3}$\\
+Selected $\lambda_v$&$1.0\times10^{-2}$&$3.5\times10^{-2}$&$2.9\times10^{-2}$&$7.3\times10^{-3}$&$5.6\times10^{-5}$&$8.2\times10^{-3}$\\
+Optimal $\lambda_w$&$1.1\times10^{-8}$&$1.1\times10^{-9}$&$2.7\times10^{-7}$&$2.5\times10^{-9}$&$3.6\times10^{-9}$&$7.0\times10^{-9}$\\
+Selected $\lambda_w$&$6.5\times10^{-6}$&$3.4\times10^{-6}$&$7.1\times10^{-5}$&$8.6\times10^{-9}$&$1.7\times10^{-8}$&$1.4\times10^{-7}$\\
+Optimal log-loss&0.51&0.10&0.10&0.18&0.18&0.53\\
+Threshold&0.69&0.17&0.14&0.21&0.19&0.54\\
+Selected log-loss&0.54&0.14&0.13&0.19&0.19&0.54\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&8&3&7&3&4&1\\
+Selected batches&1&1&1&1&2&1\\
+Optimal log-loss&0.48&0.16&0.14&0.19&0.17&0.55\\
+Threshold&0.58&0.24&0.19&0.22&0.18&0.56\\
+Selected log-loss&0.52&0.17&0.14&0.20&0.17&0.55\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&4&4&18&2&6\\
+Prototypes&23&23&49&533&954&392\\
+Log-loss&0.45&0.10&0.16&0.15&0.16&0.52\\
+ROC-AUC&0.91&1.00&0.99&1.00&0.99&0.83\\
+Balanced acc.&0.79&1.00&0.92&0.97&0.94&0.74\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+In the experiments, a dominant $l_1$-penalty give slightly worse results than balanced penalties or a dominant $l_2$-penalty.
+In particular, for the iris and cancer data sets, the final models underfit with only one feature each and log-loss worse than the threshold for stage 2.
+We believe that this is due to the random selection of candidates for prototypes.
+If sample size is small, penalties that work well during cross-validation can apparently be too severe, even though the final model is fitted to the entire training data.
+For this reason, we recommend using $\alpha_v=\alpha_w=0.95$ as default values.\par
+%
+\begin{table}
+\caption{[E4] Use optimal hyperparameters ($\alpha_v=\alpha_w=0.95$)}
+\label{tab_e4}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim40$&$\sim50$&$\sim160$&$\sim500$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$1.8\times10^{-4}$&$6.7\times10^{-6}$&$6.7\times10^{-3}$&$1.3\times10^{-5}$&$2.6\times10^{-5}$&$7.1\times10^{-3}$\\
+Optimal $\lambda_w$&$1.1\times10^{-8}$&$1.1\times10^{-9}$&$2.7\times10^{-7}$&$2.5\times10^{-9}$&$3.6\times10^{-9}$&$7.0\times10^{-9}$\\
+Optimal log-loss&0.51&0.10&0.10&0.18&0.18&0.53\\
+Threshold&0.69&0.17&0.14&0.21&0.19&0.54\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&10&10&2&2&8&1\\
+Optimal log-loss&0.55&0.17&0.10&0.17&0.17&0.55\\
+Threshold&0.64&0.30&0.15&0.19&0.18&0.56\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&13&6&27&2&6\\
+Prototypes&265&530&131&952&1,484&423\\
+Log-loss&0.45&0.07&0.09&0.14&0.15&0.51\\
+ROC-AUC&0.90&1.00&1.00&1.00&0.99&0.83\\
+Balanced acc.&0.72&0.96&0.96&0.98&0.94&0.73\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The fourth experiment shows the effect of using the optimal parameters from cross-validation instead of the equivalent sparser solution (see table \ref{tab_e4}).
+The models do actually outperform those of the first three experiments slightly.
+However, plotting the decision surface of the iris classifier for the third and fourth experiment reveals that using the optimum does still overfit.
+The microstructure is too granular and the behavior in regions of the feature space with no data appears random.
+We thus recommend using the `one standard error rule', although the model metrics do not suggest that this is absolutely necessary.\par
+%
+\begin{table}
+\caption{[E5] Grid search for $\lambda_v$ ($\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.95$)}
+\label{tab_e5}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim40$&$\sim50$&$\sim160$&$\sim500$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$1.0\times10^{-5}$&$1.0\times10^{-1}$&$1.0\times10^{-2}$&$3.2\times10^{-3}$&$3.2\times10^{-4}$&$1.0\times10^{-2}$\\
+Selected $\lambda_v$&$1.0\times10^{-2}$&$1.0\times10^{-1}$&$3.2\times10^{-2}$&$3.2\times10^{-2}$&$3.2\times10^{-4}$&$1.0\times10^{-2}$\\
+Optimal log-loss&0.56&0.16&0.10&0.19&0.17&0.52\\
+Threshold&0.66&0.25&0.12&0.23&0.19&0.54\\
+Selected log-loss&0.58&0.16&0.12&0.22&0.17&0.52\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&2&1&3&1&1&1\\
+Selected batches&1&1&1&1&1&1\\
+Optimal log-loss&0.50&0.16&0.11&0.22&0.18&0.53\\
+Threshold&0.63&0.21&0.14&0.25&0.19&0.54\\
+Selected log-loss&0.53&0.16&0.11&0.22&0.18&0.53\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&5&3&18&2&6\\
+Prototypes&20&10&45&416&347&364\\
+Log-loss&0.45&0.13&0.10&0.19&0.17&0.51\\
+ROC-AUC&0.89&1.00&1.00&1.00&0.99&0.84\\
+Balanced acc.&0.73&0.96&0.97&0.96&0.94&0.75\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The fifth experiment shows what happens if we fix $\lambda_w$ and perform cross-validation only with respect to $\lambda_v$ and $B$.
+Based on the previous experiments, $\lambda_w=10^{-8}$ appears to be a suitable choice.
+As stage 1 now deals with a single parameter, we replace the random search with a grid search using 11 points equidistantly spaced on the log-scale.
+The results in table \ref{tab_e5} show that fixing the penalty on prototype weights has no meaningful impact on model quality.
+Therefore, $\lambda_w=10^{-8}$ is the recommended default for the proset classifier.\par
+%
+\begin{table}
+\caption{[E6] Stage 2 only ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}
+\label{tab_e6}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim40$&$\sim50$&$\sim160$&$\sim500$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&9&4&5&8&1&10\\
+Selected batches&1&2&1&2&1&5\\
+Optimal log-loss&0.51&0.14&0.10&0.15&0.20&0.51\\
+Threshold&0.61&0.19&0.17&0.18&0.21&0.52\\
+Selected log-loss&0.56&0.15&0.13&0.16&0.20&0.52\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&9&6&32&2&6\\
+Prototypes&32&73&106&829&247&1,473\\
+Log-loss&0.69&0.07&0.10&0.14&0.19&0.48\\
+ROC-AUC&0.85&1.00&0.99&1.00&0.99&0.85\\
+Balanced acc.&0.64&0.98&0.97&0.97&0.95&0.75\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The sixth experiment considers fixing both $\lambda_w$ and $\lambda_v$ (see table \ref{tab_e6}).
+The former is again set to $\lambda_w=10^{-8}$, the latter to $\lambda_w=10^{-3}$, which is close to the parameters selected in previous experiments.
+Here, we observe a worsening of the score for the iris data set, but the remaining scores are comparable to or even better than those from the full parameter search.
+Based on this finding, we recommend $\lambda_w=10^{-3}$ as default for the classifier.\par
+%
+\begin{table}
+\caption{[E1--E6]Comparison of results (best log-loss bold)}
+\label{tab_e1_to_e6}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{[E1] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}}\\
+Active features&1&6&1&18&2&6\\
+Prototypes&14&93&22&525&288&415\\
+Log-loss&0.62&0.10&0.31&0.15&0.17&0.52\\
+Threshold stage 2&0.57&0.18&0.20&0.24&0.20&0.55\\
+ROC-AUC&0.90&1.00&0.94&1.00&0.99&0.82\\
+Balanced acc.&0.80&0.96&0.87&0.97&0.95&0.73\\
+\multicolumn{7}{|l|}{\textbf{[E2] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.50$)}}\\
+Active features&2&3&2&17&2&6\\
+Prototypes&20&17&47&495&382&407\\
+Log-loss&0.46&0.12&0.16&\textbf{0.14}&0.18&0.51\\
+Threshold stage 2&0.58&0.25&0.20&0.23&0.20&0.56\\
+ROC-AUC&0.91&1.00&0.98&1.00&0.99&0.83\\
+Balanced acc.&0.77&0.96&0.91&0.97&0.94&0.74\\
+\multicolumn{7}{|l|}{\textbf{[E3] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&4&4&18&2&6\\
+Prototypes&23&23&49&533&954&392\\
+Log-loss&\textbf{0.45}&0.10&0.16&0.15&0.16&0.52\\
+Threshold stage 2&0.58&0.24&0.19&0.22&0.18&0.56\\
+ROC-AUC&0.91&1.00&0.99&1.00&0.99&0.83\\
+Balanced acc.&0.79&1.00&0.92&0.97&0.94&0.74\\
+\multicolumn{7}{|l|}{\textbf{[E4] Use optimal hyperparameters ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&13&6&27&2&6\\
+Prototypes&265&530&131&952&1,484&423\\
+Log-loss&\textbf{0.45}&\textbf{0.07}&\textbf{0.09}&\textbf{0.14}&\textbf{0.15}&0.51\\
+Threshold stage 2&0.64&0.30&0.15&0.19&0.18&0.56\\
+ROC-AUC&0.90&1.00&1.00&1.00&0.99&0.83\\
+Balanced acc.&0.72&0.96&0.96&0.98&0.94&0.73\\
+\multicolumn{7}{|l|}{\textbf{[E5] Grid search for $\lambda_v$ ($\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&5&3&18&2&6\\
+Prototypes&20&10&45&416&347&364\\
+Log-loss&\textbf{0.45}&0.13&0.10&0.19&0.17&0.51\\
+Threshold stage 2&0.63&0.21&0.14&0.25&0.19&0.54\\
+ROC-AUC&0.89&1.00&1.00&1.00&0.99&0.84\\
+Balanced acc.&0.73&0.96&0.97&0.96&0.94&0.75\\
+\multicolumn{7}{|l|}{\textbf{[E6] Stage 2 only  ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&9&6&32&2&6\\
+Prototypes&32&73&106&829&247&1,473\\
+Log-loss&0.69&\textbf{0.07}&0.10&\textbf{0.14}&0.19&\textbf{0.48}\\
+Threshold stage 2&0.61&0.19&0.17&0.18&0.21&0.52\\
+ROC-AUC&0.85&1.00&0.99&1.00&0.99&0.85\\
+Balanced acc.&0.64&0.98&0.97&0.97&0.95&0.75\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E7] Stage 2, vary candidates ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}
+\label{tab_e7}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Checker}&\textbf{Checker}&\textbf{Checker}&\textbf{XOR 6f}&\textbf{XOR 6f}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2&2\\
+Features&2&2&2&6&6&6\\
+Samples&6,400&6,400&6,400&6,400&6,400&6,400\\
+Train samples&4,480&4,480&4,480&4,480&4,480&4,480\\
+Test samples&1,920&1,920&1,920&1,920&1,920&1,920\\
+\textbf{Candidates}&100&300&1,500&100&300&1,500\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&6&8&1&10&8&10\\
+Selected batches&2&1&1&7&4&7\\
+Optimal log-loss&0.42&0.29&0.20&0.58&0.55&0.51\\
+Threshold&0.44&0.31&0.20&0.59&0.56&0.51\\
+Selected log-loss&0.43&0.29&0.20&0.59&0.56&0.51\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&2&2&6&6&6\\
+Prototypes&117&140&316&389&593&2,884\\
+Log-loss&0.39&0.30&0.18&0.57&0.53&0.48\\
+ROC-AUC&0.94&0.96&0.99&0.77&0.81&0.85\\
+Balanced acc.&0.86&0.88&0.95&0.69&0.73&0.76\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The final experiment shows the impact of different batch sizes $M$ (see table \ref{tab_e7}).
+It deals only with the checkerboard and XOR data, as the maximum batch size for the first four data sets is limited by their small sample size.
+For each of the two large data sets, we try using 100, 300, and 1,500 samples instead of the default $M=1,000$.
+The model metrics for 100 and 300 samples are worse than before, while the results for 1,500 candidates are comparable.
+Clearly, there is an advantage to using large batches as long as the sample size permits.
 \endinput

@@ -8,6 +8,7 @@ selection at log level INFO. The invoking application needs to manage log output
 """
 
 from copy import deepcopy
+from enum import Enum
 from functools import partial
 import logging
 from multiprocessing import Pool
@@ -26,7 +27,6 @@ logger.addHandler(logging.NullHandler())
 
 
 MAX_SEED = 1e6
-STAGE_1_PERCENTILE = 90  # part of the rule for selecting penalty weights in stage 1
 BRIGHT_COLORS = (
     np.array([1.0, 0.2, 0.2]),
     np.array([0.2, 1.0, 0.2]),
@@ -37,6 +37,17 @@ DARK_COLORS = (
     np.array([0.0, 0.8, 0.0]),
     np.array([0.0, 0.0, 0.8])
 )
+
+
+class FitMode(Enum):
+    """Keep track of which penalty weights are subject to optimization.
+
+    Admissible values are BOTH, LAMBDA_V, LAMBDA_W, and NEITHER.
+    """
+    BOTH = 0
+    LAMBDA_V = 1
+    LAMBDA_W = 2
+    NEITHER = 3
 
 
 def select_hyperparameters(
@@ -55,6 +66,10 @@ def select_hyperparameters(
 ):
     """Select hyperparameters for proset model via cross-validation.
 
+    Note: stage 1 uses randomized search in case that a range is given for both lambda_v and lambda_w, sampling values
+    uniformly on the log scale. If only one parameter is to be varied, grid search is used instead with values that are
+    equidistant on the log scale.
+
     :param model: an instance of a proset model
     :param features: 2D numpy float array; feature matrix; sparse matrices or infinite/missing values not supported
     :param target: list-like object; target for supervised learning
@@ -64,9 +79,9 @@ def select_hyperparameters(
         normalize features
     :param lambda_v_range: non-negative float, tuple of two non-negative floats, or None; a single value is used as
         penalty for feature weights in all model fits; if a tuple is given, the first value must be strictly less than
-        the second and penalties are sampled from the range uniformly on the log scale; pass None to use (1e-6, 1e-1)
+        the second and penalties are taken from this range; pass None to use (1e-6, 1e-1)
     :param lambda_w_range: as lambda_v_range above but for the prototype weights and default (1e-9, 1e-4)
-    :param stage_1_trials: positive integer; number of randomized penalty combinations to try in stage 1 of fitting
+    :param stage_1_trials: positive integer; number of penalty combinations to try in stage 1 of fitting
     :param num_batch_grid: 1D numpy array of non-negative integers or None; batch numbers to try in stage 2 of fitting;
         pass None to use np.linspace(0, 11)
     :param num_folds: integer greater than 1; number of cross-validation folds to use
@@ -84,7 +99,7 @@ def select_hyperparameters(
         - 'stage_2': dict with information on parameter search for number of batches
     """
     logger.info("Start hyperparameter selection")
-    settings = process_select_settings(
+    settings = _process_select_settings(
         model=model,
         transform=transform,
         lambda_v_range=lambda_v_range,
@@ -95,25 +110,33 @@ def select_hyperparameters(
         num_jobs=num_jobs,
         random_state=random_state
     )
-    logger.info("Execute search stage 1 for penalty weights")
-    stage_1 = _execute_stage_1(settings=settings, features=features, target=target, weights=weights)
-    logger.info("Execute search stage 2 for number of batches")
+    if settings["fit_mode"] != FitMode.NEITHER:
+        logger.info("Execute search stage 1 for penalty weights")
+        stage_1 = _execute_stage_1(settings=settings, features=features, target=target, weights=weights)
+    else:
+        logger.info("Skip stage 1, penalty weights are fixed")
+        stage_1 = _fake_stage_1(settings["lambda_v_range"], settings["lambda_w_range"])
     settings["model"].set_params(**{
         settings["prefix"] + "lambda_v": stage_1["lambda_grid"][stage_1["selected_index"], 0],
         settings["prefix"] + "lambda_w": stage_1["lambda_grid"][stage_1["selected_index"], 1]
     })
-    stage_2 = _execute_stage_2(settings=settings, features=features, target=target, weights=weights)
-    logger.info("Fit final model with selected parameters")
+    if settings["num_batch_grid"].shape[0] > 1:
+        logger.info("Execute search stage 2 for number of batches")
+        stage_2 = _execute_stage_2(settings=settings, features=features, target=target, weights=weights)
+    else:
+        logger.info("Skip stage 2, number of batches is fixed")
+        stage_2 = _fake_stage_2(settings["num_batch_grid"])
     settings["model"].set_params(**{
         settings["prefix"] + "n_iter": stage_2["num_batch_grid"][stage_2["selected_index"]],
         settings["prefix"] + "random_state": random_state
     })
+    logger.info("Fit final model with selected parameters")
     settings["model"].fit(**{"X": features, "y": target, settings["prefix"] + "sample_weight": weights})
     logger.info("Hyperparameter selection complete")
     return {"model": settings["model"], "stage_1": stage_1, "stage_2": stage_2}
 
 
-def process_select_settings(
+def _process_select_settings(
         model,
         transform,
         lambda_v_range,
@@ -143,6 +166,7 @@ def process_select_settings(
         - lambda_v_range: as input or default if input is None
         - lambda_w_range: as input or default if input is None
         - stage_1_trials: as input
+        - fit_mode: one value of enum FitMode
         - num_batch_grid: as input or default if input is None
         - splitter: an sklearn splitter for num_fold folds; stratified K-fold splitter if model is a classifier,
           ordinary K-fold else
@@ -168,6 +192,16 @@ def process_select_settings(
         prefix = "model__"
     else:
         prefix = ""
+    if isinstance(lambda_v_range, np.float):
+        if isinstance(lambda_w_range, np.float):
+            fit_mode = FitMode.NEITHER
+        else:
+            fit_mode = FitMode.LAMBDA_W
+    else:
+        if isinstance(lambda_w_range, np.float):
+            fit_mode = FitMode.LAMBDA_V
+        else:
+            fit_mode = FitMode.BOTH
     splitter = StratifiedKFold if is_classifier(model) else KFold
     random_state = check_random_state(random_state)
     return {
@@ -176,6 +210,7 @@ def process_select_settings(
         "lambda_v_range": lambda_v_range,
         "lambda_w_range": lambda_w_range,
         "stage_1_trials": stage_1_trials,
+        "fit_mode": fit_mode,
         "num_batch_grid": num_batch_grid,
         "splitter": splitter(n_splits=num_folds, shuffle=True, random_state=random_state),
         "num_jobs": num_jobs,
@@ -234,6 +269,7 @@ def _execute_stage_1(settings, features, target, weights):
     :param weights: see docstring of select_hyperparameters() for details
     :return: dict with the following fields:
         - lambda_grid: 2D numpy float array with two columns; values for lambda tried out
+        - fit_mode: settings['fit_mode']
         - scores: 1D numpy float array; mean scores corresponding to lambda_grid
         - threshold: best score minus standard deviation for the corresponding parameter combination
         - best_index: integer; index for best score
@@ -255,7 +291,11 @@ def _execute_stage_1(settings, features, target, weights):
             trials=settings["stage_1_trials"]
         )
     )
-    return _evaluate_stage_1(stage=stage_1, parameters=stage_1_parameters)
+    return _evaluate_stage_1(
+        stage=stage_1,
+        parameters=stage_1_parameters,
+        fit_mode=settings["fit_mode"]
+    )
 
 
 def _make_stage_1_plan(settings, features, target, weights):
@@ -281,11 +321,13 @@ def _make_stage_1_plan(settings, features, target, weights):
     lambda_v = _sample_lambda(
         lambda_range=settings["lambda_v_range"],
         trials=settings["stage_1_trials"],
+        do_randomize=settings["fit_mode"] == FitMode.BOTH,
         random_state=settings["random_state"]
     )
     lambda_w = _sample_lambda(
         lambda_range=settings["lambda_w_range"],
         trials=settings["stage_1_trials"],
+        do_randomize=settings["fit_mode"] == FitMode.BOTH,
         random_state=settings["random_state"]
     )
     states = _sample_random_state(
@@ -306,18 +348,22 @@ def _make_stage_1_plan(settings, features, target, weights):
     } for i in range(settings["splitter"].n_splits) for j in range(settings["stage_1_trials"])], parameters
 
 
-def _sample_lambda(lambda_range, trials, random_state):
+def _sample_lambda(lambda_range, trials, do_randomize, random_state):
     """Sample penalty weights for cross-validation.
 
     :param lambda_range: see parameter lambda_v_range of select_hyperparameters()
     :param trials: see parameter stage_1_trials of select_hyperparameters()
+    :param do_randomize: boolean; whether to use random sampling in case lambda_range is really a range
     :param random_state: an instance of np.random.RandomState
     :return: 1D numpy float array of length trials; penalty weights for cross_validation
     """
     if isinstance(lambda_range, np.float):
         return lambda_range * np.ones(trials)
-    offset = random_state.uniform(size=trials)
     logs = np.log(lambda_range)
+    if do_randomize:
+        offset = random_state.uniform(size=trials)
+    else:
+        offset = np.linspace(0.0, 1.0, trials)
     return np.exp(logs[0] + offset * (logs[1] - logs[0]))
 
 
@@ -408,29 +454,27 @@ def _collect_stage_1(results, num_folds, trials):
     return scores
 
 
-def _evaluate_stage_1(stage, parameters):
+def _evaluate_stage_1(stage, parameters, fit_mode):
     """Select hyperparameters for stage 1.
 
     :param stage: as return value of _execute_plan()
     :param parameters: as second return value of _make_stage_1_plan()
+    :param fit_mode: as field "fit_mode" of return value of _process_select_settings()
     :return: as return value of _execute_stage_1()
     """
     stats = _compute_stats(stage)
     lambda_grid = np.array([[p["lambda_v"], p["lambda_w"]] for p in parameters])
-    log_geo_mean = np.sum(np.log(lambda_grid), axis=1)
-    candidates = np.logical_and(stats["mean"] >= stats["threshold"], log_geo_mean >= log_geo_mean[stats["best_index"]])
+    reference = np.sum(np.log(lambda_grid), axis=1)  # this is equivalent to the geometric mean of the penalties
+    candidates = np.logical_and(stats["mean"] >= stats["threshold"], reference >= reference[stats["best_index"]])
     # candidate points are all points where (a) the mean score is within one standard error of the optimum (equivalent)
     # and (b) the geometric mean of the two penalties is greater or equal to the value at the optimum (more sparse)
-    bound = np.percentile(log_geo_mean[candidates], STAGE_1_PERCENTILE)
-    candidates = np.logical_and(candidates, log_geo_mean <= bound)
-    # remove the candidates that are furthest away from the optimum as there is a risk of making the model too sparse
-    selected_index = np.where(log_geo_mean == np.max(log_geo_mean[candidates]))[0][0]
     return {
         "lambda_grid": lambda_grid,
+        "fit_mode": fit_mode,
         "scores": stats["mean"],
         "threshold": stats["threshold"],
         "best_index": stats["best_index"],
-        "selected_index": selected_index
+        "selected_index": np.where(reference == np.max(reference[candidates]))[0][0]
     }
 
 
@@ -450,6 +494,23 @@ def _compute_stats(stage):
         "best_index": best_index,
         "threshold": mean[best_index] - np.std(stage[:, best_index], ddof=1)
         # use variance correction for small sample size
+    }
+
+
+def _fake_stage_1(lambda_v, lambda_w):
+    """Generate stage 1 output results for fixed penalty weights.
+
+    :param lambda_v: non-negative float
+    :param lambda_w: non-negative float
+    :return: as return value of _evaluate_stage_1()
+    """
+    return {
+        "lambda_grid": np.array([[lambda_v, lambda_w]]),
+        "fit_mode": FitMode.NEITHER,
+        "scores": np.array([np.NaN]),
+        "threshold": np.NaN,
+        "best_index": 0,
+        "selected_index": 0
     }
 
 
@@ -551,33 +612,50 @@ def _evaluate_stage_2(stage, num_batch_grid):
     }
 
 
+def _fake_stage_2(num_batch_grid):
+    """Generate stage 2 output results for fixed number of batches.
+
+    :param num_batch_grid: see docstring of select_hyperparameters() for details
+    :return: as return value of _evaluate_stage_2()
+    """
+    return {
+        "num_batch_grid": num_batch_grid,
+        "scores": np.array([np.NaN]),
+        "threshold": np.NaN,
+        "best_index": 0,
+        "selected_index": 0
+    }
+
+
 def print_hyperparameter_report(result):
     """Print report for hyperparameter selection.
 
     :param result: as return value of select_hyperparameters()
     :return: no return value; results printed to console
     """
-    print("{:8s}   {:8s}   {:8s}   {:8s}".format("stage 1", "lambda_v", "lambda_w", "log-loss"))
-    print("{:8s}   {:8.1e}   {:8.1e}   {:8.1e}".format(
+    print("{:9s}   {:8s}   {:8s}   {:8s}".format("stage 1", "lambda_v", "lambda_w", "log-loss"))
+    print("{:9s}   {:8.1e}   {:8.1e}   {:8.2f}".format(
         "optimal",
         result["stage_1"]["lambda_grid"][result["stage_1"]["best_index"], 0],
         result["stage_1"]["lambda_grid"][result["stage_1"]["best_index"], 1],
         -result["stage_1"]["scores"][result["stage_1"]["best_index"]]
     ))
-    print("{:8s}   {:8.1e}   {:8.1e}   {:8.1e}\n".format(
+    print("{:9s}   {:8s}   {:8s}   {:8.2f}".format("threshold", "", "", -result["stage_1"]["threshold"]))
+    print("{:9s}   {:8.1e}   {:8.1e}   {:8.2f}\n".format(
         "selected",
         result["stage_1"]["lambda_grid"][result["stage_1"]["selected_index"], 0],
         result["stage_1"]["lambda_grid"][result["stage_1"]["selected_index"], 1],
         -result["stage_1"]["scores"][result["stage_1"]["selected_index"]]
     ))
-    print("{:8s}   {:8s}   {:8s}   {:8s}".format("stage 2", "batches", "", "log-loss"))
-    print("{:8s}   {:8d}   {:8s}   {:8.1e}".format(
+    print("{:9s}   {:8s}   {:8s}   {:8s}".format("stage 2", "batches", "", "log-loss"))
+    print("{:9s}   {:8d}   {:8s}   {:8.2f}".format(
         "optimal",
         result["stage_2"]["num_batch_grid"][result["stage_2"]["best_index"]],
         "",
         -result["stage_2"]["scores"][result["stage_2"]["best_index"]]
     ))
-    print("{:8s}   {:8d}   {:8s}   {:8.1e}\n".format(
+    print("{:9s}   {:8s}   {:8s}   {:8.2f}".format("threshold", "", "", -result["stage_2"]["threshold"]))
+    print("{:9s}   {:8d}   {:8s}   {:8.2f}\n".format(
         "selected",
         result["stage_2"]["num_batch_grid"][result["stage_2"]["selected_index"]],
         "",
@@ -591,8 +669,16 @@ def plot_select_results(result):
     :param result: dict; as return value of select_hyperparameters()
     :return: no return value; plots generated
     """
-    _plot_select_stage_1(result["stage_1"])
-    _plot_select_parameters(result)
+    plot_created = False
+    if result["stage_1"]["fit_mode"] == FitMode.BOTH:
+        _plot_select_stage_1(result["stage_1"])
+        plot_created = True
+    layout = _choose_layout(result["stage_1"]["fit_mode"], result["stage_2"]["num_batch_grid"].shape[0])
+    if layout.count(0) < 3:
+        _plot_select_parameters(result=result, layout=layout)
+        plot_created = True
+    if not plot_created:
+        print("Model was fitted with fixed hyperparameters, no plots are available")
 
 
 def _plot_select_stage_1(stage_1):
@@ -622,50 +708,80 @@ def _plot_select_stage_1(stage_1):
     plt.ylabel("Log10(lambda_w)")
 
 
-def _plot_select_parameters(result):
+def _choose_layout(fit_mode, batch_trials):
+    """Choose plot layout based on which parameters were subject to optimization.
+
+    :param fit_mode: a value of enum FitMode
+    :param batch_trials: positive integer; number of different values tried for number of batches
+    :return: list with three non-negative integers; these are subplot indicators for matplotlib controlling placement of
+        the plots for lambda_v, lambda_w, and number of batches; 0 is used to suppress a plot
+    """
+    if batch_trials == 1:
+        if fit_mode == FitMode.BOTH:
+            return [121, 122, 0]  # create plots for both penalty weights
+        if fit_mode == FitMode.LAMBDA_V:
+            return [111, 0, 0]  # create plot for lambda_v only
+        if fit_mode == FitMode.LAMBDA_W:
+            return [0, 111, 0]  # create plot for lambda_w only
+        return [0, 0, 0]  # create no plot
+    if fit_mode == FitMode.BOTH:
+        return [131, 132, 133]  # create all plots
+    if fit_mode == FitMode.LAMBDA_V:
+        return [121, 0, 122]  # create plots for lambda_v and number of batches
+    if fit_mode == FitMode.LAMBDA_W:
+        return [0, 121, 122]  # create plots for lambda_w and number of batches
+    return [0, 0, 111]  # create plot for number of batches only
+
+
+def _plot_select_parameters(result, layout):
     """Create plots for the three parameters chosen via select_hyperparameters().
 
     :param result: dict; as return value of select_hyperparameters()
+    :param layout: as return value of _choose_layout()
     :return: no return value; plots generated
     """
     scores = np.hstack([result["stage_1"]["scores"], result["stage_2"]["scores"]])
+    scores = scores[np.logical_not(np.isnan(scores))]  # either stage may have been skipped
     y_range = _make_plot_range(scores)
     plt.figure()
-    plt.subplot(131)
-    _plot_search_1d(
-        grid=result["stage_1"]["lambda_grid"][:, 0],
-        scores=result["stage_1"]["scores"],
-        threshold=result["stage_1"]["threshold"],
-        selected_parameter=result["stage_1"]["lambda_grid"][result["stage_1"]["selected_index"], 0],
-        y_range=y_range,
-        x_label="Lambda_v",
-        title="Stage 1: selected lambda_v = {:0.1e}",
-        do_show_legend=True
-    )
-    plt.xscale("log")
-    plt.subplot(132)
-    _plot_search_1d(
-        grid=result["stage_1"]["lambda_grid"][:, 1],
-        scores=result["stage_1"]["scores"],
-        threshold=result["stage_1"]["threshold"],
-        selected_parameter=result["stage_1"]["lambda_grid"][result["stage_1"]["selected_index"], 1],
-        y_range=y_range,
-        x_label="Lambda_w",
-        title="Stage 1: selected lambda_w = {:0.1e}",
-        do_show_legend=False
-    )
-    plt.xscale("log")
-    plt.subplot(133)
-    _plot_search_1d(
-        grid=result["stage_2"]["num_batch_grid"],
-        scores=result["stage_2"]["scores"],
-        threshold=result["stage_2"]["threshold"],
-        selected_parameter=result["stage_2"]["num_batch_grid"][result["stage_2"]["selected_index"]],
-        y_range=y_range,
-        x_label="Number of batches",
-        title="Stage 2: selected number of batches = {}",
-        do_show_legend=False
-    )
+    if layout[0] > 0:
+        plt.subplot(layout[0])
+        _plot_search_1d(
+            grid=result["stage_1"]["lambda_grid"][:, 0],
+            scores=result["stage_1"]["scores"],
+            threshold=result["stage_1"]["threshold"],
+            selected_parameter=result["stage_1"]["lambda_grid"][result["stage_1"]["selected_index"], 0],
+            y_range=y_range,
+            x_label="Lambda_v",
+            title="Stage 1: selected lambda_v = {:0.1e}",
+            do_show_legend=True
+        )
+        plt.xscale("log")
+    if layout[1] > 0:
+        plt.subplot(layout[1])
+        _plot_search_1d(
+            grid=result["stage_1"]["lambda_grid"][:, 1],
+            scores=result["stage_1"]["scores"],
+            threshold=result["stage_1"]["threshold"],
+            selected_parameter=result["stage_1"]["lambda_grid"][result["stage_1"]["selected_index"], 1],
+            y_range=y_range,
+            x_label="Lambda_w",
+            title="Stage 1: selected lambda_w = {:0.1e}",
+            do_show_legend=False
+        )
+        plt.xscale("log")
+    if layout[2] > 0:
+        plt.subplot(layout[2])
+        _plot_search_1d(
+            grid=result["stage_2"]["num_batch_grid"],
+            scores=result["stage_2"]["scores"],
+            threshold=result["stage_2"]["threshold"],
+            selected_parameter=result["stage_2"]["num_batch_grid"][result["stage_2"]["selected_index"]],
+            y_range=y_range,
+            x_label="Number of batches",
+            title="Stage 2: selected number of batches = {}",
+            do_show_legend=False
+        )
     plt.suptitle("Hyperparameter search")
 
 

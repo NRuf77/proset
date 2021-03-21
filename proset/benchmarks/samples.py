@@ -8,7 +8,7 @@ import numpy as np
 
 
 def create_checkerboard(size=8, samples_per_square=100, random_state=None):
-    """Create samples from a checkerboard pattern.
+    """Create samples for the 'checkerboard' problem.
 
     :param size: integer greater or equal to 2; number of rows and columns making up the checkerboard
     :param samples_per_square: positive integer; average number of samples per square
@@ -30,8 +30,8 @@ def create_checkerboard(size=8, samples_per_square=100, random_state=None):
     return features, target
 
 
-def create_sign_of_product(size=6, samples_per_orthant=100, random_state=None):
-    """Create samples for the 'sign of product' test.
+def create_continuous_xor(size=6, samples_per_orthant=100, random_state=None):
+    """Create samples for the 'continuous XOR' problem.
 
     :param size: integer greater or equal to 1; number of features
     :param samples_per_orthant: positive integer; average number of features per orthant

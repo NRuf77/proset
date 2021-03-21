@@ -3,6 +3,7 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{bbold}
+\usepackage[font=bf]{caption}
 \usepackage[T1]{fontenc}
 \usepackage[margin=1in]{geometry}
 \usepackage[utf8]{inputenc}
@@ -16,6 +17,7 @@
 %
 \newtheorem{lemma}{Lemma}[chapter]
 \newtheorem{remark}{Remark}[chapter]
+\newtheorem{algorithm}{Algorithm}[chapter]
 %
 \newcommand*{\1}{\ensuremath{\mathbb{1}}}
 \newcommand*{\R}{\ensuremath{\mathbb{R}}}
@@ -42,8 +44,8 @@
 \mainmatter
 \input{classifier.tex}
 \input{regressor.tex}
-\input{implementation.tex}
 \input{examples.tex}
+\input{implementation.tex}
 %
 \appendix
 \input{bibliography.tex}

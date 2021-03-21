@@ -1,4 +1,6 @@
-"""Train proset classifier on a deterministic checkerboard pattern.
+"""Train proset classifier on breast cancer data.
+
+Optimize w.r.t. both penalty weights with both alphas at 0.50 (balanced penalties).
 
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
@@ -10,11 +12,12 @@ import os
 import pickle
 
 import numpy as np
+from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 import proset
-from proset.benchmarks import start_console_log, create_checkerboard
+from proset.benchmarks import start_console_log
 
 
 CPU_COUNT = cpu_count(logical=False)
@@ -27,17 +30,22 @@ if __name__ == "__main__":
     start_console_log()
     random_state = np.random.RandomState(12345)
     output_path = "scripts/results"
-    output_file = "checkerboard_model.gz"
+    output_file = "cancer_2d_50_model.gz"
 
-    print("* Generate data")
-    X, y = create_checkerboard(random_state=random_state)
+    print("* Load and format data")
+    data = load_breast_cancer()
+    X = data["data"]
+    feature_names = data["feature_names"]
+    y = data["target"]
+    class_labels = data["target_names"]
+    del data
 
     print("* Make train-test split")
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=random_state)
 
     print("* Select hyperparameters via cross-validation")
     result = proset.select_hyperparameters(
-        model=proset.ClassifierModel(),
+        model=proset.ClassifierModel(alpha_v=0.50, alpha_w=0.50, num_candidates=1000),
         features=X_train,
         target=y_train,
         transform=StandardScaler(),
@@ -51,8 +59,8 @@ if __name__ == "__main__":
         "X_test": X_test,
         "y_train": y_train,
         "y_test": y_test,
-        "feature_names": ("F1", "F2"),
-        "class_labels": ("0", "1")
+        "feature_names": feature_names,
+        "class_labels": class_labels
     }
     with gzip.open(os.path.join(output_path, output_file), mode="wb") as file:
         pickle.dump(result, file)
