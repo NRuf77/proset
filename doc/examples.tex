@@ -86,7 +86,7 @@ Choose a range for $\lambda_v$, a range for $\lambda_w$, and a set of candidates
 \item Randomly generate 50 pairs $(\lambda_v,\lambda_w)$.
 Each $\lambda$ is sampled uniformly on the log-scale from the chosen range.
 %
-\item Perform 5-fold cross-validation on the training set using $B=1$.
+\item Perform five-fold cross-validation on the training set using $B=1$.
 %
 \item Compute the mean and standard deviation of log-loss per pair over the left-out folds.
 %
@@ -97,7 +97,7 @@ Each $\lambda$ is sampled uniformly on the log-scale from the chosen range.
 %
 \item\textbf{Stage 2}
 \begin{enumerate}
-\item Perform 5-fold cross-validation on the training set using the parameters from stage 1 and the maximal number of batches.
+\item Perform five-fold cross-validation on the training set using the parameters from stage 1 and the maximal number of batches.
 %
 \item For each candidate value of $B$, evaluate the models on the left-out fold and compute mean and standard deviation of log-loss.
 %
@@ -175,7 +175,7 @@ The tables describing individual experiments each list the following information
 \item[Data:] the number of classes, as well as the size of the whole data set and train-test split.
 %
 \item[Candidates:] the approximate number of candidates for prototypes that are actually used.
-While $M=1,000$ candidates are specified for each model, the effective maximum for small data sets is 28 \% of the available samples (training data is 70 \% of all samples, 5-fold cross-validation leaves 80 \% of training data for model building, $\eta=0.5$ allows at most 50 \% of data in one bin to be used as prototypes).
+While $M=1,000$ candidates are specified for each model, the effective maximum for small data sets is 28 \% of the available samples (training data is 70 \% of all samples, five-fold cross-validation leaves 80 \% of training data for model building, $\eta=0.5$ allows at most 50 \% of data in one bin to be used as prototypes).
 %
 \item[Stage 1:] results for selecting $\lambda_v$ and $\lambda_w$ using a single batch.
 Lists the optimal and chosen parameters according to the `one standard error rule' (see algorithm \ref{alg_hyperparameters}), together with the achieved mean log-loss from cross-validation.
@@ -455,7 +455,7 @@ Here, we observe a worsening of the score for the iris data set, but the remaini
 Based on this finding, we recommend $\lambda_w=10^{-3}$ as default for the classifier.\par
 %
 \begin{table}
-\caption{[E1--E6]Comparison of results (best log-loss bold)}
+\caption{[E1--E6] Comparison of results (best log-loss bold)}
 \label{tab_e1_to_e6}
 %
 \begin{center}
@@ -550,4 +550,433 @@ It deals only with the checkerboard and XOR data, as the maximum batch size for 
 For each of the two large data sets, we try using 100, 300, and 1,500 samples instead of the default $M=1,000$.
 The model metrics for 100 and 300 samples are worse than before, while the results for 1,500 candidates are comparable.
 Clearly, there is an advantage to using large batches as long as the sample size permits.
+%
+\clearpage
+%
+\subsection{Comparison to other classifiers}
+\label{sec_comparison_classifier}
+%
+In this section, we compare the proset classifier to the $k$-nearest neighbor (KNN) and XGBoost methods.
+The former may be the most similar to proset conceptually, as it scores new points based on their proximity to training samples.
+In this sense, both are `bottom up' approaches to classification.
+However, there are at least three major differences between proset and KNN:
+%
+\begin{enumerate}
+\item KNN uses all training samples for scoring and gives equal importance to each sample.
+Proset selects prototypes and assigns individual weights.
+%
+\item KNN relies on the user's choice of features and distance metric.
+It always uses all provided features, which means that too many irrelevant variables can degrade performance.
+Proset adapts the metric to the problem and removes features that contribute little.
+%
+\item KNN has no notion of absolute distance.
+The nearest neighbors have the same impact on classification no matter how far away they are from the sample being scored.
+For proset, remote prototypes have negligible impact on classification.
+As the distance of a sample to the whole prototype set increases, the predicted probabilities converge to the marginals of the training data.
+\end{enumerate}
+%
+XGBoost is a particular implementation of gradient boosting for decision trees (we do not consider other base learners in this study) \cite{Chen_16}.
+It has become a kind of industry standard for supervised learning outside the domain of deep learning.
+Unlike proset and KNN, decision tree ensembles like XGBoost follow a `top down' strategy.
+Despite this fundamental difference, we try to relate it to proset and KNN in terms of the three points stated above:
+%
+\begin{enumerate}
+\item XGBoost does not retain any training samples.
+It generates a set of rules in the form of decision trees and performs classification via weighted voting.
+%
+\item XGBoost relies only on the ordering of features, not on any kind of distance metric.
+When building trees, the algorithm selects features using a greedy heuristic.
+It is considered good practice to limit the number of features evaluated at each stage by subsampling \cite{Chen_16}.
+This results in a more diverse set of trees with less tendency to overfit.
+Even with this approach, features that have negligible impact on performance are unlikely to be selected.
+%
+\item Using XGBoost to score a sample that is far away from the training data gives arbitrary results.
+The decision trees have not been validated in that part of the feature space.
+\end{enumerate}
+%
+To fit KNN and XGBoost models, we follow the same general strategy as for proset.
+We determine optimal hyperparameters using five-fold cross-validation and then choose an equivalent set of parameters that is less likely to overfit via the `one standard error rule' (see algorithm \ref{alg_hyperparameters}).
+This is very simple to impement for KNN, since the sole hyperparameter is the number of neighbors $k$.
+Note that we choose the \textit{largest} $k$ from the set of equivalent solutions to achieve a high degree of smoothing.\par
+%
+For XGBoost, tuning is more complex as the number of parameters that can be optimized is quite large.
+Based on prior experience, we focus on the following five only, leaving all others at their recommended defaults:
+%
+\begin{enumerate}
+\item Learning rate $\eta$.
+Controls the impact of each additional tree on the prediction.
+Choosing a smaller $\eta$ can increase model performance slightly but requires more boosting iterations.
+%
+\item Number of boosting iterations.
+Has to be sufficiently large for the model to capture all of the structure in the data.
+Increasing it further leads to saturation instead of overfitting, i.e., the model quality on test data fluctuates around a common level.
+%
+\item Maximum tree depth.
+Controls the complexity of each tree.
+Our experience is that XGBoost performs best if the individual trees underfit.
+%
+\item Fraction of features evaluated per split.
+Using a random subset of the features in each split results in a more diverse set of trees.
+%
+\item Fraction of records used for training each tree.
+Using a random subset of the training samples for each tree also results in a more diverse set of trees.
+\end{enumerate}
+%
+We follow a similar strategy as for proset (see algorithm \ref{alg_hyperparameters}) to fit XGBoost classifiers.
+In the first stage, we fix $\eta=0.1$ and use 100 boosting iterations to determine suitable values for maximum tree depth, fraction of features per split, and fraction of records per tree.
+Hyperparameter values are sampled randomly to generated 100 trial combinations:
+%
+\begin{itemize}
+\item Maximum tree depth is sampled from 0 to 9 with equal probability.
+Note that 0 already corresponds to a single split, so the trees have between 2 and 1024 leaf nodes.
+In case model performance was inadequate, we increased the maximum parameter value to 19.
+%
+\item Fraction of features per split is sampled uniformly between 0.1 and 0.9 if the model has more than two features.
+For two features, we just leave the parameter at 1.0.
+%
+\item Fraction of records per tree is sampled uniformly between 0.1 and 0.9.
+\end{itemize}
+%
+After five-fold cross-validation, we determine the parameter combination that minimizes log-loss, compute a threshold, and choose an equivalent combination.
+Among all candidates, we use the one that minimizes the depth of the tree first, then the fraction of features per split, and finally the fraction of records per tree.\par
+%
+In the second stage, we fix $\eta=0.01$ and use five-fold cross-validation to determine the number of boosting iterations up to a maximum of 1,000.
+The optimum is usually at the upper bound but we again apply the `one standard error rule' to find an equivalent smaller number.
+The model is then re-fitted to all training data and scored on test data.\par
+%
+\begin{table}
+\caption{[E8] $k$-nearest neighbor classifier with grid search for $k$}
+\label{tab_e8}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\multicolumn{7}{|l|}{\textbf{Cross-validation}}\\
+Optimal $k$&14&6&30&8&8&10\\
+Selected $k$&23&11&54&43&12&13\\
+Optimal log-loss&0.45&0.11&0.12&0.16&0.22&0.53\\
+Threshold&0.49&0.13&0.16&0.27&0.25&0.53\\
+Selected log-loss&0.49&0.13&0.16&0.27&0.25&0.53\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Log-loss&0.43&0.09&0.18&0.22&0.22&0.52\\
+ROC-AUC&0.92&1.00&0.98&1.00&0.98&0.83\\
+Balanced acc.&0.78&1.00&0.90&0.93&0.91&0.74\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E9] XGBoost classifier with randomized parameter search}
+\label{tab_e9}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal max.\ depth&1&7&8&4&9&0\\
+Selected max.\ depth&1&1&1&3&9&0\\
+Optimal colsample&n/a&0.28&0.83&0.27&n/a&0.50\\
+Selected colsample&n/a&0.27&0.31&0.24&n/a&0.30\\
+Optimal subsample&0.58&0.81&0.35&0.77&0.83&0.82\\
+Selected subsample&0.22&0.86&0.40&0.72&0.83&0.26\\
+Optimal log-loss&0.52&0.10&0.09&0.13&0.07&0.69\\
+Threshold&0.55&0.15&0.10&0.15&0.08&0.69\\
+Selected log-loss&0.54&0.12&0.10&0.15&0.07&0.69\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal iterations&1,000&1,000&1,000&1,000&1,000&850\\
+Selected iterations&331&575&281&767&927&138\\
+Optimal log-loss&0.54&0.11&0.11&0.15&0.08&0.69\\
+Threshold&0.62&0.17&0.17&0.18&0.09&0.69\\
+Selected log-loss&0.62&0.17&0.17&0.18&0.09&0.69\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&13&18&53&2&0\\
+Log-loss&0.58&0.16&0.21&0.15&0.06&0.69\\
+ROC-AUC&0.91&1.00&0.98&1.00&1.00&0.50\\
+Balanced acc.&0.78&1.00&0.91&0.97&0.99&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E3, E8, E9] Comparison of results (best log-loss bold)}
+\label{tab_e3_e8_e9}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{[E3] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&4&4&18&2&6\\
+Log-loss&0.45&0.10&\textbf{0.16}&\textbf{0.15}&0.16&\textbf{0.52}\\
+Threshold stage 2&0.58&0.24&0.19&0.22&0.18&0.56\\
+ROC-AUC&0.91&1.00&0.99&1.00&0.99&0.83\\
+Balanced acc.&0.79&1.00&0.92&0.97&0.94&0.74\\
+\multicolumn{7}{|l|}{\textbf{[E8] $k$-nearest neighbor classifier with grid search for $k$}}\\
+Active features&2&13&30&64&2&6\\
+Log-loss&\textbf{0.43}&\textbf{0.09}&0.18&0.22&0.22&\textbf{0.52}\\
+Threshold CV&0.49&0.13&0.16&0.27&0.25&0.54\\
+ROC-AUC&0.92&1.00&0.98&1.00&0.98&0.83\\
+Balanced acc.&0.78&1.00&0.90&0.93&0.91&0.74\\
+\multicolumn{7}{|l|}{\textbf{[E9] XGBoost classifier with randomized parameter search}}\\
+Active features&2&13&18&53&2&0\\
+Log-loss&0.58&0.16&0.21&\textbf{0.15}&\textbf{0.06}&0.69\\
+Threshold stage 2&0.62&0.17&0.17&0.18&0.09&0.69\\
+ROC-AUC&0.91&1.00&0.98&1.00&1.00&0.50\\
+Balanced acc.&0.78&1.00&0.91&0.97&0.99&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+Results for fitting KNN and XGBoost classifiers to the six examples used for the proset parameter study are given in tables \ref{tab_e8} and \ref{tab_e9}.
+The structure of the tables and reported metrics are essentially the same as for proset in the previous section.
+For XGBoost, the number of active features reported is the number of features having positive importance using the method's built-in importance scores.\par
+%
+Table \ref{tab_e3_e8_e9} summarizes the performance of all three models.
+For proset, reference values are taken from the full parameters search using $\alpha_v=\alpha_w=0.95$ (see table \ref{tab_e3}).
+Somewhat surprisingly, there is considerable variation in model performance for the test cases:
+%
+\begin{enumerate}
+\item\textbf{Iris 2f:} the KNN model is best in terms of log-loss, but the log-loss for proset is still below the equivalence threshold for KNN.
+The log-loss for XGBoost is worse than the threshold, although ROC-AUC and balanced accuracy are comparable.
+%
+\item\textbf{Wine:} as for iris data.
+%
+\item\textbf{Cancer:} proset is best, with the log-loss for KNN still below the equivalence threshold.
+As before, XGBoost has worse log-loss but similar performance in terms of ROC-AUC and balanced accuracy.
+%
+\item\textbf{Digits}: proset and XGBoost have identical performance, except that XGBoost has a tighter threshold for equivalence.
+KNN performs worse, with log-loss above the threshold for XGBoost and balanced accuracy lower by four percentage points.
+%
+\item\textbf{Checker:} here, we get a strict ranking in terms of equivalence.
+XGBoost outperforms proset, which in turn outperforms KNN.
+%
+\item\textbf{XOR 6f:} KNN and proset have identical performance, while XGBoost is unable to find any structure.
+\end{enumerate}
+%
+We draw the following conclusions from this study:
+%
+\begin{itemize}
+\item It is hard to improve on KNN if the training data has few features, i.e., if there are few or no irrelevant variables.
+For small sample size, the cross-validation variance is also lower than for proset and XGBoost.
+The reason is probably that KNN only has a single hyperparameter and does not rely on any kind of random subsampling or partitioning.
+Of the three algorithms, proset shows the largest variance, although there appears to be no comparable impact on the performance of the final model.
+%
+\item The extremely good performance of XGBoost on the checker data is likely due to the fact that the approximating function is of the same class as the target.
+Both are step functions with edges parallel to the main coordinate axes.
+%
+\item XOR 6f defeats tree ensembles, which choose features one at a time based on a greedy criterion.
+However, for a single split, the expected number of cases per class in each resulting subspace is always 50 \%, same as for the whole space.
+Thus, the first split can only model random fluctuations in the training data.
+While the same is true for the checkerboard data with an even number of squares per side, splitting this data randomly is almost sure to break the symmetry.
+In contrast, for XOR 6f, at least five splits are required to expose structure.
+But the partitions created by five random splits apparenty do not contain sufficient information to build a meaningful decision tree.
+\end{itemize}
+%
+Based on these observations, we define five additional test cases to further explore the differences between the three algorithms:
+%
+\begin{enumerate}
+\item\textbf{Checker rot:} to determine how much of the good performance of XGBoost on the checker data is due to the similarity between the approximating function and the target, we rotate the checkerboard pattern by 45\textdegree.
+%
+\item\textbf{XOR 3f, XOR 4f, XOR 5f:} in order to find the point at which XGBoost fails on the `continuous XOR' problem, we generate instances with three, four, and five features.
+As for XOR 6f, these each have an average of 100 samples per orthant.
+%
+\item\textbf{XOR 6+6f:} to understand how easy it is to confuse the KNN classifier with irrelevant data, we add six more features to the XOR 6f problem.
+These are drawn from the same distribution as the first six but have no impact on the target.
+\end{enumerate}
+%
+\begin{table}
+\caption{[E10] New examples -- results for proset classifier}
+\label{tab_e10}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\textbf{Candidates}&1,000&$\sim220$&$\sim450$&$\sim900$&1,000\\
+\multicolumn{6}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$4.9\times10^{-5}$&$6.7\times10^{-3}$&$2.4\times10^{-2}$&$9.5\times10^{-3}$&$3.5\times10^{-4}$\\
+Selected $\lambda_v$&$3.8\times10^{-4}$&$1.2\times10^{-2}$&$2.0\times10^{-2}$&$8.1\times10^{-3}$&$8.1\times10^{-4}$\\
+Optimal $\lambda_w$&$4.7\times10^{-9}$&$2.7\times10^{-9}$&$3.6\times10^{-9}$&$2.1\times10^{-9}$&$6.2\times10^{-7}$\\
+Selected $\lambda_w$&$1.4\times10^{-7}$&$3.0\times10^{-7}$&$2.7\times10^{-7}$&$1.3\times10^{-7}$&$9.3\times10^{-7}$\\
+Optimal log-loss&0.18&0.18&0.28&0.40&0.55\\
+Threshold&0.20&0.22&0.32&0.41&0.56\\
+Selected log-loss&0.20&0.19&0.31&0.41&0.56\\
+\multicolumn{6}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&1&1&1&5&1\\
+Selected batches&1&1&1&2&1\\
+Optimal log-loss&0.20&0.20&0.31&0.40&0.57\\
+Threshold&0.21&0.23&0.35&0.42&0.58\\
+Selected log-loss&0.20&0.20&0.31&0.42&0.57\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&3&4&5&6\\
+Prototypes&340&63&85&307&456\\
+Log-loss&0.19&0.16&0.33&0.40&0.54\\
+ROC-AUC&0.99&0.99&0.96&0.91&0.81\\
+Balanced acc.&0.95&0.96&0.87&0.82&0.71\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E11]  New examples -- results for $k$-nearest neighbor classifier}
+\label{tab_e11}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\multicolumn{6}{|l|}{\textbf{Cross-validation}}\\
+Optimal $k$&8&7&7&12&95\\
+Selected $k$&12&12&10&14&100\\
+Optimal log-loss&0.22&0.23&0.31&0.44&0.70\\
+Threshold&0.25&0.26&0.34&0.45&0.70\\
+Selected log-loss&0.25&0.26&0.34&0.45&0.70\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Log-loss&0.22&0.21&0.35&0.45&0.70\\
+ROC-AUC&0.98&0.99&0.93&0.89&0.47\\
+Balanced acc.&0.91&0.94&0.85&0.79&0.48\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E12]  New examples -- results for XGBoost classifier}
+\label{tab_e12}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\multicolumn{6}{|l|}{\textbf{Stage 1}}\\
+Optimal max.\ depth&9&7&9&16&0\\
+Selected max.\ depth&8&5&8&0&0\\
+Optimal colsample&n/a&0.81&0.73&0.84&0.86\\
+Selected colsample&n/a&0.90&0.66&0.30&0.50\\
+Optimal subsample&0.40&0.84&0.65&0.79&0.68\\
+Selected subsample&0.34&0.73&0.75&0.26&0.82\\
+Optimal log-loss&0.19&0.12&0.43&0.67&0.69\\
+Threshold&0.20&0.15&0.45&0.72&0.69\\
+Selected log-loss&0.20&0.14&0.44&0.69&0.69\\
+\multicolumn{6}{|l|}{\textbf{Stage 2}}\\
+Optimal iterations&1,000&1,000&1,000&762&812\\
+Selected iterations&956&854&877&756&41\\
+Optimal log-loss&0.19&0.14&0.47&0.69&0.69\\
+Threshold&0.20&0.16&0.49&0.69&0.69\\
+Selected log-loss&0.20&0.16&0.49&0.69&0.69\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&3&4&0&0\\
+Log-loss&0.18&0.13&0.46&0.70&0.69\\
+ROC-AUC&0.99&1.00&0.89&0.50&0.50\\
+Balanced acc.&0.95&0.96&0.81&0.50&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E10, E11, E12] Comparison of results (best log-loss bold)}
+\label{tab_e10_e11_e12}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Dataset \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{[E10] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&3&4&5&6\\
+Log-loss&0.19&0.16&\textbf{0.33}&\textbf{0.40}&\textbf{0.54}\\
+Threshold stage 2&0.21&0.23&0.35&0.42&0.58\\
+ROC-AUC&0.99&0.99&0.96&0.91&0.81\\
+Balanced acc.&0.95&0.96&0.87&0.82&0.71\\
+\multicolumn{6}{|l|}{\textbf{[E11] $k$-nearest neighbor classifier with grid search for $k$}}\\
+Active features&2&3&4&5&12\\
+Log-loss&0.22&0.21&0.35&0.45&0.70\\
+Threshold CV&0.25&0.26&0.34&0.45&0.70\\
+ROC-AUC&0.98&0.99&0.93&0.89&0.47\\
+Balanced acc.&0.91&0.94&0.85&0.79&0.48\\
+\multicolumn{6}{|l|}{\textbf{[E12] XGBoost classifier with randomized parameter search}}\\
+Active features&2&3&4&n/a&n/a\\
+Log-loss&\textbf{0.18}&\textbf{0.13}&0.46&0.70&0.69\\
+Threshold stage 2&0.20&0.16&0.49&0.69&0.69\\
+ROC-AUC&0.99&1.00&0.89&0.50&0.50\\
+Balanced acc.&0.95&0.96&0.81&0.50&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+Results for proset, KNN, and XGBoost are summarized in tables \ref{tab_e10}, \ref{tab_e11}, and \ref{tab_e12}.
+A comparison of the three algorithms is shown in table \ref{tab_e10_e11_e12}:
+%
+\begin{enumerate}
+\item\textbf{Checker rot:} XGBoost still yields the best model on this pattern, but the log-loss for proset is now below the threshold for equivalence.
+The metrics for both are comparable to those for proset on the original checkerboard.
+Results for KNN are slightly worse.
+%
+\item\textbf{XOR 3f, XOR 4f, XOR 5f:} with three features, XGBoost performs best, proset is barely equivalent, and KNN worse.
+XGBoost likely has some advantage here because the target is again a step function with axis-parallel edges.
+With four features, proset is best, KNN is barely equivalent, and XGBoost worse.
+With five features, proset outperforms KNN, while XGBoost is unable to find any structure.
+%
+\item\textbf{XOR 6+6f:} proset correctly selects the six relevant features.
+The metrics for the resulting model are slightly worse than before but log-loss is still below the threshold of equivalence for XOR 6f.
+Neither KNN nor XGBoost are able to find any structure.
+For KNN, the chosen $k$ is very large, so the model approximates the marginal distribution.
+Apparently, any local structure that emerges for smaller values of $k$ is entirely spurious.
+\end{enumerate}
+%
+The model comparison shows that proset is a worthwhile addition to the supervised learning toolbox.
+It behaves similar to KNN if the number of features is small and outperforms it in the presence of irrelevant features.
+It also appears to be better than tree ensembles at identifying higher order dependencies between the features and target.
+In all cases where reducing the number of features is feasible (wine, cancer, digits), proset selects the smallest subset with no appreciable loss in model quality.
 \endinput
