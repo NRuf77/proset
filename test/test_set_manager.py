@@ -344,9 +344,9 @@ class TestClassifierSetManager(TestCase):
     def test_process_batch_3(self):
         result = ClassifierSetManager._process_batch(BATCH_INFO)
         self.assertEqual(len(result), 7)
-        active_features = np.where(FEATURE_WEIGHTS > 0.0)[0]
+        active_features = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
         np.testing.assert_allclose(result["active_features"], active_features)
-        active_prototypes = np.where(PROTOTYPE_WEIGHTS > 0.0)[0]
+        active_prototypes = np.nonzero(PROTOTYPE_WEIGHTS > 0.0)[0]
         scaled_prototypes = PROTOTYPES[:, active_features][active_prototypes, :] * FEATURE_WEIGHTS[active_features]
         np.testing.assert_allclose(result["scaled_prototypes"], scaled_prototypes)
         np.testing.assert_allclose(result["ssq_prototypes"], np.sum(scaled_prototypes ** 2.0, axis=1))
@@ -354,6 +354,27 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(result["feature_weights"], FEATURE_WEIGHTS[active_features])
         np.testing.assert_allclose(result["prototype_weights"], PROTOTYPE_WEIGHTS[active_prototypes])
         np.testing.assert_allclose(result["sample_index"], SAMPLE_INDEX[active_prototypes])
+
+    def test_process_batch_4(self):
+        result = ClassifierSetManager._process_batch({
+            "prototypes": np.ones((TARGET.shape[0], 1), dtype=float),
+            # prototype values are redundant so should be merged by _process_batch()
+            "target": TARGET,
+            "feature_weights": np.ones(1),
+            "prototype_weights": PROTOTYPE_WEIGHTS,
+            "sample_index": SAMPLE_INDEX
+        })
+        self.assertEqual(len(result), 7)
+        np.testing.assert_allclose(result["active_features"], np.array([0]))
+        np.testing.assert_allclose(result["scaled_prototypes"], np.ones((3, 1)))
+        np.testing.assert_allclose(result["ssq_prototypes"], np.ones(3))
+        reduced_target = np.unique(TARGET)
+        np.testing.assert_allclose(result["target"], reduced_target)
+        np.testing.assert_allclose(result["feature_weights"], np.ones(1))
+        merged_weights = np.array([np.sum(PROTOTYPE_WEIGHTS[TARGET == i]) for i in reduced_target])
+        np.testing.assert_allclose(result["prototype_weights"], merged_weights)
+        reduced_index = np.array([np.min(SAMPLE_INDEX[TARGET == i]) for i in reduced_target])
+        np.testing.assert_allclose(result["sample_index"], reduced_index)
 
     def test_evaluate_unscaled_fail_1(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -556,8 +577,8 @@ class TestClassifierSetManager(TestCase):
             num_batches=1,
             meta={"num_features": PROTOTYPES.shape[1]}
         )
-        active_prototypes = np.where(PROTOTYPE_WEIGHTS > 0.0)[0]
-        active_features = np.where(FEATURE_WEIGHTS > 0.0)[0]
+        active_prototypes = np.nonzero(PROTOTYPE_WEIGHTS > 0.0)[0]
+        active_features = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
         ref_impact = np.zeros((REFERENCE.shape[0], len(active_prototypes)))
         for i in range(REFERENCE.shape[0]):
             for j in range(len(active_prototypes)):
@@ -578,8 +599,8 @@ class TestClassifierSetManager(TestCase):
             num_batches=2,
             meta={"num_features": PROTOTYPES.shape[1]}
         )
-        active_prototypes = np.where(PROTOTYPE_WEIGHTS > 0.0)[0]
-        active_features = np.where(FEATURE_WEIGHTS > 0.0)[0]
+        active_prototypes = np.nonzero(PROTOTYPE_WEIGHTS > 0.0)[0]
+        active_features = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
         ref_impact = np.zeros((REFERENCE.shape[0], len(active_prototypes)))
         for i in range(REFERENCE.shape[0]):
             for j in range(len(active_prototypes)):
@@ -785,7 +806,7 @@ class TestClassifierSetManager(TestCase):
         manager = ClassifierSetManager(target=TARGET)
         manager.add_batch(BATCH_INFO)
         result = manager.get_feature_weights()
-        ref_feature_index = np.where(FEATURE_WEIGHTS > 0.0)[0]
+        ref_feature_index = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
         order = np.argsort(FEATURE_WEIGHTS[ref_feature_index])[-1::-1]
         ref_weight_matrix = FEATURE_WEIGHTS[ref_feature_index][order][np.newaxis, :]
         self.assertEqual(len(result), 2)

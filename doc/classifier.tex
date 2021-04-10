@@ -65,7 +65,7 @@ Second, they define a natural baseline for $B=0$ , i.e., the model that treats $
 \end{enumerate}
 \end{remark}
 %
-Finding an optimal representation of the form (\ref{eq_pkx}) for a sample of any size appears intractable.
+Finding an optimal representation of the form (\ref{eq_pkx}) for anything but a very small sample appears intractable.
 We thus focus on providing a heuristic that results in models of sufficient quality.
 The general idea is to iteratively add batches of prototypes to a base model consisting of the constant probabilities $p_{0,k}$.
 In each iteration, the available samples are split into a set of candidates for prototypes and a remainder used for scoring.
@@ -289,4 +289,13 @@ Scaling the features is also recommended for a different reason.
 The size of the elastic net penalty can only be interpreted relative to the scale of the partial derivatives.
 Thus, to penalize all features equally, they need to be equally scaled.
 \end{remark}
+%
+Despite regularization, there is one situation in which the selection of prototypes is not parsimonious.
+If multiple candidate points have the same target and same feature values for all features with positive weights, the $l_2$-penalty causes the algorithm to assign equal weight to all.
+If this weight is positive, the model retains multiple copies of the same prototype (the original samples may differ only in features that have been excluded).
+To simplify the model representation, we add a clean-up stage to the algorithm after weights have been selected:\par
+%
+To safeguard against small numeric disturbances, we consider two prototypes as equivalent if the maximum norm of the combined feature and target vector does not exceed some small tolerance.
+This notion is generalized from pairs to larger groups by finding all connected components in the graph where each node represents a prototype and an edge indicates pairwise equivalence.
+We then replace all prototypes belonging to the same component by a single prototype using the combined weight, as well as the features of the sample appearing first in the training data.
 \endinput

@@ -483,7 +483,7 @@ class TestClassifierObjective(TestCase):
         np.testing.assert_allclose(result["cand_features"], FEATURES[candidates][order])
         np.testing.assert_allclose(result["cand_features_squared"], FEATURES[candidates][order] ** 2.0)
         np.testing.assert_allclose(result["cand_target"], TARGET[candidates][order])
-        np.testing.assert_allclose(result["cand_index"], np.where(candidates)[0][order])
+        np.testing.assert_allclose(result["cand_index"], np.nonzero(candidates)[0][order])
         self.assertEqual(
             result["shrink_sparse_features"],
             ["ref_features", "ref_features_squared", "cand_features", "cand_features_squared"]
@@ -899,7 +899,7 @@ class TestClassifierObjective(TestCase):
         :return: 1D numpy integer array; indices referencing the first half of x (excluding the middle point in case of
             odd length)
         """
-        return np.where(np.arange(x.shape[0]) < x.shape[0] / 2)[0]
+        return np.nonzero(np.arange(x.shape[0]) < x.shape[0] / 2)[0]
 
     def test_shrink_sample_data_3(self):
         example = self._get_consistent_example()

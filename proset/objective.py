@@ -239,7 +239,7 @@ class Objective(metaclass=ABCMeta):
         )
         candidates = np.zeros_like(groups, dtype=bool)
         for i in range(num_groups):
-            ix = np.where(groups == i)[0]
+            ix = np.nonzero(groups == i)[0]
             if len(ix) > 0:
                 candidates[random_state.choice(a=ix, size=samples_per_group[i], replace=False)] = True
         return candidates
@@ -320,7 +320,7 @@ class Objective(metaclass=ABCMeta):
             "cand_features": cand_features,
             "cand_features_squared": cand_features ** 2.0,
             "cand_target": target[candidates],
-            "cand_index": np.where(candidates)[0],
+            "cand_index": np.nonzero(candidates)[0],
             "shrink_sparse_features": ["ref_features", "ref_features_squared", "cand_features", "cand_features_squared"]
         }
 
@@ -585,7 +585,7 @@ class ClassifierObjective(Objective):
                     threshold
                 ),
                 "The following classes have fewer cases: {}.".format(", ".join(
-                    ["{}".format(x) for x in np.where(too_few_cases)[0]]
+                    ["{}".format(x) for x in np.nonzero(too_few_cases)[0]]
                 ))
             ]))
         meta["counts"] = counts

@@ -7,8 +7,16 @@ Released under the MIT license - see LICENSE file for details
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
+import scipy.sparse as sparse
+from scipy.sparse.csgraph import connected_components
+from sklearn.metrics import pairwise_distances
 
 import proset.shared as shared
+
+
+MERGE_TOL = 1e-8
+# two prototypes are considered identical and suitable for merging if the maximum absolute difference across all feature
+# and target values is at most equal to this value
 
 
 class SetManager(metaclass=ABCMeta):
@@ -144,35 +152,38 @@ class SetManager(metaclass=ABCMeta):
         """
         if np.all(batch_info["prototype_weights"] == 0.0):
             return None
-        active_features = np.where(batch_info["feature_weights"] > 0.0)[0]
-        prototypes = batch_info["prototypes"][:, active_features]
+        active_features = np.nonzero(batch_info["feature_weights"] > 0.0)[0]
         feature_weights = batch_info["feature_weights"][active_features]
-        if active_features.shape[0] == 0:
-            # a batch with no active features can be added as a global adjustment to the model; in this case, the batch
-            # description can be consolidated into one prototype per distinct target value
-            sort_ix = np.argsort(batch_info["target"])
-            # reduceat() requires parameters with the same target value grouped together
-            target = batch_info["target"][sort_ix]
-            changes = np.hstack([0, np.nonzero(np.diff(target))[0] + 1])
-            target = target[changes]  # keep only one version of each target value
-            prototype_weights = np.add.reduceat(batch_info["prototype_weights"][sort_ix], indices=changes, axis=0)
-            # add all prototype weights belonging to the same target value
-            sample_index = np.minimum.reduceat(batch_info["sample_index"][sort_ix], indices=changes, axis=0)
-            # arbitrarily assign the minimum sample index per target value
-        else:
-            prototype_weights = batch_info["prototype_weights"]
-            target = batch_info["target"]
-            sample_index = batch_info["sample_index"]
-        active_prototypes = np.where(prototype_weights > 0.0)[0]
-        scaled_prototypes = prototypes[active_prototypes] * feature_weights
+        active_prototypes = np.nonzero(batch_info["prototype_weights"] > 0.0)[0]
+        scaled_prototypes = batch_info["prototypes"][active_prototypes][:, active_features] * feature_weights
+        target = batch_info["target"][active_prototypes]
+        prototype_weights = batch_info["prototype_weights"][active_prototypes]
+        sample_index = batch_info["sample_index"][active_prototypes]
+        relation = np.nonzero(
+            pairwise_distances(X=np.hstack([scaled_prototypes, target[:, np.newaxis]]), metric="chebyshev") <= MERGE_TOL
+        )  # find all pairs of features and target that are identical within tolerance
+        num_labels, labels = connected_components(
+            csgraph=sparse.coo_matrix((np.ones_like(relation[0]), (relation[0], relation[1]))),
+            directed=False,
+            return_labels=True
+        )  # label groups of identical feature/target combinations
+        if num_labels < len(labels):  # one or more prototypes can be merged together
+            sort_ix = np.lexsort([sample_index, labels])
+            # reduceat() requires equivalent prototypes to be grouped together; lexsort uses the last key as primary
+            # sort key; using sample index as secondary key means the smallest index in each group is first
+            changes = np.hstack([0, np.nonzero(np.diff(labels[sort_ix]))[0] + 1])
+            scaled_prototypes = scaled_prototypes[sort_ix][changes]
+            target = target[sort_ix][changes]
+            prototype_weights = np.add.reduceat(prototype_weights[sort_ix], indices=changes, axis=0)
+            sample_index = sample_index[sort_ix][changes]
         return {
             "active_features": active_features,
             "scaled_prototypes": scaled_prototypes,
             "ssq_prototypes": np.sum(scaled_prototypes ** 2.0, axis=1),
-            "target": target[active_prototypes],
+            "target": target,
             "feature_weights": feature_weights,
-            "prototype_weights": prototype_weights[active_prototypes],
-            "sample_index": sample_index[active_prototypes]
+            "prototype_weights": prototype_weights,
+            "sample_index": sample_index
         }
 
     def evaluate_unscaled(self, features, num_batches):

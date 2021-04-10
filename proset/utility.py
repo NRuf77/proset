@@ -474,7 +474,7 @@ def _evaluate_stage_1(stage, parameters, fit_mode):
         "scores": stats["mean"],
         "threshold": stats["threshold"],
         "best_index": stats["best_index"],
-        "selected_index": np.where(reference == np.max(reference[candidates]))[0][0]
+        "selected_index": np.nonzero(reference == np.max(reference[candidates]))[0][0]
     }
 
 
@@ -602,7 +602,7 @@ def _evaluate_stage_2(stage, num_batch_grid):
     :return: as return value of _execute_stage_2()
     """
     stats = _compute_stats(stage)
-    selected_index = np.where(stats["mean"] >= stats["threshold"])[0][0]
+    selected_index = np.nonzero(stats["mean"] >= stats["threshold"])[0][0]
     return {
         "num_batch_grid": num_batch_grid,
         "scores": stats["mean"],

@@ -60,7 +60,7 @@ def fit_knn_classifier(features, labels, transform=None, k_grid=None, num_folds=
     std = search.cv_results_["std_test_score"]
     best_index = np.argmin(mean)
     threshold = mean[best_index] + std[best_index]
-    selected_index = np.where(mean <= threshold)[0][-1]
+    selected_index = np.nonzero(mean <= threshold)[0][-1]
     # use the largest k where the score is within one standard error of the optimum to get maximal smoothing
     model.set_params(**{para_name: k_grid[selected_index]})
     model.fit(X=features, y=labels)
@@ -375,7 +375,7 @@ def _get_xgb_classifier_stage_1_results(search, search_para_names):
         "scores": scores,
         "threshold": threshold,
         "best_index": best_index,
-        "selected_index": np.where(candidates)[0][0]
+        "selected_index": np.nonzero(candidates)[0][0]
     }
 
 
@@ -463,7 +463,7 @@ def _get_xgb_classifier_stage_2_results(search, stage_2_para):
         "scores": scores,
         "threshold": threshold,
         "best_num_iter": best_index + 1,
-        "selected_num_iter": np.where(scores <= threshold)[0][0] + 1  # use smallest number of iterations
+        "selected_num_iter": np.nonzero(scores <= threshold)[0][0] + 1  # use smallest number of iterations
     }
 
 
