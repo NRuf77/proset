@@ -7,6 +7,9 @@ Released under the MIT license - see LICENSE file for details
 import numpy as np
 
 
+LOG_OFFSET = 1e-10  # add to small numbers before taking the logarithm
+
+
 def check_classifier_target(target):
     """Check whether target for classification is encoded correctly.
 
@@ -44,3 +47,62 @@ def quick_compute_similarity(scaled_reference, scaled_prototypes, ssq_reference,
     similarity = (similarity.transpose() + ssq_reference).transpose()  # broadcast over columns
     similarity = np.exp(-0.5 * similarity)
     return similarity
+
+
+def check_feature_names(num_features, feature_names=None, active_features=None):
+    """Check feature names for consistency and supply defaults if necessary.
+
+    :param num_features: positive integer; number of features
+    :param feature_names: list of strings or None; if not None, must have num_features elements
+    :param active_features: 1D numpy integer array or None; feature indices to select; defaults to all features in
+        the order given in feature_names
+    :return: list of strings; feature names or defaults X0, X1, etc.; raise an error on invalid input
+    """
+    if not isinstance(num_features, (int, np.int32, np.int64)):
+        raise TypeError("Parameter num_features must be integer.")
+    if num_features < 1:
+        raise ValueError("Parameter num_features must be positive.")
+    if feature_names is not None and len(feature_names) != num_features:
+        raise ValueError("Parameter feature_names must have one element per feature if not None.")
+    if active_features is None:
+        active_features = np.arange(num_features)
+    if len(active_features.shape) != 1:
+        raise TypeError("Parameter active_features must be a 1D array.")
+    if active_features.dtype not in (int, np.int32, np.int64):
+        raise TypeError("Parameter active_features must be an integer array.")
+    if np.any(active_features < 0) or np.any(active_features >= num_features):
+        raise ValueError(
+            "Parameter active_features must contain non-negative numbers less than the total number of features."
+        )
+    if feature_names is None:
+        return ["X{}".format(i) for i in active_features]
+    return [feature_names[i] for i in active_features]
+
+
+def check_scale_offset(num_features, scale, offset):
+    """Check that scale and offset are consistent with number of features, provide defaults if necessary.
+
+    :param num_features: non-negative integer; number of features
+    :param scale: 1D numpy array of positive floats or None; if not None, must have num_features elements
+    :param offset: 1D numpy float array or None; if not None, must have num_features elements
+    :return: two return values:
+        - 1D numpy array of positive floats; as scale if given, else a vector of ones
+        - 1D numpy float array; as offset if given, else a vector of zeros
+    """
+    if scale is None:
+        scale = np.ones(num_features, dtype=float)
+    else:
+        if len(scale.shape) != 1:
+            raise ValueError("Parameter scale must be a 1D array.")
+        if scale.shape[0] != num_features:
+            raise ValueError("Parameter scale must have one element per feature.")
+        if np.any(scale <= 0.0):
+            raise ValueError("Parameter scale must have strictly positive elements.")
+    if offset is None:
+        offset = np.zeros(num_features, dtype=float)
+    else:
+        if len(offset.shape) != 1:
+            raise ValueError("Parameter offset must be a 1D array.")
+        if offset.shape[0] != num_features:
+            raise ValueError("Parameter offset must have one element per feature.")
+    return scale, offset

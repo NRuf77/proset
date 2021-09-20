@@ -1,7 +1,5 @@
 """Score proset classifier trained on two features of Fisher's iris data.
 
-Uncomment the trial you want to see below.
-
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """
@@ -10,68 +8,128 @@ import gzip
 import os
 import pickle
 
+import numpy as np
+import pandas as pd
 from sklearn.metrics import classification_report, log_loss, roc_auc_score
 
-import proset
+import proset.utility as utility
 
 
 print("* Apply user settings")
 input_path = "scripts/results"
-# input_file = "iris_2f_2d_05_model.gz"
-# input_file = "iris_2f_2d_50_model.gz"
-# input_file = "iris_2f_2d_95_model.gz"
-# input_file = "iris_2f_1d_model.gz"
-# input_file = "iris_2f_fix_model.gz"
-input_file = "iris_2f_fix_opt_model.gz"
+output_path = "scripts/reports"
+input_files = [
+    "iris_2f_2d_05_model.gz",
+    "iris_2f_2d_50_model.gz",
+    "iris_2f_2d_95_model.gz",
+    "iris_2f_1d_model.gz",
+    "iris_2f_fix_model.gz",
+    "iris_2f_fix_opt_model.gz"
+]
+print("  Select input file:")
+for i, file_name in enumerate(input_files):
+    print("  {} - {}".format(i, file_name))
+choice = int(input())
+input_file = input_files[choice]
+export_file = input_file.replace(".gz", "_export.xlsx")
+model_name = input_file.replace(".gz", "")
 
 print("* Load model fit results")
 with gzip.open(os.path.join(input_path, input_file), mode="rb") as file:
     result = pickle.load(file)
 
+print("* Generate prototype report")
+scale = np.sqrt(result["model"]["transform"].var_)
+offset = result["model"]["transform"].mean_
+export = result["model"]["model"].export(feature_names=result["data"]["feature_names"], scale=scale, offset=offset)
+utility.write_report(file_path=os.path.join(output_path, export_file), report=export)
+
 print("* Show results")
-truth = result["data"]["y_test"]
-prediction = result["model"].predict(result["data"]["X_test"])
-probabilities = result["model"].predict_proba(result["data"]["X_test"])
-
+train_features = result["model"]["transform"].transform(result["data"]["X_train"])
+train_labels = result["data"]["y_train"]
+test_features = result["model"]["transform"].transform(result["data"]["X_test"])
+test_labels = result["data"]["y_test"]
+prediction = result["model"]["model"].predict(test_features)
+probabilities = result["model"]["model"].predict_proba(test_features)
+active_features = result["model"]["model"].set_manager_.get_active_features()
+misclassified = prediction != test_labels
+prototype_ix = np.zeros(train_features.shape[0], dtype=bool)
+prototype_ix[export["sample"][np.logical_not(pd.isna(export["batch"]))].drop_duplicates().to_numpy().astype(int)] = True
 print("- Hyperparameter selection")
-proset.print_hyperparameter_report(result)
+utility.print_hyperparameter_report(result)
 print("-  Final model")
-print("log-loss = {:.2f}".format(log_loss(y_true=truth, y_pred=probabilities)))
-print("roc-auc  = {:.2f}".format(roc_auc_score(y_true=truth, y_score=probabilities, multi_class="ovo")))
-print("active features = {}".format(result["model"]["model"].set_manager_.num_active_features))
-print("prototypes = {}\n".format(result["model"]["model"].set_manager_.num_prototypes))
-print("- Classification report")
-print(classification_report(y_true=truth, y_pred=prediction))
-
-proset.plot_select_results(result)
-proset.plot_decision_surface(
-    features=result["data"]["X_test"],
-    target=result["data"]["y_test"],
-    model=result["model"],
+print("log-loss = {:.2f}".format(log_loss(y_true=test_labels, y_pred=probabilities)))
+print("roc-auc  = {:.2f}".format(roc_auc_score(y_true=test_labels, y_score=probabilities, multi_class="ovo")))
+print("number of active features = {}".format(active_features.shape[0]))
+print("number of prototypes = {}\n".format(result["model"]["model"].set_manager_.get_num_prototypes()))
+print("- Selected features and weights")
+utility.print_feature_report(model=result["model"]["model"], feature_names=result["data"]["feature_names"])
+print("\n- Classification report")
+print(classification_report(y_true=test_labels, y_pred=prediction))
+utility.plot_select_results(result=result, model_name=model_name)
+plotter = utility.ClassifierPlots(
+    model=result["model"]["model"],
+    model_name=model_name,
     feature_names=result["data"]["feature_names"],
-    class_labels=result["data"]["class_labels"],
-    model_name="iris 2f classifier",
-    classifier_name="model"
+    scale=scale,
+    offset=offset
 )
-proset.plot_decision_surface(
-    features=result["data"]["X_test"],
-    target=result["data"]["y_test"],
-    model=result["model"],
-    feature_names=result["data"]["feature_names"],
-    class_labels=result["data"]["class_labels"],
-    model_name="iris 2f classifier",
-    use_proba=True,
-    classifier_name="model"
+x_range, y_range = plotter.plot_surface(
+    features=train_features,
+    target=train_labels,
+    comment="training samples",
+    highlight=prototype_ix,
+    highlight_name="prototypes",
+    use_proba=True
 )
-proset.plot_decision_surface(
-    features=result["data"]["X_train"],
-    target=result["data"]["y_train"],
-    model=result["model"],
-    feature_names=result["data"]["feature_names"],
-    class_labels=result["data"]["class_labels"],
-    model_name="iris 2f classifier (+ training samples)",
-    use_proba=True,
-    classifier_name="model"
+plotter.plot_surface(
+    features=test_features,
+    target=test_labels,
+    comment="test samples",
+    highlight=misclassified,
+    highlight_name="misclassified",
+    x_range=x_range,
+    y_range=y_range,
+    use_proba=True
 )
+plotter.plot_surface(
+    features=test_features,
+    target=test_labels,
+    comment="test samples",
+    highlight=misclassified,
+    highlight_name="misclassified",
+    x_range=x_range,
+    y_range=y_range,
+)
+if active_features.shape[0] == 2:
+    x_range, y_range = plotter.plot_batch_map(
+        batch=1,
+        features=train_features,
+        target=train_labels,
+        comment="training samples"
+    )
+    plotter.plot_batch_map(
+        batch=1,
+        features=test_features,
+        target=test_labels,
+        comment="test samples",
+        highlight=misclassified,
+        highlight_name="misclassified",
+        x_range=x_range,
+        y_range=y_range
+    )
+    plotter.plot_batch_map(batch=1, x_range=x_range, y_range=y_range)
+    plotter.plot_features(batch=1, features=train_features, target=train_labels, comment="training samples")
+    plotter.plot_features(
+        batch=1,
+        features=test_features,
+        target=test_labels,
+        comment="test samples",
+        highlight=misclassified,
+        highlight_name="misclassified"
+    )
+    plotter.plot_features(batch=1)
+else:
+    print("! Cannot generate scatter plots for less than 2 active features\n")
 
 print("* Done")

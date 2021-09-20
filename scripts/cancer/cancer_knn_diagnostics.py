@@ -20,10 +20,9 @@ with gzip.open(os.path.join(input_path, input_file), mode="rb") as file:
     result = pickle.load(file)
 
 print("* Show results")
-truth = result["data"]["y_test"]
+test_labels = result["data"]["y_test"]
 prediction = result["model"].predict(result["data"]["X_test"])
 probabilities = result["model"].predict_proba(result["data"]["X_test"])
-
 print("- Hyperparameter selection")
 print("optimal k         = {}".format(result["info"]["k_grid"][result["info"]["best_index"]]))
 print("optimal log-loss  = {:.2f}".format(result["info"]["scores"][result["info"]["best_index"]]))
@@ -31,9 +30,9 @@ print("threshold         = {:.2f}".format(result["info"]["threshold"]))
 print("selected k        = {}".format(result["info"]["k_grid"][result["info"]["selected_index"]]))
 print("selected log-loss = {:.2f}".format(result["info"]["scores"][result["info"]["selected_index"]]))
 print("-  Final model")
-print("log-loss          = {:.2f}".format(log_loss(y_true=truth, y_pred=probabilities)))
-print("roc-auc           = {:.2f}".format(roc_auc_score(y_true=truth, y_score=probabilities[:, 1])))
+print("log-loss          = {:.2f}".format(log_loss(y_true=test_labels, y_pred=probabilities)))
+print("roc-auc           = {:.2f}".format(roc_auc_score(y_true=test_labels, y_score=probabilities[:, 1])))
 print("- Classification report")
-print(classification_report(y_true=truth, y_pred=prediction))
+print(classification_report(y_true=test_labels, y_pred=prediction))
 
 print("* Done")

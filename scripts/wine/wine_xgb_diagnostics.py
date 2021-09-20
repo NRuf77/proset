@@ -23,17 +23,16 @@ with gzip.open(os.path.join(input_path, input_file), mode="rb") as file:
     result = pickle.load(file)
 
 print("* Show results")
-truth = result["data"]["y_test"]
-prediction = result["model"].predict(result["data"]["X_test"])
+test_labels = result["data"]["y_test"]
+prediction = result["encoder"].inverse_transform(result["model"].predict(result["data"]["X_test"]))
 probabilities = result["model"].predict_proba(result["data"]["X_test"])
-
 print("- Hyperparameter selection")
 print_xgb_classifier_report(result)
 print("-  Final model")
 print("active features   = {}".format(np.sum(result["model"].feature_importances_ > 0.0)))
-print("log-loss          = {:.2f}".format(log_loss(y_true=truth, y_pred=probabilities)))
-print("roc-auc           = {:.2f}".format(roc_auc_score(y_true=truth, y_score=probabilities, multi_class="ovo")))
+print("log-loss          = {:.2f}".format(log_loss(y_true=test_labels, y_pred=probabilities)))
+print("roc-auc           = {:.2f}".format(roc_auc_score(y_true=test_labels, y_score=probabilities, multi_class="ovo")))
 print("- Classification report")
-print(classification_report(y_true=truth, y_pred=prediction))
+print(classification_report(y_true=test_labels, y_pred=prediction))
 
 print("* Done")

@@ -748,7 +748,7 @@ class ClassifierObjective(Objective):
         :return: float; negative log-likelihood
         """
         return -1.0 * np.inner(
-            np.log(shared_expressions["ref_unscaled"] / shared_expressions["ref_scale"]),
+            np.log(shared_expressions["ref_unscaled"] / shared_expressions["ref_scale"] + shared.LOG_OFFSET),
             shared_expressions["ref_weights"]
         ) / shared_expressions["total_weight"]
 

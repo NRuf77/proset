@@ -11,48 +11,64 @@ import pickle
 import numpy as np
 from sklearn.metrics import classification_report, log_loss, roc_auc_score
 
-import proset
+import proset.utility as utility
 from proset.benchmarks import print_xgb_classifier_report
 
 
 print("* Apply user settings")
 input_path = "scripts/results"
 input_file = "checker_xgb_model.gz"
+model_name = input_file.replace(".gz", "")
 
 print("* Load model fit results")
 with gzip.open(os.path.join(input_path, input_file), mode="rb") as file:
     result = pickle.load(file)
 
 print("* Show results")
-truth = result["data"]["y_test"]
-prediction = result["model"].predict(result["data"]["X_test"])
-probabilities = result["model"].predict_proba(result["data"]["X_test"])
-
+test_features = result["data"]["X_test"]
+test_labels = result["data"]["y_test"]
+prediction = result["model"].predict(test_features)
+probabilities = result["model"].predict_proba(test_features)
 print("- Hyperparameter selection")
 print_xgb_classifier_report(result)
 print("-  Final model")
 print("active features   = {}".format(np.sum(result["model"].feature_importances_ > 0.0)))
-print("log-loss          = {:.2f}".format(log_loss(y_true=truth, y_pred=probabilities)))
-print("roc-auc           = {:.2f}".format(roc_auc_score(y_true=truth, y_score=probabilities[:, 1])))
+print("log-loss          = {:.2f}".format(log_loss(y_true=test_labels, y_pred=probabilities)))
+print("roc-auc           = {:.2f}".format(roc_auc_score(y_true=test_labels, y_score=probabilities[:, 1])))
 print("- Classification report")
-print(classification_report(y_true=truth, y_pred=prediction))
-
-proset.plot_decision_surface(
-    features=result["data"]["X_test"],
-    target=result["data"]["y_test"],
+print(classification_report(y_true=test_labels, y_pred=prediction))
+plotter = utility.ClassifierPlots(
     model=result["model"],
-    feature_names=result["data"]["feature_names"],
-    class_labels=result["data"]["class_labels"],
-    model_name="checker XGBoost classifier"
+    model_name=model_name,
+    feature_names=result["data"]["feature_names"]
 )
-proset.plot_decision_surface(
-    features=result["data"]["X_test"],
-    target=result["data"]["y_test"],
-    model=result["model"],
-    feature_names=result["data"]["feature_names"],
-    class_labels=result["data"]["class_labels"],
-    model_name="checker XGBoost classifier",
+train_features = result["data"]["X_train"]
+train_labels = result["data"]["y_train"]
+misclassified = prediction != test_labels
+x_range, y_range = plotter.plot_surface(
+    features=train_features,
+    target=train_labels,
+    comment="training samples",
     use_proba=True
+)
+plotter.plot_surface(
+    features=test_features,
+    target=test_labels,
+    comment="test samples",
+    highlight=misclassified,
+    highlight_name="misclassified",
+    x_range=x_range,
+    y_range=y_range,
+    use_proba=True
+)
+plotter.plot_surface(
+    features=test_features,
+    target=test_labels,
+    comment="test samples",
+    highlight=misclassified,
+    highlight_name="misclassified",
+    x_range=x_range,
+    y_range=y_range,
 )
 
 print("* Done")

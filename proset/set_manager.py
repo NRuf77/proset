@@ -38,6 +38,18 @@ class SetManager(metaclass=ABCMeta):
         # noinspection PyTypeChecker
         self._meta.update(self._get_baseline_distribution(target))
 
+    @staticmethod
+    @abstractmethod
+    def _get_baseline_distribution(target):
+        """Compute baseline distribution parameters from target for supervised learning.
+
+        :param target: see docstring of __init__() for details
+        :return: dict; contains information regarding the baseline information that depends on the model
+        """
+        return NotImplementedError(
+            "Abstract base class SetManager has no default implementation for method _get_baseline_distribution()."
+        )
+
     @property
     def num_batches(self):
         """Get number of batches already added to SetManager instance.
@@ -54,33 +66,29 @@ class SetManager(metaclass=ABCMeta):
         """
         return self._meta["num_features"]
 
-    @property
-    def num_active_features(self):
-        """Get number features with positive weight for at least one batch.
+    def get_active_features(self, num_batches=None):
+        """Get indices of active feature across all batches.
 
-        :return: integer; number of active features
+        :param num_batches: non-negative integer or None; number of batches to use for evaluation; pass None for all
+            batches
+        :return: 1D numpy array of non-negative integers; active feature indices w.r.t. original feature matrix
         """
-        return self.get_feature_weights()["feature_index"].shape[0]
+        num_batches = self._check_num_batches(
+            num_batches=num_batches, num_batches_actual=self.num_batches, permit_array=False
+        )
+        active_features = [
+            self._batches[i]["active_features"] for i in range(num_batches) if self._batches[i] is not None
+        ]
+        if len(active_features) == 0:
+            return np.zeros(0, dtype=int)
+        return np.unique(np.hstack(active_features))
 
-    @property
-    def num_prototypes(self):
-        """Get number prototypes across all batches.
+    def get_num_prototypes(self):
+        """Get number of prototypes across all batches.
 
         :return: integer; number of prototypes
         """
         return np.sum([batch["scaled_prototypes"].shape[0] for batch in self._batches if batch is not None])
-
-    @staticmethod
-    @abstractmethod
-    def _get_baseline_distribution(target):
-        """Compute baseline distribution parameters from target for supervised learning.
-
-        :param target: see docstring of __init__() for details
-        :return: dict; contains information regarding the baseline information that depends on the model
-        """
-        return NotImplementedError(
-            "Abstract base class SetManager has no default implementation for method _get_baseline_distribution()."
-        )
 
     def add_batch(self, batch_info):
         """Add batch of prototypes.
@@ -198,12 +206,11 @@ class SetManager(metaclass=ABCMeta):
             regression means); the second array is the corresponding scaling vector; if an integer is passed for
             num_batches, the list has length 1; else, the list has one element per element of num_batches
         """
-        if num_batches is None:
-            num_batches = self.num_batches
-        self._check_evaluate_input(
+        num_batches = self._check_evaluate_input(
             features=features,
             num_batches=num_batches,
             num_batches_actual=self.num_batches,
+            permit_array=True,
             meta=self._meta
         )
         impact, target, batch_index = self._compute_impact(
@@ -220,15 +227,16 @@ class SetManager(metaclass=ABCMeta):
             meta=self._meta
         )
 
-    @staticmethod
-    def _check_evaluate_input(features, num_batches, num_batches_actual, meta):
+    @classmethod
+    def _check_evaluate_input(cls, features, num_batches, num_batches_actual, permit_array, meta):
         """Check whether input to evaluate_unscaled() is consistent.
 
         :param features: see docstring of evaluate_unscaled() for details
         :param num_batches: see docstring of evaluate_unscaled() for details
         :param num_batches_actual: non_negative integer; actual number of batches; num_batches must no exceed this
+        :param permit_array: boolean; whether a numpy array may be provided for num_batches
         :param meta: dict; must have key 'num_features' but can store None value if not determined yet
-        :return: no return arguments; raises a ValueError if a check fails
+        :return: num_batches or num_batches_actual if the former is None; raises an error if a check fails
         """
         if len(features.shape) != 2:
             raise ValueError("Parameter features must be a 2D array.")
@@ -237,7 +245,24 @@ class SetManager(metaclass=ABCMeta):
             raise ValueError("Parameter features has {} columns but {} are expected.".format(
                 features.shape[1], meta["num_features"]
             ))
+        return cls._check_num_batches(
+            num_batches=num_batches, num_batches_actual=num_batches_actual, permit_array=permit_array
+        )
+
+    @staticmethod
+    def _check_num_batches(num_batches, num_batches_actual, permit_array):
+        """Check requested number of batches is consistent with actual number.
+
+        :param num_batches: see docstring of evaluate_unscaled() for details
+        :param num_batches_actual: see docstring of _check_evaluate_input() for details
+        :param permit_array: see docstring of _check_evaluate_input() for details
+        :return: as return value of _check_evaluate_input()
+        """
+        if num_batches is None:
+            num_batches = num_batches_actual
         if isinstance(num_batches, np.ndarray):
+            if not permit_array:
+                raise TypeError("Parameter num_batches must not be an array.")
             if np.any(num_batches < 0):
                 raise ValueError("Parameter num_batches must not contain negative values if passing a vector.")
             if np.any(num_batches > num_batches_actual):
@@ -259,6 +284,7 @@ class SetManager(metaclass=ABCMeta):
                     "Parameter num_batches must be less than or equal to the available number of {}.".format(
                         num_batches_actual
                     ))
+        return num_batches
 
     @staticmethod
     def _compute_impact(features, batches, num_batches, meta):
@@ -321,42 +347,51 @@ class SetManager(metaclass=ABCMeta):
             "Abstract base class SetManager has no default implementation for method _compute_unscaled()."
         )
 
-    def evaluate(self, features, num_batches):
+    def evaluate(self, features, num_batches, compute_familiarity):
         """Compute scaled predictions.
 
         :param features: 2D numpy float array; feature matrix for which to compute scaled predictions
         :param num_batches: non-negative integer, 1D numpy array of non-negative and strictly increasing integers, or
             None; number of batches to use for evaluation; pass None for all batches; pass an array to evaluate for
             multiple values of num_batches at once
+        :param compute_familiarity: boolean; whether to compute the familiarity for each sample
         :return: list of numpy arrays; each array is either 1D or 2D with the same first dimension as features and
             contains predictions (class probabilities or regression means); if an integer is passed for num_batches, the
             list has length 1; else, the list has one element per element of num_batches
         """
         unscaled = self.evaluate_unscaled(features, num_batches)
-        return [(pair[0].transpose() / pair[1]).transpose() for pair in unscaled]
+        scaled = [(pair[0].transpose() / pair[1]).transpose() for pair in unscaled]
         # transpose to broadcast scale over columns in case unscaled is 2D
+        if compute_familiarity:
+            return scaled, [pair[1] - 1.0 for pair in unscaled]
+        return scaled
 
-    def get_feature_weights(self):
+    def get_feature_weights(self, num_batches=None):
         """Get weights of active features for all batches as a matrix.
 
+        :param num_batches: non-negative integer or None; number of batches to export; pass None for all batches
         :return: dict with keys:
             - weight_matrix: 2D numpy float array; this has one row per batch and once column per feature that is active
               in at least one batch; features are sorted in order of descending weight for the first row, using
               subsequent rows as tie-breaker
             - feature_index: 1D numpy integer array; index vector indicating the order of features
         """
-        active_features = [batch["active_features"] for batch in self._batches if batch is not None]
-        if len(active_features) == 0:
+        num_batches = self._check_num_batches(
+            num_batches=num_batches, num_batches_actual=self.num_batches, permit_array=False
+        )
+        active_features = self.get_active_features(num_batches)
+        if active_features.shape[0] == 0:
             return {
-                "weight_matrix": np.zeros((self.num_batches, 0)),
+                "weight_matrix": np.zeros((num_batches, 0)),
                 "feature_index": np.zeros(0, dtype=int)
             }
-        active_features = np.unique(np.hstack(active_features))
         weight_matrix = []
-        for i, batch in enumerate(self._batches):
+        for i in range(num_batches):
             new_row = np.zeros(len(active_features))
-            if batch is not None:
-                new_row[np.searchsorted(active_features, batch["active_features"])] = batch["feature_weights"]
+            if self._batches[i] is not None:
+                new_row[
+                    np.searchsorted(active_features, self._batches[i]["active_features"])
+                ] = self._batches[i]["feature_weights"]
             weight_matrix.append(new_row)
         order = np.lexsort(weight_matrix[-1::-1])[-1::-1]
         # np.lexsort() uses the last argument as primary key and sorts in ascending order
@@ -364,6 +399,108 @@ class SetManager(metaclass=ABCMeta):
             "weight_matrix": np.row_stack(weight_matrix)[:, order],
             "feature_index": active_features[order]
         }
+
+    def get_batches(self, features=None, num_batches=None):
+        """Get batch information.
+
+        :param features: 2D numpy float array with a single row or None; if not None, per-feature similarities are
+            computed between features and each prototype
+        :param num_batches: non-negative integer or None; number of batches to export; pass None for all batches
+        :return: list whose elements are either dicts or None; None indicates the batch in this position contains no
+            prototypes; each dict has the following fields:
+            - active_features: 1D numpy integer array; index vector of features with non-zero feature weights
+            - prototypes: 2D numpy float array; prototypes reduced to active features
+            - target: 1D numpy array; target values corresponding to scaled prototypes
+            - feature_weights: 1D numpy float array; feature weights reduced to active features
+            - prototype_weights: 1D numpy float array; prototype weights
+            - sample_index: 1D numpy integer array; sample indices for prototypes
+            - similarities: 2D numpy array; per-feature similarities between the input features and each prototype; one
+              row per prototype and one column per active feature; this field is not included if features is None
+        """
+        num_batches, features = self._check_get_batches_input(
+            features=features,
+            num_batches=num_batches,
+            num_batches_actual=self.num_batches,
+            meta=self._meta
+        )
+        batches = [{
+            "active_features": self._batches[i]["active_features"].copy(),
+            "prototypes":
+                self._batches[i]["scaled_prototypes"].copy() if self._batches[i]["feature_weights"].shape[0] == 0 else
+                self._batches[i]["scaled_prototypes"] / self._batches[i]["feature_weights"],
+            "target": self._batches[i]["target"].copy(),
+            "feature_weights": self._batches[i]["feature_weights"].copy(),
+            "prototype_weights": self._batches[i]["prototype_weights"].copy(),
+            "sample_index": self._batches[i]["sample_index"].copy()
+        } if self._batches[i] is not None else None for i in range(num_batches)]
+        if features is not None:
+            for i in range(len(batches)):
+                if batches[i] is not None:
+                    batches[i]["similarities"] = self._compute_feature_similarities(
+                        prototypes=batches[i]["prototypes"],
+                        features=features[batches[i]["active_features"]],
+                        feature_weights=batches[i]["feature_weights"]
+                    )
+        return batches
+
+    @classmethod
+    def _check_get_batches_input(cls, features, num_batches, num_batches_actual, meta):
+        """Check whether input to get_batches() is consistent.
+
+        :param features: see docstring of get_batches() for details
+        :param num_batches: see docstring of get_batches() for details
+        :param num_batches_actual: non_negative integer; actual number of batches; num_batches must no exceed this
+        :param meta: dict; must have key 'num_features' but can store None value if not determined yet
+        :return: two return values:
+            - non-negative integer; num_batches or num_batches_actual if the former is None
+            - 1D numpy float array or None; features converted to a 1D array if not None
+            raises an error if a check fails
+        """
+        if features is None:
+            num_batches = cls._check_num_batches(
+                num_batches=num_batches,
+                num_batches_actual=num_batches_actual,
+                permit_array=False
+            )
+        else:
+            num_batches = cls._check_evaluate_input(
+                features=features,
+                num_batches=num_batches,
+                num_batches_actual=num_batches_actual,
+                permit_array=False,
+                meta=meta
+            )
+            if features.shape[0] != 1:
+                raise ValueError("Parameter features must have exactly one row.")
+            features = np.squeeze(features)
+        return num_batches, features
+
+    @staticmethod
+    def _compute_feature_similarities(prototypes, features, feature_weights):
+        """Compute per-feature similarities between prototypes and a single reference sample.
+
+        :param prototypes: 2D numpy float array; prototypes
+        :param features: 1D numpy float array; features for reference sample
+        :param feature_weights: 1D numpy array of non-negative floats; feature weights
+        :return: as the value for key 'similarities' in the output of get_batches()
+        """
+        return np.exp(-0.5 * ((prototypes - features) * feature_weights) ** 2.0)
+
+    def shrink(self):
+        """Reduce internal state representation to active features across all batches.
+
+        :return: 1D numpy array of non-negative integers; indices of active features w.r.t. original training data
+        """
+        active_features = self.get_active_features()
+        if self._meta["num_features"] is None:  # nothing to do as no batches were ever added
+            return active_features  # this is a vector of length zero by default
+        self._meta["num_features"] = active_features.shape[0]
+        for i in range(len(self._batches)):
+            if self._batches[i] is not None:
+                self._batches[i]["active_features"] = np.searchsorted(
+                    active_features, self._batches[i]["active_features"]
+                )  # locate batch active features among all active features
+        return active_features
 
 
 class ClassifierSetManager(SetManager):

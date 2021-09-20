@@ -72,13 +72,14 @@ class TestClassifierSetManager(TestCase):
 
     def test_init_1(self):
         manager = ClassifierSetManager(target=TARGET)
-        self.assertEqual(manager.num_batches, 0)
         self.assertEqual(manager.num_features, None)
-        self.assertEqual(manager.num_active_features, 0)
-        self.assertEqual(manager.num_prototypes, 0)
+        self.assertEqual(manager.num_batches, 0)
+        self.assertEqual(manager.get_active_features().shape[0], 0)
+        self.assertEqual(manager.get_num_prototypes(), 0)
         np.testing.assert_allclose(manager.marginals, MARGINALS)
 
-    # method _get_baseline_distribution() already tested by test_init_1() above
+    # methods _get_baseline_distribution() already tested by test_init_1() above
+    # methods get_active_features() and get_num_prototypes() tested above and below
 
     def test_add_batch_fail_1(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -293,8 +294,8 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         self.assertEqual(manager.num_batches, 1)
         self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
-        self.assertEqual(manager.num_active_features, np.sum(FEATURE_WEIGHTS > 0.0))
-        self.assertEqual(manager.num_prototypes, np.sum(PROTOTYPE_WEIGHTS > 0.0))
+        self.assertEqual(manager.get_active_features().shape[0], np.sum(FEATURE_WEIGHTS > 0.0))
+        self.assertEqual(manager.get_num_prototypes(), np.sum(PROTOTYPE_WEIGHTS > 0.0))
 
     def test_add_batch_2(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -302,8 +303,8 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         self.assertEqual(manager.num_batches, 2)
         self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
-        self.assertEqual(manager.num_active_features, np.sum(FEATURE_WEIGHTS > 0.0))
-        self.assertEqual(manager.num_prototypes, 2 * np.sum(PROTOTYPE_WEIGHTS > 0.0))
+        self.assertEqual(manager.get_active_features().shape[0], np.sum(FEATURE_WEIGHTS > 0.0))
+        self.assertEqual(manager.get_num_prototypes(), 2 * np.sum(PROTOTYPE_WEIGHTS > 0.0))
         # the same training sample added to two different batches counts as two prototypes
 
     def test_add_batch_3(self):
@@ -311,9 +312,9 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)
         self.assertEqual(manager.num_batches, 1)
         self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
-        self.assertEqual(manager.num_active_features, 0)
+        self.assertEqual(manager.get_active_features().shape[0], 0)
         # batch with no prototypes is counted but oes not contribute anything
-        self.assertEqual(manager.num_prototypes, 0)
+        self.assertEqual(manager.get_num_prototypes(), 0)
 
     # method _check_batch() already tested by the above
 
@@ -516,6 +517,18 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(unscaled[1][1], np.sum(ref_batch_2, axis=1))
 
     # method _check_evaluate_input() already tested by the above
+
+    def test_check_num_batches_fail_1(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(
+                num_batches=np.array([1, 2]), num_batches_actual=3, permit_array=False
+            )
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter num_batches must not be an array.")
+
+    # other exceptions and correct usage of _check_num_batches() already tested above
 
     def test_compute_impact_1(self):
         impact, target, batch_index = ClassifierSetManager._compute_impact(
@@ -724,7 +737,7 @@ class TestClassifierSetManager(TestCase):
 
     def test_evaluate_1(self):
         manager = ClassifierSetManager(target=TARGET)
-        scaled = manager.evaluate(features=REFERENCE, num_batches=None)
+        scaled = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=False)
         # check default values for set manager with no data
         self.assertEqual(len(scaled), 1)
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
@@ -732,16 +745,18 @@ class TestClassifierSetManager(TestCase):
 
     def test_evaluate_2(self):
         manager = ClassifierSetManager(target=TARGET)
-        manager.add_batch(BATCH_INFO_NO_PROTOTYPES)  # batch with no prototypes has no impact on the model
-        scaled = manager.evaluate(features=REFERENCE, num_batches=0)
+        scaled, familiarity = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=True)
+        # check default values for set manager with no data
         self.assertEqual(len(scaled), 1)
+        self.assertEqual(len(familiarity), 1)
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(scaled[0], ref_scaled)
+        np.testing.assert_allclose(familiarity[0], np.zeros_like(familiarity[0]))
 
     def test_evaluate_3(self):
         manager = ClassifierSetManager(target=TARGET)
-        manager.add_batch(BATCH_INFO)
-        scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0]))  # evaluate marginals only
+        manager.add_batch(BATCH_INFO_NO_PROTOTYPES)  # batch with no prototypes has no impact on the model
+        scaled = manager.evaluate(features=REFERENCE, num_batches=0, compute_familiarity=False)
         self.assertEqual(len(scaled), 1)
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(scaled[0], ref_scaled)
@@ -749,7 +764,16 @@ class TestClassifierSetManager(TestCase):
     def test_evaluate_4(self):
         manager = ClassifierSetManager(target=TARGET)
         manager.add_batch(BATCH_INFO)
-        scaled = manager.evaluate(features=REFERENCE, num_batches=None)
+        scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0]), compute_familiarity=False)
+        # evaluate marginals only
+        self.assertEqual(len(scaled), 1)
+        ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
+        np.testing.assert_allclose(scaled[0], ref_scaled)
+
+    def test_evaluate_5(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO)
+        scaled = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=False)
         self.assertEqual(len(scaled), 1)
         batch = ClassifierSetManager._process_batch(BATCH_INFO)
         impact, target, _ = ClassifierSetManager._compute_impact(
@@ -765,11 +789,33 @@ class TestClassifierSetManager(TestCase):
         ref_scaled = (ref_scaled.transpose() / np.sum(ref_scaled, axis=1)).transpose()
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
-    def test_evaluate_5(self):
+    def test_evaluate_6(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO)
+        scaled, familiarity = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=True)
+        self.assertEqual(len(scaled), 1)
+        self.assertEqual(len(familiarity), 1)
+        batch = ClassifierSetManager._process_batch(BATCH_INFO)
+        impact, target, _ = ClassifierSetManager._compute_impact(
+            features=REFERENCE,
+            batches=[batch],
+            num_batches=1,
+            meta={"num_features": PROTOTYPES.shape[1]}
+        )
+        ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
+        for i in range(3):
+            keep = target == i
+            ref_scaled[:, i] += np.sum(impact[:, keep], axis=1)
+        scale = np.sum(ref_scaled, axis=1)
+        ref_scaled = (ref_scaled.transpose() / scale).transpose()
+        np.testing.assert_allclose(scaled[0], ref_scaled)
+        np.testing.assert_allclose(familiarity[0], scale - 1.0)
+
+    def test_evaluate_7(self):
         manager = ClassifierSetManager(target=TARGET)
         manager.add_batch(BATCH_INFO)
         manager.add_batch(BATCH_INFO)
-        scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0, 2]))
+        scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0, 2]), compute_familiarity=False)
         self.assertEqual(len(scaled), 2)
         batch = ClassifierSetManager._process_batch(BATCH_INFO)
         impact, target, _ = ClassifierSetManager._compute_impact(
@@ -830,3 +876,114 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(len(result), 2)
         np.testing.assert_allclose(result["weight_matrix"], ref_weight_matrix)
         np.testing.assert_allclose(result["feature_index"], order)
+
+    def test_get_feature_weights_5(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO)
+        manager.add_batch(BATCH_INFO)
+        result = manager.get_feature_weights(num_batches=1)
+        ref_feature_index = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
+        order = np.argsort(FEATURE_WEIGHTS[ref_feature_index])[-1::-1]
+        ref_weight_matrix = FEATURE_WEIGHTS[ref_feature_index][order][np.newaxis, :]
+        self.assertEqual(len(result), 2)
+        np.testing.assert_allclose(result["weight_matrix"], ref_weight_matrix)
+        np.testing.assert_allclose(result["feature_index"], ref_feature_index[order])
+
+    def test_get_batches_fail_1(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
+        try:
+            manager.get_batches(features=REFERENCE)
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter features must have exactly one row.")
+
+    # other parameter checks and exceptions for get_batches() already tested above
+
+    def test_get_batches_1(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO)
+        batches = manager.get_batches()
+        self.assertEqual(len(batches), 1)
+        np.testing.assert_array_equal(np.sort(list(batches[0].keys())), np.array([
+            "active_features", "feature_weights", "prototype_weights", "prototypes", "sample_index", "target"
+        ]))
+        active_features = np.nonzero(BATCH_INFO["feature_weights"])[0]
+        active_prototypes = np.nonzero(BATCH_INFO["prototype_weights"])[0]
+        np.testing.assert_array_equal(batches[0]["active_features"], active_features)
+        np.testing.assert_array_almost_equal(
+            batches[0]["prototypes"], BATCH_INFO["prototypes"][active_prototypes][:, active_features]
+        )
+        np.testing.assert_array_equal(batches[0]["target"], BATCH_INFO["target"][active_prototypes])
+        np.testing.assert_array_equal(batches[0]["feature_weights"], BATCH_INFO["feature_weights"][active_features])
+        np.testing.assert_array_equal(
+            batches[0]["prototype_weights"], BATCH_INFO["prototype_weights"][active_prototypes]
+        )
+        np.testing.assert_array_equal(batches[0]["sample_index"], BATCH_INFO["sample_index"][active_prototypes])
+
+    def test_get_batches_2(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO_NO_FEATURES)
+        batches = manager.get_batches()
+        self.assertEqual(len(batches), 1)
+        np.testing.assert_array_equal(np.sort(list(batches[0].keys())), np.array([
+            "active_features", "feature_weights", "prototype_weights", "prototypes", "sample_index", "target"
+        ]))
+        self.assertEqual(batches[0]["active_features"].shape[0], 0)
+        self.assertEqual(batches[0]["prototypes"].shape, (np.unique(TARGET).shape[0], 0))
+        # note that the prototypes are merged to one representative per class present in TARGET
+
+        # correctness of computations is checked above, this test is only to ensure get_batches() can handle batches
+        # with no prototypes
+
+    def test_get_batches_3(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO_NO_PROTOTYPES)
+        batches = manager.get_batches()
+        self.assertEqual(len(batches), 1)
+        self.assertEqual(batches[0], None)
+
+    def test_get_batches_4(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO)
+        batches = manager.get_batches(features=REFERENCE[:1])
+        self.assertEqual(len(batches), 1)
+        np.testing.assert_array_equal(np.sort(list(batches[0].keys())), np.array([
+            "active_features", "feature_weights", "prototype_weights", "prototypes", "sample_index", "similarities",
+            "target"
+        ]))
+        active_features = np.nonzero(BATCH_INFO["feature_weights"])[0]
+        active_prototypes = np.nonzero(BATCH_INFO["prototype_weights"])[0]
+        np.testing.assert_array_equal(batches[0]["active_features"], active_features)
+        np.testing.assert_array_almost_equal(
+            batches[0]["prototypes"], BATCH_INFO["prototypes"][active_prototypes][:, active_features]
+        )
+        np.testing.assert_array_equal(batches[0]["target"], BATCH_INFO["target"][active_prototypes])
+        np.testing.assert_array_equal(batches[0]["feature_weights"], BATCH_INFO["feature_weights"][active_features])
+        np.testing.assert_array_equal(
+            batches[0]["prototype_weights"], BATCH_INFO["prototype_weights"][active_prototypes]
+        )
+        np.testing.assert_array_equal(batches[0]["sample_index"], BATCH_INFO["sample_index"][active_prototypes])
+        active_features = FEATURE_WEIGHTS > 0.0
+        reference = np.exp(-0.5 * (
+                (PROTOTYPES[PROTOTYPE_WEIGHTS > 0.0][:, active_features] - REFERENCE[0, active_features])
+                * FEATURE_WEIGHTS[active_features]
+        ) ** 2.0)
+        np.testing.assert_allclose(batches[0]["similarities"], reference)
+
+    # method _compute_feature_similarities() already tested by the above
+
+    def test_shrink_1(self):
+        manager = ClassifierSetManager(target=TARGET)
+        result = manager.shrink()  # check that shrinking a set manager with no content breaks nothing
+        self.assertEqual(manager.num_features, None)
+        np.testing.assert_array_equal(result, np.zeros(0, dtype=int))
+
+    def test_shrink_2(self):
+        manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO)
+        result = manager.shrink()
+        active_features = np.nonzero(FEATURE_WEIGHTS)[0]
+        self.assertEqual(manager.num_features, len(active_features))
+        np.testing.assert_array_equal(result, active_features)
+        np.testing.assert_array_equal(manager._batches[0]["active_features"], np.arange(active_features.shape[0]))

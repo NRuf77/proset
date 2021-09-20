@@ -11,25 +11,26 @@ import os
 import pickle
 
 import numpy as np
+from sklearn.preprocessing import LabelEncoder
 
 from proset.benchmarks import fit_xgb_classifier
 
 
 print("* Apply user settings")
 random_state = np.random.RandomState(12345)
-data_path = "scripts/results"
-input_file = "cancer_2d_95_model.gz"
+working_path = "scripts/results"
+data_file = "cancer_data.gz"
 output_file = "cancer_xgb_model.gz"
 
-print("* Load and format data")
-with gzip.open(os.path.join(data_path, input_file), mode="rb") as file:
-    data = pickle.load(file)["data"]
-# reuse train-test split from proset model fit
+print("* Load data")
+with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
+    data = pickle.load(file)
+encoder = LabelEncoder().fit(data["y_train"])
 
 print("* Select hyperparameters via cross-validation")
 result = fit_xgb_classifier(
     features=data["X_train"],
-    labels=data["y_train"],
+    labels=encoder.transform(data["y_train"]),
     colsample_range=(0.1, 0.9),
     subsample_range=(0.1, 0.9),
     num_folds=5,
@@ -38,7 +39,8 @@ result = fit_xgb_classifier(
 
 print("* Save results")
 result["data"] = data
-with gzip.open(os.path.join(data_path, output_file), mode="wb") as file:
+result["encoder"] = encoder
+with gzip.open(os.path.join(working_path, output_file), mode="wb") as file:
     pickle.dump(result, file)
 
 print("* Done")
