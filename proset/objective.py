@@ -102,6 +102,7 @@ class Objective(metaclass=ABCMeta):
         self._alpha_v = alpha_v
         self._alpha_w = alpha_w
 
+    #  pylint: disable=too-many-branches
     @classmethod
     def _check_init_values(
             cls,
@@ -141,7 +142,9 @@ class Objective(metaclass=ABCMeta):
         if weights.shape[0] != features.shape[0]:
             raise ValueError("Parameter weights must have as many elements as features has rows.")
         if np.any(weights <= 0.0):
-            raise ValueError("Parameter weights must have only non-negative elements.")
+            raise ValueError("Parameter weights must not contain negative values.")
+        if not np.issubdtype(type(num_candidates), np.integer):
+            raise TypeError("Parameter num_candidates must be integer.")
         if num_candidates <= 0:
             raise ValueError("Parameter num_candidates must be positive.")
         if max_fraction <= 0.0 or max_fraction >= 1.0:
@@ -206,7 +209,7 @@ class Objective(metaclass=ABCMeta):
 
     @staticmethod
     @abstractmethod
-    def _assign_groups(target, unscaled, scale, meta):
+    def _assign_groups(target, unscaled, scale, meta):  # pragma: no cover
         """Divide training samples into groups for sampling candidates.
 
         :param target: see docstring of __init__() for details
@@ -245,7 +248,7 @@ class Objective(metaclass=ABCMeta):
         return candidates
 
     @staticmethod
-    def _log_group_breakdown(num_groups, groups, candidates):
+    def _log_group_breakdown(num_groups, groups, candidates):  # pragma: no cover
         """Log breakdown of samples to groups at log level INFO.
 
         :param num_groups: as first return value of _assign_groups()
@@ -268,8 +271,8 @@ class Objective(metaclass=ABCMeta):
     def _get_group_samples(num_groups, groups, num_candidates, max_fraction):
         """Decide on number of samples per group used as candidates for prototypes.
 
-        :param num_groups: see docstring of _sample_candidates() for details
-        :param groups: see docstring of _sample_candidates() for details
+        :param num_groups: as first return value of _assign_groups()
+        :param groups: as second return value of _assign_groups()
         :param num_candidates: see docstring of __init__() for details
         :param max_fraction: see docstring of __init__() for details
         :return: 1D numpy integer array of length num_groups; number of samples to be drawn from each group
@@ -295,7 +298,15 @@ class Objective(metaclass=ABCMeta):
         return np.round(original_order).astype(int)
 
     @staticmethod
-    def _finalize_split(candidates, features, target, weights, unscaled, scale, meta):
+    def _finalize_split(
+            candidates,
+            features,
+            target,
+            weights,
+            unscaled,
+            scale,
+            meta
+    ):  # pylint: disable=unused-argument
         """Apply sample split into candidates for prototypes and reference points.
 
         :param candidates: as return value of _sample_candidates()
@@ -394,11 +405,11 @@ class Objective(metaclass=ABCMeta):
         :return: parameters as input but capped below at exactly 0.0 as the solver does not guarantee this
         """
         if len(parameter.shape) != 1:
-            raise ValueError("Parameter must be a 1D array.")
+            raise ValueError("Parameter parameter must be a 1D array.")
         if parameter.shape[0] != meta["num_parameters"]:
             raise ValueError(
                 " ".join([
-                    "Parameter must have as many elements as the number of features and candidates",
+                    "Parameter parameter must have as many elements as the number of features and candidates",
                     "(expected {}, found {}).".format(meta["num_parameters"], parameter.shape[0])
                 ])
             )
@@ -488,7 +499,14 @@ class Objective(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def _evaluate_likelihood(cls, feature_weights, prototype_weights, sample_data, similarity, meta):
+    def _evaluate_likelihood(
+            cls,
+            feature_weights,
+            prototype_weights,
+            sample_data,
+            similarity,
+            meta
+    ):  # pragma: no cover
         """Compute negative log-likelihood function and gradient without the penalty term.
 
         :param feature_weights: 1D numpy array of non-negative floats; feature weights

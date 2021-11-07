@@ -1,0 +1,25 @@
+[MASTER]
+extension-pkg-whitelist=numpy
+
+[FORMAT]
+max-module-lines=2000
+max-line-length=120
+
+[BASIC]
+good-names=i,
+           j,
+		   x,
+		   y,
+		   X,
+		   ax,
+		   ex,
+		   ix
+
+[SIMILARITIES]
+min-similarity-lines=15  # longest block with false positive duplicate-code has 15 lines
+
+[MESSAGES CONTROL]
+disable=logging-format-interpolation,
+        too-many-arguments,
+        too-many-instance-attributes,
+        too-many-locals

@@ -58,6 +58,7 @@ def _plot_select_stage_1(stage_1, model_name):
     plt.ylabel("Log10(lambda_w)")
 
 
+# pylint: disable=too-many-return-statements
 def _choose_layout(fit_mode, batch_trials):
     """Choose plot layout based on which parameters were subject to optimization.
 

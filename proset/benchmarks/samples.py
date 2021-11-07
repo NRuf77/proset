@@ -7,7 +7,7 @@ Released under the MIT license - see LICENSE file for details
 import numpy as np
 
 
-def create_checkerboard(size=8, samples_per_square=100, random_state=None):
+def create_checkerboard(size=8, samples_per_square=100, random_state=None):  # pragma: no cover
     """Create samples for the 'checkerboard' problem.
 
     :param size: integer greater or equal to 2; number of rows and columns making up the checkerboard
@@ -30,7 +30,7 @@ def create_checkerboard(size=8, samples_per_square=100, random_state=None):
     return features, target
 
 
-def create_continuous_xor(size=6, samples_per_orthant=100, random_state=None):
+def create_continuous_xor(size=6, samples_per_orthant=100, random_state=None):  # pragma: no cover
     """Create samples for the 'continuous XOR' problem.
 
     :param size: integer greater or equal to 1; number of features

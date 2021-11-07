@@ -36,7 +36,9 @@ data = {
     "X_test": X_test,
     "y_train": y_train,
     "y_test": y_test,
-    "feature_names": np.array(check_feature_names(num_features=X_train.shape[1]))
+    "feature_names": np.array(
+        check_feature_names(num_features=X_train.shape[1], feature_names=None, active_features=None)
+    )
 }
 with gzip.open(os.path.join(output_path, output_file), mode="wb") as file:
     pickle.dump(data, file)

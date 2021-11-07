@@ -17,9 +17,15 @@ def check_classifier_target(target):
         classes must be present
     :return: 1D numpy integer array of counts for each class in order
     """
+    if len(target.shape) != 1:
+        raise ValueError("Parameter target must be a 1D array.")
+    if not np.issubdtype(target.dtype, np.integer):
+        raise TypeError("Parameter target must be an integer array.")
     classes, counts = np.unique(target, return_counts=True)
     if not np.array_equal(classes, np.arange(classes.shape[0])):
-        raise ValueError("The classes must be encoded as integers from 0 to K - 1 and each class must be present.")
+        raise ValueError(
+            "Parameter target must encode classes as integers from 0 to K - 1 and every class must be present."
+        )
     return counts
 
 
@@ -49,7 +55,7 @@ def quick_compute_similarity(scaled_reference, scaled_prototypes, ssq_reference,
     return similarity
 
 
-def check_feature_names(num_features, feature_names=None, active_features=None):
+def check_feature_names(num_features, feature_names, active_features):
     """Check feature names for consistency and supply defaults if necessary.
 
     :param num_features: positive integer; number of features
@@ -58,7 +64,7 @@ def check_feature_names(num_features, feature_names=None, active_features=None):
         the order given in feature_names
     :return: list of strings; feature names or defaults X0, X1, etc.; raise an error on invalid input
     """
-    if not isinstance(num_features, (int, np.int32, np.int64)):
+    if not np.issubdtype(type(num_features), np.integer):
         raise TypeError("Parameter num_features must be integer.")
     if num_features < 1:
         raise ValueError("Parameter num_features must be positive.")
@@ -67,8 +73,8 @@ def check_feature_names(num_features, feature_names=None, active_features=None):
     if active_features is None:
         active_features = np.arange(num_features)
     if len(active_features.shape) != 1:
-        raise TypeError("Parameter active_features must be a 1D array.")
-    if active_features.dtype not in (int, np.int32, np.int64):
+        raise ValueError("Parameter active_features must be a 1D array.")
+    if not np.issubdtype(active_features.dtype, np.integer):
         raise TypeError("Parameter active_features must be an integer array.")
     if np.any(active_features < 0) or np.any(active_features >= num_features):
         raise ValueError(
@@ -89,6 +95,10 @@ def check_scale_offset(num_features, scale, offset):
         - 1D numpy array of positive floats; as scale if given, else a vector of ones
         - 1D numpy float array; as offset if given, else a vector of zeros
     """
+    if not np.issubdtype(type(num_features), np.integer):
+        raise TypeError("Parameter num_features must be integer.")
+    if num_features < 1:
+        raise ValueError("Parameter num_features must be positive.")
     if scale is None:
         scale = np.ones(num_features, dtype=float)
     else:
@@ -98,6 +108,7 @@ def check_scale_offset(num_features, scale, offset):
             raise ValueError("Parameter scale must have one element per feature.")
         if np.any(scale <= 0.0):
             raise ValueError("Parameter scale must have strictly positive elements.")
+        scale = scale.copy()  # output should not be a reference to input
     if offset is None:
         offset = np.zeros(num_features, dtype=float)
     else:
@@ -105,4 +116,5 @@ def check_scale_offset(num_features, scale, offset):
             raise ValueError("Parameter offset must be a 1D array.")
         if offset.shape[0] != num_features:
             raise ValueError("Parameter offset must have one element per feature.")
+        offset = offset.copy()
     return scale, offset

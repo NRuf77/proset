@@ -23,7 +23,7 @@ from statsmodels.distributions.empirical_distribution import ECDF
 
 from proset.objective import ClassifierObjective
 from proset.set_manager import ClassifierSetManager
-from proset.shared import check_feature_names, check_scale_offset, LOG_OFFSET
+from proset.shared import find_changes, check_feature_names, check_scale_offset, LOG_OFFSET
 
 
 logger = logging.getLogger(__name__)
@@ -56,8 +56,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             alpha_w=0.95,
             num_candidates=1000,
             max_fraction=0.5,
-            random_state=None,
-            warm_start=False
+            random_state=None
     ):
         """Initialize prototype set model with hyperparameters.
 
@@ -74,8 +73,6 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         :param random_state: instance of np.random.RandomState, integer, or None; if a random state is passed, that
             state will be used for randomization; if an integer or None is passed, a new random state is generated using
             the argument as seed for every call to fit()
-        :param warm_start: boolean; whether to create a new model if calling fit() or to add batches to an existing
-            model
         """
         self.n_iter = n_iter
         self.lambda_v = lambda_v
@@ -85,25 +82,25 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         self.num_candidates = num_candidates
         self.max_fraction = max_fraction
         self.random_state = random_state
-        self.warm_start = warm_start
 
-    def fit(self, X, y, sample_weight=None):
+    def fit(self, X, y, sample_weight=None, warm_start=False):
         """Fit proset model to data.
 
         :param X: 2D numpy float array; feature matrix; sparse matrices or infinite/missing values not supported
         :param y: list-like object; target for supervised learning
         :param sample_weight: 1D numpy array of positive floats or None; sample weights used for likelihood calculation;
             pass None to use unit weights
+        :param warm_start: boolean; whether to create a new model or to add batches to an existing model
         :return: no return value; model updated in place
         """
         self._check_hyperparameters()
-        X, y, sample_weight = self._validate_arrays(X=X, y=y, sample_weight=sample_weight, reset=not self.warm_start)
+        X, y, sample_weight = self._validate_arrays(X=X, y=y, sample_weight=sample_weight, reset=not warm_start)
         logger.info("Fit proset model with {} batches and penalties lambda_v = {:0.2e}, lambda_w = {:0.2e}".format(
             self.n_iter, self.lambda_v, self.lambda_w
         ))
-        MySetManager, MyObjective = self._get_compute_classes()
-        if not self.warm_start or not hasattr(self, "set_manager"):
-            self.set_manager_ = MySetManager(target=y)
+        MySetManager, MyObjective = self._get_compute_classes()  # pylint: disable=invalid-name
+        if not warm_start or not hasattr(self, "set_manager_"):
+            self.set_manager_ = MySetManager(target=y)  # pylint: disable=attribute-defined-outside-init
         for i in range(self.n_iter):
             objective = MyObjective(
                 features=X,
@@ -132,7 +129,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             )
             batch_info = objective.get_batch_info(solution[0])  # solution[0] is the parameter vector
             self.set_manager_.add_batch(batch_info)
-            if logger.isEnabledFor(logging.INFO):
+            if logger.isEnabledFor(logging.INFO):  # pragma: no cover
                 logger.info("Batch {} fit results".format(i + 1))
                 logger.info(LOG_CAPTION)
                 logger.info(LOG_MESSAGE.format(
@@ -152,8 +149,8 @@ class Model(BaseEstimator, metaclass=ABCMeta):
 
         :return: no return value; raises a ValueError if an issue is found
         """
-        if not isinstance(self.n_iter, (int, np.integer)):
-            raise ValueError("Parameter n_iter must be integer.")
+        if not np.issubdtype(type(self.n_iter), np.integer):
+            raise TypeError("Parameter n_iter must be integer.")
         if self.n_iter < 0:
             raise ValueError("Parameter n_iter must not be negative.")
         # validation of other parameters is left to the classes or functions relying on them
@@ -170,7 +167,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         """
         X, y = check_X_y(X=X, y=y)
         if reset or not hasattr(self, "n_features_in_"):
-            self.n_features_in_ = X.shape[1]
+            self.n_features_in_ = X.shape[1]  # pylint: disable=attribute-defined-outside-init
             # the n_features_in_ attribute for tabular input is an sklearn convention
         elif self.n_features_in_ != X.shape[1]:
             raise ValueError("Parameter X must have {} columns.".format(self.n_features_in_))
@@ -181,7 +178,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         return X, self._validate_y(y, reset), sample_weight
 
     @abstractmethod
-    def _validate_y(self, y, reset):
+    def _validate_y(self, y, reset):  # pragma: no cover
         """Perform checks on estimator target that depend on estimator type.
 
         :param y: 1D numpy array; target for supervised learning
@@ -192,7 +189,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
 
     @staticmethod
     @abstractmethod
-    def _get_compute_classes():
+    def _get_compute_classes():  # pragma: no cover
         """Provide classes implementing the set manager and objective function for the model.
 
         :return: subclasses of proset.set_manager.SetManager and proset.objective.Objective
@@ -204,7 +201,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         """Translate L-BFGS-B solver status into human-readable format.
 
         :param solver_status: dict; third output argument of scipy.fmin_l_bfgs_b()
-        :return: string
+        :return: string; solver exit status
         """
         if solver_status["warnflag"] == 0:
             return "converged"
@@ -229,7 +226,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         return self._compute_prediction(X=check_array(X), n_iter=n_iter, compute_familiarity=compute_familiarity)
 
     @abstractmethod
-    def _compute_prediction(self, X, n_iter, compute_familiarity):
+    def _compute_prediction(self, X, n_iter, compute_familiarity):  # pragma: no cover
         """Compute prediction.
 
         :param X: see docstring of predict() for details
@@ -257,7 +254,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         return self._compute_score(X=X, y=y, sample_weight=sample_weight, n_iter=n_iter)
 
     @abstractmethod
-    def _compute_score(self, X, y, sample_weight, n_iter):
+    def _compute_score(self, X, y, sample_weight, n_iter):  # pragma: no cover
         """Compute score.
 
         :param X: see docstring of score() for details
@@ -319,7 +316,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             sample_name=None
         )[:4]
         batches = self.set_manager_.get_batches(features=None, num_batches=n_iter)
-        report = self._make_base_report(batches=batches, train_names=train_names, compute_impact=False)
+        report = self._make_prototype_report(batches=batches, train_names=train_names, compute_impact=False)
         if include_features:
             report = pd.concat([report, self._make_feature_report(
                 batches=batches,
@@ -331,7 +328,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
                 include_similarities=False
             )], axis=1)
         report = report.sort_values(["batch", "prototype weight"], ascending=[True, False])
-        report = pd.concat([self._get_baseline_for_export(), report])
+        report = pd.concat([self._make_baseline_for_export(), report])
         report.reset_index(inplace=True, drop=True)
         return report
 
@@ -352,7 +349,11 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             - string; sample name as input or default
             raise an error if a check fails
         """
-        feature_names = check_feature_names(num_features=num_features, feature_names=feature_names)
+        feature_names = check_feature_names(
+            num_features=num_features,
+            feature_names=feature_names,
+            active_features=None
+        )
         feature_columns = [[
             "{} weight".format(feature_name),
             "{} value".format(feature_name),
@@ -366,7 +367,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         return feature_columns, include_original, scale, offset, sample_name
 
     @classmethod
-    def _make_base_report(cls, batches, train_names, compute_impact):
+    def _make_prototype_report(cls, batches, train_names, compute_impact):
         """Format prototype information for report.
 
         :param batches: list as generated by set_manager.SetManager.get_batches()
@@ -404,14 +405,14 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             None
         :param batch_index: non-negative integer; batch index
         :param train_names: see docstring of export() for details
-        :return: as return value of _make_base_report(); the function determines whether impact needs to be computed by
-            checking whether the batch definitions contain the key "similarities"
+        :return: as return value of _make_prototype_report(); the function determines whether impact needs to be
+            computed by checking whether the batch definitions contain the key "similarities"
         """
         formatted = {
             "batch": batch_index + 1,
             "sample": batch["sample_index"],
             "sample name": [
-                train_names[j] if train_names is not None else "sample {}".format(j)for j in batch["sample_index"]
+                train_names[j] if train_names is not None else "sample {}".format(j) for j in batch["sample_index"]
             ],
             "target": batch["target"],
             "prototype weight": batch["prototype_weights"]
@@ -459,10 +460,10 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         return pd.concat([cls._format_feature(
             batches=batches,
             feature_index=i,
-            feature_columns=feature_columns[i],
+            feature_columns=feature_columns,
             include_original=include_original,
-            scale=scale[i],
-            offset=offset[i],
+            scale=scale,
+            offset=offset,
             include_similarities=include_similarities
         ) for i in active_features], axis=1)
 
@@ -472,13 +473,16 @@ class Model(BaseEstimator, metaclass=ABCMeta):
 
         :param batches: list as generated by set_manager.SetManager.get_batches()
         :param feature_index: positive integer; index of feature
-        :param feature_columns: list of strings; as one element of the return value of _check_report_input()
+        :param feature_columns: list of strings; as return value of _check_report_input()
         :param include_original: boolean; whether to include original feature values in the report
-        :param scale: positive float; scale for computing original feature value
-        :param offset: float; offset for computing original feature value
+        :param scale: see docstring of export() for details; None is not allowed
+        :param offset: see docstring of export() for details; None is not allowed
         :param include_similarities: boolean; whether to include per-feature similarities in the report
-        :return: as one set of columns for the second return value of _collect_prototype_reports()
+        :return: as one set of columns for the return value of _make_feature_report()
         """
+        feature_columns = feature_columns[feature_index]
+        scale = scale[feature_index]
+        offset = offset[feature_index]
         result = []
         for batch in batches:
             if batch is not None:
@@ -495,7 +499,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
                         new_info[feature_columns[3]] = nan_column
                 else:
                     new_info = pd.DataFrame({
-                        feature_columns[0]: np.asscalar(batch["feature_weights"][position]),
+                        feature_columns[0]: batch["feature_weights"][position[0]],
                         feature_columns[1]: np.reshape(
                             batch["prototypes"][:, position], batch["prototype_weights"].shape[0]
                         )
@@ -505,15 +509,22 @@ class Model(BaseEstimator, metaclass=ABCMeta):
                     if include_similarities:
                         new_info[feature_columns[3]] = batch["similarities"][:, position]
                 result.append(new_info)
-        result = pd.concat(result, axis=0)
-        result.reset_index(inplace=True, drop=True)
-        return result
+        if len(result) > 0:
+            result = pd.concat(result, axis=0)
+            result.reset_index(inplace=True, drop=True)
+            return result
+        columns = feature_columns[:2]
+        if include_original:
+            columns.append(feature_columns[2])
+        if include_similarities:
+            columns.append(feature_columns[3])
+        return pd.DataFrame(columns=columns)
 
     @abstractmethod
-    def _get_baseline_for_export(self):
+    def _make_baseline_for_export(self):  # pragma: no cover
         """Format properties of baseline estimator for export().
 
-        :return: as return value of _make_base_report()
+        :return: as return value of _make_prototype_report() without columns 'similarity' and 'impact'
         """
         raise NotImplementedError("Abstract method Model._get_baseline_for_export() has no default implementation.")
 
@@ -585,7 +596,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             sample_name=sample_name
         )
         batches = self.set_manager_.get_batches(features=X, num_batches=n_iter)
-        report = self._make_base_report(batches=batches, train_names=train_names, compute_impact=X is not None)
+        report = self._make_prototype_report(batches=batches, train_names=train_names, compute_impact=X is not None)
         report = pd.concat([report, self._make_contribution_report(report)], axis=1)
         active_features = self.set_manager_.get_feature_weights(num_batches=n_iter)["feature_index"]
         if include_features:
@@ -599,7 +610,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
                 include_similarities=X is not None
             )], axis=1)
         report = report.sort_values("impact", ascending=False)
-        report = pd.concat([self._get_baseline_for_explain(
+        report = pd.concat([self._make_baseline_for_explain(
             X=X,
             y=y,
             n_iter=n_iter,
@@ -616,16 +627,16 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         return report
 
     @abstractmethod
-    def _make_contribution_report(self, baseline_report):
+    def _make_contribution_report(self, prototype_report):  # pragma: no cover
         """Format contribution of prototypes to prediction for report.
 
-        :param baseline_report: as return value of _make_base_report()
+        :param prototype_report: as return value of _make_prototype_report()
         :return: pandas data frame; format depends on model type
         """
         raise NotImplementedError("Abstract method Model._get_contribution_report() has no default implementation.")
 
     @abstractmethod
-    def _get_baseline_for_explain(
+    def _make_baseline_for_explain(
             self,
             X,
             y,
@@ -638,7 +649,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             include_original,
             scale,
             offset
-    ):
+    ):  # pragma: no cover
         """Format properties of baseline estimator for explain().
 
         :param X: see docstring of explain() for details
@@ -662,8 +673,8 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         :return: no return value; adds property active_features_ with feature indices w.r.t. the original training data
         """
         check_is_fitted(self, attributes="set_manager_")
-        self.active_features_ = self.set_manager_.shrink()
-        self.n_features_in_ = self.active_features_.shape[0]
+        self.active_features_ = self.set_manager_.shrink()  # pylint: disable=attribute-defined-outside-init
+        self.n_features_in_ = self.active_features_.shape[0]  # pylint: disable=attribute-defined-outside-init
 
 
 # noinspection PyPep8Naming, PyAttributeOutsideInit
@@ -683,9 +694,9 @@ class ClassifierModel(Model):
         """
         check_classification_targets(y)
         if reset or not hasattr(self, "label_encoder_"):
-            self.label_encoder_ = LabelEncoder()
+            self.label_encoder_ = LabelEncoder()  # pylint: disable=attribute-defined-outside-init
             self.label_encoder_.fit(y)
-            self.classes_ = self.label_encoder_.classes_
+            self.classes_ = self.label_encoder_.classes_  # pylint: disable=attribute-defined-outside-init
             # storing classes_ in the main estimator is an sklearn convention
         return self.label_encoder_.transform(y)
 
@@ -732,7 +743,7 @@ class ClassifierModel(Model):
         :return: as return value of Model.score()
         """
         prediction = self.set_manager_.evaluate(features=X, num_batches=n_iter, compute_familiarity=False)
-        prediction = [np.take_along_axis(p, y[:, None], axis=1) for p in prediction]
+        prediction = [np.squeeze(np.take_along_axis(p, y[:, None], axis=1)) for p in prediction]
         # keep only probability assigned to true class
         if sample_weight is None:
             prediction = [np.mean(np.log(p + LOG_OFFSET)) for p in prediction]
@@ -751,7 +762,8 @@ class ClassifierModel(Model):
             number of batches to use for evaluation; pass None for all batches; pass an array to evaluate for multiple
             values at once
         :param compute_familiarity: boolean; whether to compute the familiarity for each sample
-        :return: 1D numpy array or list of 1D numpy arrays; if n_iter is integer or None, a single set of predictions is
+        :return: 2D numpy array or list of 2D numpy arrays; each row contains the estimated class probabilities for the
+            corresponding row in the feature matrix; if n_iter is integer or None, a single set of predictions is
             returned as an array; if n_iter is an array, a list of predictions is returned with one element for each
             element of the array; if compute_familiarity is True, also returns a 1D numpy float array or list of float
             arrays containing the familiarity of each sample
@@ -769,10 +781,10 @@ class ClassifierModel(Model):
             return prediction[0][0], prediction[1][0]
         return prediction[0]
 
-    def _get_baseline_for_export(self):
+    def _make_baseline_for_export(self):
         """Format marginal probabilities for export().
 
-        :return: as return value of _make_base_report() without columns 'similarity' and 'impact'
+        :return: as return value of _make_prototype_report() without columns 'similarity' and 'impact'
         """
         return pd.DataFrame({
             "batch": np.NaN,
@@ -782,28 +794,28 @@ class ClassifierModel(Model):
             # target column is numeric, look up class labels in sample name column for marginals
             "prototype weight": self.set_manager_.marginals
         }, columns=["batch", "sample", "sample name", "target", "prototype weight"])
-    
+
     @staticmethod
     def _format_class_labels(classes):
         """Format class labels for report.
-        
-        :param classes: 1D numpy array; class labels 
+
+        :param classes: 1D numpy array; class labels
         :return: list of strings
         """
         return ["marginal probability class '{}'".format(label) for label in classes]
 
-    def _make_contribution_report(self, base_report):
+    def _make_contribution_report(self, prototype_report):
         """Format contribution of prototypes to prediction for report.
 
-        :param base_report: as return value of _make_base_report()
+        :param prototype_report: as return value of _make_prototype_report()
         :return: pandas data frame with the following fields:
             - dominant set: 0 or 1; indicates whether the prototype belongs to the dominant set
             - p class <class>: positive float; contribution of prototype to the estimated probability for the given
               class
         """
         contributions, dominant_set = self._compute_contributions(
-            impact=base_report["impact"].to_numpy(copy=True),
-            target=base_report["target"].to_numpy(copy=True),
+            impact=prototype_report["impact"].to_numpy(copy=True),
+            target=prototype_report["target"].to_numpy(copy=True),
             marginals=self.set_manager_.marginals
         )
         report = {"dominant set": dominant_set}
@@ -827,30 +839,34 @@ class ClassifierModel(Model):
             - 1D numpy integer array; dominant set indicated by 1, other prototypes by 0
         """
         contributions = np.zeros((impact.shape[0], marginals.shape[0]), dtype=float)
-        scaling = np.sum(impact) + 1.0
-        if scaling == 1.0:
+        scale = np.sum(impact) + 1.0
+        if scale == 1.0:
             # the sample is so far away from the prototypes that the impact of prototypes is below numerical tolerance
             return contributions, np.zeros(contributions.shape[0], dtype=int)
-        impact = impact / scaling
+        impact = impact / scale
         contributions[np.arange(contributions.shape[0]), target] = impact
         sort_ix = np.argsort(impact)[-1::-1]
         rank = rankdata(impact[sort_ix], method="dense")
         rank = np.hstack([0, 1 + np.max(rank) - rank])
         # the marginals have rank 0, all prototypes with the largest impact rank 1, etc.
-        extended = np.vstack([marginals / scaling, contributions[sort_ix, :]])
-        extended = np.cumsum(np.add.reduceat(extended, indices=rank, axis=0), axis=0)
+        extended = np.vstack([marginals / scale, contributions[sort_ix, :]])
+        extended = np.cumsum(np.add.reduceat(extended, indices=find_changes(rank), axis=0), axis=0)
         # cumulative contribution to probability across ranks
         remainder = 1.0 - np.sum(extended, axis=1)  # remainder of probability missing up to a given rank
         top_two = np.array([np.sort(extended[i, :])[-1:-3:-1] for i in range(extended.shape[0])])
         # two larges probabilities assigned up to a given rank
-        dominant_rank = np.nonzero(top_two[:, 0] - top_two[:, 1] <= remainder)[0][-1] + 1
-        dominant_set = rank[1:] <= dominant_rank
+        dominant_rank = np.nonzero(top_two[:, 0] - top_two[:, 1] <= remainder)[0]
+        if len(dominant_rank) > 0:
+            dominant_rank = dominant_rank[-1] + 1
+            dominant_set = (rank[1:] <= dominant_rank).astype(int)
+            # noinspection PyUnresolvedReferences
+            dominant_set = dominant_set[np.argsort(sort_ix)]  # undo sorting
+        else:
+            dominant_set = np.zeros(contributions.shape[0], dtype=int)
         # noinspection PyUnresolvedReferences
-        dominant_set = dominant_set[np.argsort(sort_ix)]  # undo sorting
-        # noinspection PyUnresolvedReferences
-        return contributions, dominant_set.astype(int)
+        return contributions, dominant_set
 
-    def _get_baseline_for_explain(
+    def _make_baseline_for_explain(
             self,
             X,
             y,
@@ -885,9 +901,9 @@ class ClassifierModel(Model):
         """
         probabilities, sample_familiarity = self.predict_proba(X=X, n_iter=n_iter, compute_familiarity=True)
         prediction = self.label_encoder_.inverse_transform(np.array([np.argmax(probabilities)]))
-        sample_name += ", prediction '{}'".format(np.asscalar(prediction))
+        sample_name += ", prediction '{}'".format(prediction[0])
         if familiarity is not None:
-            sample_name += ", familiarity {:.2f}".format(np.asscalar(ECDF(familiarity)(sample_familiarity)))
+            sample_name += ", familiarity {:.2f}".format(ECDF(familiarity)(sample_familiarity)[0])
         no_content = [np.NaN] * (self.classes_.shape[0] + 1)
         marginals = [np.NaN] + list(self.set_manager_.marginals)
         ones = [np.NaN] + [1.0] * (self.classes_.shape[0])
@@ -896,7 +912,7 @@ class ClassifierModel(Model):
             "sample": no_content,
             "sample name": [sample_name] + self._format_class_labels(self.classes_),
             "target": [
-                np.asscalar(self.label_encoder_.transform(np.array([y]))) if y is not None else np.NaN
+                self.label_encoder_.transform(np.array([y]))[0] if y is not None else np.NaN
             ] + list(range(self.classes_.shape[0])),
             # target column is numeric, look up class labels in sample name column for marginals
             "prototype weight": marginals,
@@ -920,7 +936,7 @@ class ClassifierModel(Model):
                 report[feature_columns[i][1]] = [X[0, i]] + no_content[:-1]  # feature value used by the model
                 columns.extend(feature_columns[i][:2])
                 if include_original:  # original feature value
-                    report[feature_columns[i][2]] = [np.asscalar(scale[i] * X[0, i] + offset[i])] + no_content[:-1]
+                    report[feature_columns[i][2]] = [scale[i] * X[0, i] + offset[i]] + no_content[:-1]
                     columns.append(feature_columns[i][2])
                 report[feature_columns[i][3]] = no_content  # per-feature similarity
                 columns.append(feature_columns[i][3])

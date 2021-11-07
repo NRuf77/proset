@@ -4,6 +4,8 @@ Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """
 
+from copy import deepcopy
+
 import numpy as np
 from sklearn.base import is_classifier
 from sklearn.metrics import pairwise_distances
@@ -11,7 +13,7 @@ from sklearn.metrics import pairwise_distances
 from proset.shared import check_feature_names, check_scale_offset, LOG_OFFSET
 
 
-def print_hyperparameter_report(result):
+def print_hyperparameter_report(result):  # pragma: no cover
     """Print report for hyperparameter selection.
 
     :param result: as return value of select_hyperparameters()
@@ -47,7 +49,7 @@ def print_hyperparameter_report(result):
     ))
 
 
-def print_feature_report(model, feature_names=None):
+def print_feature_report(model, feature_names=None):  # pragma: no cover
     """Print summary of selected features per batch with weights.
 
     :param model: a fitted proset model
@@ -95,7 +97,7 @@ def choose_reference_point(features, model, scale=None, offset=None):
     num_features = features.shape[1]
     if is_classifier(model):
         prediction = model.predict_proba(features)
-    else:
+    else:  # pragma: no cover
         raise NotImplementedError("Function choose_reference_point() does not handle regressors yet.")
     weights = model.set_manager_.get_feature_weights(num_batches=1)
     index = _find_best_point(
@@ -125,14 +127,15 @@ def _find_best_point(features, prediction, is_classifier_):
     :param is_classifier_: boolean; whether the model to be explained is a classifier or regressor
     :return: non-negative integer; row index
     """
-    points = _compute_borda_points(np.mean(pairwise_distances(features), axis=1)) \
-        + _compute_borda_points(np.mean(pairwise_distances(prediction), axis=1))
+    if not is_classifier_:  # pragma: no cover
+        raise NotImplementedError("Function choose_reference_point() does not handle regressors yet.")
+    points = _compute_borda_points(np.mean(pairwise_distances(prediction), axis=1))
+    if features.shape[1] > 0:  # safeguard in case the first batch of prototypes has no active features
+        points += _compute_borda_points(np.mean(pairwise_distances(features), axis=1))
     candidates = np.nonzero(points == np.max(points))[0]
     if candidates.shape[0] > 1:
-        if is_classifier_:
-            entropy = -np.sum(np.log(prediction[candidates] * LOG_OFFSET) * prediction[candidates], axis=1)
-        else:
-            raise NotImplementedError("Function choose_reference_point() does not handle regressors yet.")
+        entropy = -np.sum(np.log(prediction[candidates] * LOG_OFFSET) * prediction[candidates], axis=1)
+        # this formulation is for classifiers only
         return candidates[np.argmax(entropy)]
     return candidates[0]
 
@@ -146,12 +149,12 @@ def _compute_borda_points(metric):
     :param metric: 1D numpy float array; metric values - lower is better
     :return: 1D numpy float array of the same length as metric; points assigned to each score
     """
-    values, inverse, counts = np.unique(metric, return_inverse=True, return_counts=True)
+    inverse, counts = np.unique(metric, return_inverse=True, return_counts=True)[1:]
     points = (counts - 1) / 2.0 + np.hstack([0, np.cumsum(counts[-1:0:-1])])[-1::-1]
     return points[inverse]
 
 
-def print_point_report(reference, feature_names=None, feature_format="1f", target_names=None):
+def print_point_report(reference, feature_names=None, feature_format="1f", target_names=None):  # pragma: no cover
     """Print information on selected point.
 
     :param reference: as return value of choose_reference_point()
@@ -201,17 +204,25 @@ def _check_point_input(reference, feature_names, target_names):
     """
     feature_names = check_feature_names(
         num_features=reference["num_features"],
-        feature_names=feature_names
+        feature_names=feature_names,
+        active_features=reference["active_features"]
     )
-    feature_names = [feature_names[i] for i in reference["active_features"]]
     is_classifier_ = isinstance(reference["prediction"], np.ndarray)
     if is_classifier_:
         if isinstance(target_names, str):
             raise TypeError(
                 "Parameter target_names must be a list of strings or None if reference belongs to a classifier."
             )
-        if target_names is None:
-            target_names = [str(i) for i in range(reference["prediction"].shape[1])]
+        num_classes = reference["prediction"].shape[0]
+        if target_names is not None:
+            if len(target_names) != num_classes:
+                raise ValueError(" ".join([
+                    "Parameter target_names must have one element per class if passing a list",
+                    "and reference belongs to a classifier."
+                ]))
+            target_names = deepcopy(target_names)
+        else:
+            target_names = [str(i) for i in range(num_classes)]
     else:
         if isinstance(target_names, list):
             raise TypeError("Parameter target_names must be a string or None if reference belongs to a regressor.")

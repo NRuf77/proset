@@ -54,6 +54,7 @@ BATCH_INFO_NO_PROTOTYPES = {
 }
 
 
+# pylint: disable=missing-function-docstring, protected-access, too-many-public-methods
 class TestClassifierSetManager(TestCase):
     """Unit tests class ClassifierSetManager.
 
@@ -63,23 +64,134 @@ class TestClassifierSetManager(TestCase):
     def test_init_fail_1(self):
         message = ""
         try:
-            ClassifierSetManager(target=np.array([0, 2]))
+            # test only one exception to ensure shared.check_classifier_target() is called; other exceptions tested by
+            # the unit tests for that function
+            ClassifierSetManager(target=np.array([[0, 1]]))
         except ValueError as ex:
             message = ex.args[0]
-        self.assertEqual(
-            message, "The classes must be encoded as integers from 0 to K - 1 and each class must be present."
-        )
+        self.assertEqual(message, "Parameter target must be a 1D array.")
 
     def test_init_1(self):
         manager = ClassifierSetManager(target=TARGET)
-        self.assertEqual(manager.num_features, None)
         self.assertEqual(manager.num_batches, 0)
+        self.assertEqual(manager.num_features, None)
+        np.testing.assert_allclose(manager.marginals, MARGINALS)
         self.assertEqual(manager.get_active_features().shape[0], 0)
         self.assertEqual(manager.get_num_prototypes(), 0)
-        np.testing.assert_allclose(manager.marginals, MARGINALS)
 
     # methods _get_baseline_distribution() already tested by test_init_1() above
-    # methods get_active_features() and get_num_prototypes() tested above and below
+    # property getters for num_batches, num_features, and marginals already tested by the above and below
+    # method get_active_features() tested above and below
+
+    def test_check_num_batches_fail_1(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(
+                num_batches=np.array([1, 2]), num_batches_actual=3, permit_array=False
+            )
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter num_batches must not be an array.")
+
+    def test_check_num_batches_fail_2(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(
+                num_batches=np.array([[1, 2]]), num_batches_actual=3, permit_array=True
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter num_batches must be 1D if passing an array.")
+
+    def test_check_num_batches_fail_3(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(
+                num_batches=np.array([1.0, 2.0]), num_batches_actual=3, permit_array=True
+            )
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter num_batches must be of integer type if passing an array.")
+
+    def test_check_num_batches_fail_4(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(
+                num_batches=np.array([-1, 2]), num_batches_actual=3, permit_array=True
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter num_batches must not contain negative values if passing an array.")
+
+    def test_check_num_batches_fail_5(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(
+                num_batches=np.array([1, 4]), num_batches_actual=3, permit_array=True
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(
+            message,
+            "Parameter num_batches must not contain values greater than the available number of batches (3) if " +
+            "passing an array."
+        )
+
+    def test_check_num_batches_fail_6(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(
+                num_batches=np.array([1, 1]), num_batches_actual=3, permit_array=True
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(
+            message, "Parameter num_batches must contain strictly increasing elements if passing an array."
+        )
+
+    def test_check_num_batches_fail_7(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(num_batches=1.0, num_batches_actual=3, permit_array=False)
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter num_batches must be an integer.")
+
+    def test_check_num_batches_fail_8(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(num_batches=-1, num_batches_actual=3, permit_array=False)
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter num_batches must not be negative.")
+
+    def test_check_num_batches_fail_9(self):
+        message = ""
+        try:
+            ClassifierSetManager._check_num_batches(num_batches=4, num_batches_actual=3, permit_array=False)
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(
+            message, "Parameter num_batches must be less than or equal to the available number of batches (3)."
+        )
+
+    def test_check_num_batches_1(self):
+        result = ClassifierSetManager._check_num_batches(num_batches=None, num_batches_actual=3, permit_array=False)
+        self.assertEqual(result, 3)
+
+    def test_check_num_batches_2(self):
+        result = ClassifierSetManager._check_num_batches(num_batches=1, num_batches_actual=3, permit_array=False)
+        self.assertEqual(result, 1)
+
+    def test_check_num_batches_3(self):
+        num_batches = np.array([1, 2])
+        result = ClassifierSetManager._check_num_batches(
+            num_batches=num_batches, num_batches_actual=3, permit_array=True
+        )
+        np.testing.assert_array_equal(result, num_batches)
+        self.assertFalse(result is num_batches)  # ensure result is a copy and not a reference to the original input
+
+    # method get_num_prototypes() tested above and below
 
     def test_add_batch_fail_1(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -283,6 +395,21 @@ class TestClassifierSetManager(TestCase):
                 "target": TARGET,
                 "feature_weights": FEATURE_WEIGHTS,
                 "prototype_weights": PROTOTYPE_WEIGHTS,
+                "sample_index": SAMPLE_INDEX.astype(float)
+            })
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter sample_index must be an integer array.")
+
+    def test_add_batch_fail_14(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
+        try:
+            manager.add_batch({
+                "prototypes": PROTOTYPES,
+                "target": TARGET,
+                "feature_weights": FEATURE_WEIGHTS,
+                "prototype_weights": PROTOTYPE_WEIGHTS,
                 "sample_index": SAMPLE_INDEX[:(PROTOTYPES.shape[0] - 1)]
             })
         except ValueError as ex:
@@ -313,7 +440,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(manager.num_batches, 1)
         self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
         self.assertEqual(manager.get_active_features().shape[0], 0)
-        # batch with no prototypes is counted but oes not contribute anything
+        # batch with no prototypes is counted but does not contribute anything
         self.assertEqual(manager.get_num_prototypes(), 0)
 
     # method _check_batch() already tested by the above
@@ -400,52 +527,12 @@ class TestClassifierSetManager(TestCase):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
+            # test only one exception from _check_num_batches() to ensure it is called; other exceptions tested by the
+            # unit tests for _check_num_batches()
             manager.evaluate_unscaled(features=REFERENCE, num_batches=np.array([-1]))
         except ValueError as ex:
             message = ex.args[0]
-        self.assertEqual(message, "Parameter num_batches must not contain negative values if passing a vector.")
-
-    def test_evaluate_unscaled_fail_4(self):
-        manager = ClassifierSetManager(target=TARGET)
-        message = ""
-        try:
-            manager.evaluate_unscaled(features=REFERENCE, num_batches=np.array([1]))
-        except ValueError as ex:
-            message = ex.args[0]
-        self.assertEqual(
-            message,
-            "Parameter num_batches must not contain values greater than the available number of 0 if passing a vector."
-        )
-
-    def test_evaluate_unscaled_fail_5(self):
-        manager = ClassifierSetManager(target=TARGET)
-        manager.add_batch(BATCH_INFO)
-        message = ""
-        try:
-            manager.evaluate_unscaled(features=REFERENCE, num_batches=np.array([1, 0]))
-        except ValueError as ex:
-            message = ex.args[0]
-        self.assertEqual(
-            message, "Parameter num_batches must contain strictly increasing elements if passing a vector."
-        )
-
-    def test_evaluate_unscaled_fail_6(self):
-        manager = ClassifierSetManager(target=TARGET)
-        message = ""
-        try:
-            manager.evaluate_unscaled(features=REFERENCE, num_batches=-1)
-        except ValueError as ex:
-            message = ex.args[0]
-        self.assertEqual(message, "Parameter num_batches must not be negative.")
-
-    def test_evaluate_unscaled_fail_7(self):
-        manager = ClassifierSetManager(target=TARGET)
-        message = ""
-        try:
-            manager.evaluate_unscaled(features=REFERENCE, num_batches=1)
-        except ValueError as ex:
-            message = ex.args[0]
-        self.assertEqual(message, "Parameter num_batches must be less than or equal to the available number of 0.")
+        self.assertEqual(message, "Parameter num_batches must not contain negative values if passing an array.")
 
     def test_evaluate_unscaled_1(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -518,19 +605,8 @@ class TestClassifierSetManager(TestCase):
 
     # method _check_evaluate_input() already tested by the above
 
-    def test_check_num_batches_fail_1(self):
-        message = ""
-        try:
-            ClassifierSetManager._check_num_batches(
-                num_batches=np.array([1, 2]), num_batches_actual=3, permit_array=False
-            )
-        except TypeError as ex:
-            message = ex.args[0]
-        self.assertEqual(message, "Parameter num_batches must not be an array.")
-
-    # other exceptions and correct usage of _check_num_batches() already tested above
-
-    def test_compute_impact_1(self):
+    @staticmethod
+    def test_compute_impact_1():
         impact, target, batch_index = ClassifierSetManager._compute_impact(
             features=REFERENCE,
             batches=[],
@@ -541,7 +617,8 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(target, np.zeros(0))
         np.testing.assert_allclose(batch_index, np.zeros(0))
 
-    def test_compute_impact_2(self):
+    @staticmethod
+    def test_compute_impact_2():
         batch = ClassifierSetManager._process_batch(BATCH_INFO_NO_FEATURES)
         impact, target, batch_index = ClassifierSetManager._compute_impact(
             features=REFERENCE,
@@ -558,7 +635,8 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(target, unique_targets)
         np.testing.assert_allclose(batch_index, np.zeros(unique_targets.shape[0], dtype=int))
 
-    def test_compute_impact_3(self):
+    @staticmethod
+    def test_compute_impact_3():
         batch = ClassifierSetManager._process_batch(BATCH_INFO_NO_PROTOTYPES)
         impact, target, batch_index = ClassifierSetManager._compute_impact(
             features=REFERENCE,
@@ -570,7 +648,8 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(target, np.zeros(0))
         np.testing.assert_allclose(batch_index, np.zeros(0))
 
-    def test_compute_impact_4(self):
+    @staticmethod
+    def test_compute_impact_4():
         batch = ClassifierSetManager._process_batch(BATCH_INFO)
         impact, target, batch_index = ClassifierSetManager._compute_impact(
             features=REFERENCE,
@@ -582,7 +661,8 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(target, np.zeros(0))
         np.testing.assert_allclose(batch_index, np.zeros(0))
 
-    def test_compute_impact_5(self):
+    @staticmethod
+    def test_compute_impact_5():
         batch = ClassifierSetManager._process_batch(BATCH_INFO)
         impact, target, batch_index = ClassifierSetManager._compute_impact(
             features=REFERENCE,
@@ -594,9 +674,9 @@ class TestClassifierSetManager(TestCase):
         active_features = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
         ref_impact = np.zeros((REFERENCE.shape[0], len(active_prototypes)))
         for i in range(REFERENCE.shape[0]):
-            for j in range(len(active_prototypes)):
+            for j, prototype in enumerate(active_prototypes):
                 ref_impact[i, j] = np.exp(
-                    -0.5 * np.sum(((REFERENCE[i, active_features] - PROTOTYPES[active_prototypes[j], active_features])
+                    -0.5 * np.sum(((REFERENCE[i, active_features] - PROTOTYPES[prototype, active_features])
                                    * FEATURE_WEIGHTS[active_features]) ** 2.0)
                 )
         ref_impact = ref_impact * PROTOTYPE_WEIGHTS[active_prototypes]
@@ -604,7 +684,8 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(target, TARGET[active_prototypes])
         np.testing.assert_allclose(batch_index, np.zeros(active_prototypes.shape[0], dtype=int))
 
-    def test_compute_impact_6(self):
+    @staticmethod
+    def test_compute_impact_6():
         batch = ClassifierSetManager._process_batch(BATCH_INFO)
         impact, target, batch_index = ClassifierSetManager._compute_impact(
             features=REFERENCE,
@@ -616,10 +697,10 @@ class TestClassifierSetManager(TestCase):
         active_features = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
         ref_impact = np.zeros((REFERENCE.shape[0], len(active_prototypes)))
         for i in range(REFERENCE.shape[0]):
-            for j in range(len(active_prototypes)):
+            for j, prototype in enumerate(active_prototypes):
                 ref_impact[i, j] = np.exp(
                     -0.5 * np.sum(
-                        ((REFERENCE[i, active_features] - PROTOTYPES[active_prototypes[j], active_features])
+                        ((REFERENCE[i, active_features] - PROTOTYPES[prototype, active_features])
                          * FEATURE_WEIGHTS[active_features]) ** 2.0)
                 )
         ref_impact = ref_impact * PROTOTYPE_WEIGHTS[active_prototypes]
@@ -833,6 +914,19 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(scaled[0], ref_batch_0)
         np.testing.assert_allclose(scaled[1], ref_batch_2)
 
+    def test_get_feature_weights_fail_1(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
+        try:
+            # test only one exception from _check_num_batches() to ensure it is called; other exceptions tested by the
+            # unit tests for _check_num_batches()
+            manager.get_feature_weights(num_batches=1)
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(
+            message, "Parameter num_batches must be less than or equal to the available number of batches (0)."
+        )
+
     def test_get_feature_weights_1(self):
         manager = ClassifierSetManager(target=TARGET)
         result = manager.get_feature_weights()  # check default values for set manager with no data
@@ -893,12 +987,36 @@ class TestClassifierSetManager(TestCase):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
+            # test only one exception from _check_num_batches() to ensure it is called; other exceptions tested by the
+            # unit tests for _check_num_batches()
+            manager.get_batches(features=None, num_batches=1)
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(
+            message, "Parameter num_batches must be less than or equal to the available number of batches (0)."
+        )
+
+    def test_get_batches_fail_2(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
+        try:
+            # test only one exception from _check_evaluate_input() to ensure it is called; other exceptions tested by
+            # the unit tests for _check_evaluate_input()
+            manager.get_batches(features=REFERENCE[0:1, :], num_batches=1)
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(
+            message, "Parameter num_batches must be less than or equal to the available number of batches (0)."
+        )
+
+    def test_get_batches_fail_3(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
+        try:
             manager.get_batches(features=REFERENCE)
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter features must have exactly one row.")
-
-    # other parameter checks and exceptions for get_batches() already tested above
 
     def test_get_batches_1(self):
         manager = ClassifierSetManager(target=TARGET)

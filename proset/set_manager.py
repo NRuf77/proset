@@ -40,7 +40,7 @@ class SetManager(metaclass=ABCMeta):
 
     @staticmethod
     @abstractmethod
-    def _get_baseline_distribution(target):
+    def _get_baseline_distribution(target):  # pragma: no cover
         """Compute baseline distribution parameters from target for supervised learning.
 
         :param target: see docstring of __init__() for details
@@ -83,8 +83,55 @@ class SetManager(metaclass=ABCMeta):
             return np.zeros(0, dtype=int)
         return np.unique(np.hstack(active_features))
 
+    @staticmethod
+    def _check_num_batches(num_batches, num_batches_actual, permit_array):
+        """Check requested number of batches is consistent with actual number.
+
+        :param num_batches: non-negative integer or 1D numpy array of strictly increasing, non-negative integers; number
+            of batches for which computation is requested
+        :param num_batches_actual: non-negative integer; actual number of batches
+        :param permit_array: boolean; whether passing an array for num_batches is permissible
+        :return: num_batches or num_batches_actual if the former is None; raises an error if a check fails
+        """
+        if isinstance(num_batches, np.ndarray):
+            if not permit_array:
+                raise TypeError("Parameter num_batches must not be an array.")
+            if len(num_batches.shape) != 1:
+                raise ValueError("Parameter num_batches must be 1D if passing an array.")
+            if not np.issubdtype(num_batches.dtype, np.integer):
+                raise TypeError("Parameter num_batches must be of integer type if passing an array.")
+            if np.any(num_batches < 0):
+                raise ValueError("Parameter num_batches must not contain negative values if passing an array.")
+            if np.any(num_batches > num_batches_actual):
+                raise ValueError(
+                    " ".join([
+                        "Parameter num_batches must not contain values greater than the available number of",
+                        "batches ({}) if passing an array.".format(num_batches_actual)
+                    ])
+                )
+            if np.any(np.diff(num_batches) <= 0):
+                raise ValueError(
+                    "Parameter num_batches must contain strictly increasing elements if passing an array."
+                )
+            num_batches = num_batches.copy()  # output should not be a reference to input
+        else:
+            if num_batches is None:
+                num_batches = num_batches_actual
+            if not np.issubdtype(type(num_batches), np.integer):
+                raise TypeError("Parameter num_batches must be an integer.")
+            if num_batches < 0:
+                raise ValueError("Parameter num_batches must not be negative.")
+            if num_batches > num_batches_actual:
+                raise ValueError(
+                    "Parameter num_batches must be less than or equal to the available number of batches ({}).".format(
+                        num_batches_actual
+                    ))
+        return num_batches
+
     def get_num_prototypes(self):
         """Get number of prototypes across all batches.
+
+        The same training sample is counted multiple times if it appears in multiple batches.
 
         :return: integer; number of prototypes
         """
@@ -136,6 +183,8 @@ class SetManager(metaclass=ABCMeta):
             raise ValueError("Parameter prototype_weights must have as many elements as prototypes has rows.")
         if len(batch_info["sample_index"].shape) != 1:
             raise ValueError("Parameter sample_index must be a 1D array.")
+        if not np.issubdtype(batch_info["sample_index"].dtype, np.integer):
+            raise TypeError("Parameter sample_index must be an integer array.")
         if batch_info["sample_index"].shape[0] != batch_info["prototypes"].shape[0]:
             raise ValueError("Parameter sample_index must have as many elements as prototypes has rows.")
         return batch_info["prototypes"].shape[1]
@@ -217,6 +266,7 @@ class SetManager(metaclass=ABCMeta):
             features=features,
             batches=self._batches,
             num_batches=num_batches[-1] if isinstance(num_batches, np.ndarray) else num_batches,
+            # evaluate impact up the batch with the largest index requested
             meta=self._meta
         )
         return self._convert_to_unscaled(
@@ -233,8 +283,8 @@ class SetManager(metaclass=ABCMeta):
 
         :param features: see docstring of evaluate_unscaled() for details
         :param num_batches: see docstring of evaluate_unscaled() for details
-        :param num_batches_actual: non_negative integer; actual number of batches; num_batches must no exceed this
-        :param permit_array: boolean; whether a numpy array may be provided for num_batches
+        :param num_batches_actual: non-negative integer; actual number of batches
+        :param permit_array: boolean; whether passing an array for num_batches is permissible
         :param meta: dict; must have key 'num_features' but can store None value if not determined yet
         :return: num_batches or num_batches_actual if the former is None; raises an error if a check fails
         """
@@ -248,43 +298,6 @@ class SetManager(metaclass=ABCMeta):
         return cls._check_num_batches(
             num_batches=num_batches, num_batches_actual=num_batches_actual, permit_array=permit_array
         )
-
-    @staticmethod
-    def _check_num_batches(num_batches, num_batches_actual, permit_array):
-        """Check requested number of batches is consistent with actual number.
-
-        :param num_batches: see docstring of evaluate_unscaled() for details
-        :param num_batches_actual: see docstring of _check_evaluate_input() for details
-        :param permit_array: see docstring of _check_evaluate_input() for details
-        :return: as return value of _check_evaluate_input()
-        """
-        if num_batches is None:
-            num_batches = num_batches_actual
-        if isinstance(num_batches, np.ndarray):
-            if not permit_array:
-                raise TypeError("Parameter num_batches must not be an array.")
-            if np.any(num_batches < 0):
-                raise ValueError("Parameter num_batches must not contain negative values if passing a vector.")
-            if np.any(num_batches > num_batches_actual):
-                raise ValueError(
-                    " ".join([
-                        "Parameter num_batches must not contain values greater than the available number of",
-                        "{} if passing a vector.".format(num_batches_actual)
-                    ])
-                )
-            if np.any(np.diff(num_batches) <= 0):
-                raise ValueError(
-                    "Parameter num_batches must contain strictly increasing elements if passing a vector."
-                )
-        else:
-            if num_batches < 0:
-                raise ValueError("Parameter num_batches must not be negative.")
-            if num_batches > num_batches_actual:
-                raise ValueError(
-                    "Parameter num_batches must be less than or equal to the available number of {}.".format(
-                        num_batches_actual
-                    ))
-        return num_batches
 
     @staticmethod
     def _compute_impact(features, batches, num_batches, meta):
@@ -303,7 +316,7 @@ class SetManager(metaclass=ABCMeta):
         """
         if len(batches) == 0 or num_batches == 0:  # default model is independent of prototypes
             return np.zeros((features.shape[0], 0), dtype=float), np.zeros(0, dtype=float), np.zeros(0, dtype=int)
-            # strictly speaking, dtype=float is wrong for classifiers but that does not matter for empty matrices
+            # dtype=float is wrong for a classifier target but that does not matter for empty matrices
         impact = []
         target = []
         batch_index = []
@@ -330,9 +343,9 @@ class SetManager(metaclass=ABCMeta):
             return np.zeros((features.shape[0], 0), dtype=float), np.zeros(0, dtype=float), np.zeros(0, dtype=int)
         return np.hstack(impact), np.hstack(target), np.hstack(batch_index)
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def _convert_to_unscaled(impact, target, batch_index, num_batches, meta):
+    def _convert_to_unscaled(cls, impact, target, batch_index, num_batches, meta):  # pragma: no cover
         """Convert impact and target to unscaled predictions and scaling vector.
 
         :param impact: as first return value of _compute_impact()
@@ -434,12 +447,12 @@ class SetManager(metaclass=ABCMeta):
             "sample_index": self._batches[i]["sample_index"].copy()
         } if self._batches[i] is not None else None for i in range(num_batches)]
         if features is not None:
-            for i in range(len(batches)):
-                if batches[i] is not None:
-                    batches[i]["similarities"] = self._compute_feature_similarities(
-                        prototypes=batches[i]["prototypes"],
-                        features=features[batches[i]["active_features"]],
-                        feature_weights=batches[i]["feature_weights"]
+            for batch in batches:
+                if batch is not None:
+                    batch["similarities"] = self._compute_feature_similarities(
+                        prototypes=batch["prototypes"],
+                        features=features[batch["active_features"]],
+                        feature_weights=batch["feature_weights"]
                     )
         return batches
 
@@ -449,7 +462,7 @@ class SetManager(metaclass=ABCMeta):
 
         :param features: see docstring of get_batches() for details
         :param num_batches: see docstring of get_batches() for details
-        :param num_batches_actual: non_negative integer; actual number of batches; num_batches must no exceed this
+        :param num_batches_actual: non-negative integer; actual number of batches
         :param meta: dict; must have key 'num_features' but can store None value if not determined yet
         :return: two return values:
             - non-negative integer; num_batches or num_batches_actual if the former is None
@@ -535,7 +548,7 @@ class ClassifierSetManager(SetManager):
             'marginals' containing a 1D numpy float array with the marginal distribution of the classes
         :return: integer; number of features; raises a ValueError if a check fails
         """
-        if batch_info["target"].dtype not in (int, np.int32, np.int64):
+        if not np.issubdtype(batch_info["target"].dtype, np.integer):
             raise TypeError("Parameter target must have integer elements.")
         if np.any(batch_info["target"] < 0) or np.any(batch_info["target"] >= meta["marginals"].shape[0]):
             raise ValueError("Parameter target must encode the classes as integers from 0 to K - 1.")

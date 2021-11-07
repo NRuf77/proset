@@ -61,6 +61,7 @@ ALPHA_W = 0.05
 RANDOM_STATE = np.random.RandomState(12345)
 
 
+# pylint: disable=too-few-public-methods, unused-argument
 class MockSetManager:
     """Mock SetManager class for interface tests.
     """
@@ -68,16 +69,102 @@ class MockSetManager:
     # noinspection PyUnusedLocal
     @staticmethod
     def evaluate_unscaled(features, num_batches):
+        """Return constants for interface test.
+
+        :param features: not used
+        :param num_batches: not used
+        :return: as return value of proset.SetManager.evaluate_unscaled()
+        """
         return [(UNSCALED, SCALE)]
 
 
+# pylint: disable=protected-access
+def _get_consistent_example():
+    """Create a consistent sample, parameters, and pre-computed results suitable for testing.
+
+    :return: dict with the following keys:
+        - sample_data: dict, as output of ClassifierObjective._split_samples()
+        - feature_weights: 1D numpy array of non-negative floats; feature weights vector
+        - prototype_weights: 1D numpy array of non-negative floats; prototype weights vector
+        - impact: 2D numpy float array; as first return value of ClassifierObjective._compute_impact()
+        - similarity: 2D numpy float array; as second return value of ClassifierObjective._compute_impact()
+    """
+    sample_data = ClassifierObjective._split_samples(  # noqa
+        features=FEATURES,
+        target=TARGET,
+        weights=WEIGHTS,
+        num_candidates=NUM_CANDIDATES,
+        max_fraction=MAX_FRACTION,
+        set_manager=MockSetManager(),
+        random_state=RANDOM_STATE,
+        meta={"counts": COUNTS}
+    )
+    feature_weights = np.linspace(0.0, 1.0, sample_data["cand_features"].shape[1])
+    prototype_weights = np.linspace(1.0, 2.0, sample_data["cand_features"].shape[0])
+    similarity = ClassifierObjective._compute_similarity(  # noqa
+        feature_weights=feature_weights,
+        sample_data=sample_data
+    )
+    impact = similarity * prototype_weights
+    ref_unscaled = sample_data["ref_unscaled"].copy()
+    for i in range(ref_unscaled.shape[1]):  # naive calculation as reference: loop over classes
+        ix = sample_data["cand_target"] == i
+        ref_unscaled[:, i] += np.sum(impact[:, ix], axis=1)
+    ref_scale = np.sum(ref_unscaled, axis=1)
+    ref_unscaled = np.array([
+        ref_unscaled[i, sample_data["ref_target"][i]] for i in range(sample_data["ref_target"].shape[0])
+    ])
+    return {
+        "sample_data": sample_data,
+        "feature_weights": feature_weights,
+        "prototype_weights": prototype_weights,
+        "impact": impact,
+        "similarity": similarity,
+        "total_weight": np.sum(sample_data["ref_weights"]),
+        "ref_unscaled": ref_unscaled,
+        "ref_scale": ref_scale
+    }
+
+
+def _choose_half(x):
+    """Return an index vector referencing the first half of a vector.
+
+    :param x: 1D numpy array
+    :return: 1D numpy integer array; indices referencing the first half of x (excludes the middle in case of odd length)
+    """
+    return np.nonzero(np.arange(x.shape[0]) < x.shape[0] / 2)[0]
+
+
+# pylint: disable=missing-function-docstring, protected-access, too-many-public-methods
 class TestClassifierObjective(TestCase):
-    """Unit tests class ClassifierObjective.
+    """Unit tests for class ClassifierObjective.
 
     The tests also cover abstract superclass Objective.
     """
 
     def test_init_fail_1(self):
+        message = ""
+        try:
+            # test only one exception raised by shared.check_classifier_target() to ensure it is called; other
+            # exceptions tested by the unit tests for that function
+            ClassifierObjective(
+                features=FEATURES,
+                target=TARGET.astype(float),
+                weights=WEIGHTS,
+                num_candidates=NUM_CANDIDATES,
+                max_fraction=MAX_FRACTION,
+                set_manager=MockSetManager(),
+                lambda_v=LAMBDA_V,
+                lambda_w=LAMBDA_W,
+                alpha_v=ALPHA_V,
+                alpha_w=ALPHA_W,
+                random_state=RANDOM_STATE
+            )
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter target must be an integer array.")
+
+    def test_init_fail_2(self):
         message = ""
         try:
             ClassifierObjective(
@@ -101,7 +188,7 @@ class TestClassifierObjective(TestCase):
             "The following classes have fewer cases: {}.".format(", ".join(insufficient_classes))
         ]))
 
-    def test_init_fail_2(self):
+    def test_init_fail_3(self):
         message = ""
         try:
             ClassifierObjective(
@@ -121,7 +208,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter features must be a 2D array.")
 
-    def test_init_fail_3(self):
+    def test_init_fail_4(self):
         message = ""
         try:
             ClassifierObjective(
@@ -141,7 +228,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "The training data needs to contain more than one sample.")
 
-    def test_init_fail_4(self):
+    def test_init_fail_5(self):
         message = ""
         try:
             ClassifierObjective(
@@ -161,7 +248,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter target must have as many elements as features has rows.")
 
-    def test_init_fail_5(self):
+    def test_init_fail_6(self):
         message = ""
         try:
             ClassifierObjective(
@@ -181,7 +268,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter weights must be a 1D array.")
 
-    def test_init_fail_6(self):
+    def test_init_fail_7(self):
         message = ""
         try:
             ClassifierObjective(
@@ -201,7 +288,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter weights must have as many elements as features has rows.")
 
-    def test_init_fail_7(self):
+    def test_init_fail_8(self):
         message = ""
         try:
             ClassifierObjective(
@@ -219,9 +306,29 @@ class TestClassifierObjective(TestCase):
             )
         except ValueError as ex:
             message = ex.args[0]
-        self.assertEqual(message, "Parameter weights must have only non-negative elements.")
+        self.assertEqual(message, "Parameter weights must not contain negative values.")
 
-    def test_init_fail_8(self):
+    def test_init_fail_9(self):
+        message = ""
+        try:
+            ClassifierObjective(
+                features=FEATURES,
+                target=TARGET,
+                weights=WEIGHTS,
+                num_candidates=1.0,
+                max_fraction=MAX_FRACTION,
+                set_manager=MockSetManager(),
+                lambda_v=LAMBDA_V,
+                lambda_w=LAMBDA_W,
+                alpha_v=ALPHA_V,
+                alpha_w=ALPHA_W,
+                random_state=RANDOM_STATE
+            )
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter num_candidates must be integer.")
+
+    def test_init_fail_10(self):
         message = ""
         try:
             ClassifierObjective(
@@ -241,7 +348,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter num_candidates must be positive.")
 
-    def test_init_fail_9(self):
+    def test_init_fail_11(self):
         message = ""
         try:
             ClassifierObjective(
@@ -261,7 +368,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter max_fraction must lie in (0.0, 1.0).")
 
-    def test_init_fail_10(self):
+    def test_init_fail_12(self):
         message = ""
         try:
             ClassifierObjective(
@@ -281,7 +388,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter max_fraction must lie in (0.0, 1.0).")
 
-    def test_init_fail_11(self):
+    def test_init_fail_13(self):
         message = ""
         try:
             ClassifierObjective(
@@ -301,7 +408,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter lambda_v must not be negative.")
 
-    def test_init_fail_12(self):
+    def test_init_fail_14(self):
         message = ""
         try:
             ClassifierObjective(
@@ -321,7 +428,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter lambda_w must not be negative.")
 
-    def test_init_fail_13(self):
+    def test_init_fail_15(self):
         message = ""
         try:
             ClassifierObjective(
@@ -341,7 +448,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter alpha_v must lie in [0.0, 1.0].")
 
-    def test_init_fail_14(self):
+    def test_init_fail_16(self):
         message = ""
         try:
             ClassifierObjective(
@@ -361,7 +468,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter alpha_v must lie in [0.0, 1.0].")
 
-    def test_init_fail_15(self):
+    def test_init_fail_17(self):
         message = ""
         try:
             ClassifierObjective(
@@ -381,7 +488,7 @@ class TestClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter alpha_w must lie in [0.0, 1.0].")
 
-    def test_init_fail_16(self):
+    def test_init_fail_18(self):
         message = ""
         try:
             ClassifierObjective(
@@ -421,8 +528,7 @@ class TestClassifierObjective(TestCase):
         self.assertEqual(objective._meta["num_features"], dimensions[1])
         self.assertEqual(objective._meta["num_parameters"], dimensions[1] + dimensions[0])
         self.assertEqual(objective._meta["total_weight"], np.sum(WEIGHTS))
-        self.assertEqual(len(objective._sample_data), 13)
-        # a detailed check of the processed data is performed by test_finalize_split below
+        self.assertEqual(len(objective._sample_data), 13)  # a full check is performed by test_finalize_split() below
         self.assertEqual(objective._sample_cache, None)
         self.assertEqual(objective._lambda_v, LAMBDA_V)
         self.assertEqual(objective._lambda_w, LAMBDA_W)
@@ -459,7 +565,21 @@ class TestClassifierObjective(TestCase):
             random_state=RANDOM_STATE,
             meta={"counts": COUNTS}
         )
-        self.assertEqual(len(result), 13)
+        self.assertEqual(sorted(list(result.keys())), [
+            "cand_changes",
+            "cand_features",
+            "cand_features_squared",
+            "cand_index",
+            "cand_target",
+            "class_matches",
+            "ref_features",
+            "ref_features_squared",
+            "ref_scale",
+            "ref_target",
+            "ref_unscaled",
+            "ref_weights",
+            "shrink_sparse_features"
+        ])
         candidates = np.zeros(FEATURES.shape[0], dtype=bool)
         candidates[result["cand_index"]] = True  # need to reconstruct candidates from result due to randomization
         reference = np.logical_not(candidates)
@@ -472,8 +592,8 @@ class TestClassifierObjective(TestCase):
             ix = TARGET == i
             class_scales[i] = np.sum(WEIGHTS[ix]) / np.sum(WEIGHTS[np.logical_and(ix, reference)])
         ref_weights = WEIGHTS[reference]
-        for i in range(len(ref_target)):
-            ref_weights[i] *= class_scales[ref_target[i]]
+        for i, target in enumerate(ref_target):
+            ref_weights[i] *= class_scales[target]
         # noinspection PyTypeChecker
         self.assertAlmostEqual(np.sum(ref_weights), np.sum(WEIGHTS))  # check whether reference weights are consistent
         np.testing.assert_allclose(result["ref_weights"], ref_weights)
@@ -596,7 +716,8 @@ class TestClassifierObjective(TestCase):
         self.assertTrue(np.all(by_class > 0))
         self.assertTrue(np.all(by_class <= np.round(COUNTS * MAX_FRACTION)))
 
-    def test_get_group_samples_2(self):
+    @staticmethod
+    def test_get_group_samples_2():
         result = ClassifierObjective._get_group_samples(
             num_groups=NUM_LARGE_GROUPS,
             groups=LARGE_GROUPS,
@@ -606,7 +727,8 @@ class TestClassifierObjective(TestCase):
         np.testing.assert_allclose(result, SAMPLES_PER_LARGE_GROUP)
         # group 0 and 2 split the remaining 410 samples after selecting the maximum of 30 % samples for groups 1 and 3
 
-    def test_get_group_samples_3(self):
+    @staticmethod
+    def test_get_group_samples_3():
         result = ClassifierObjective._get_group_samples(
             num_groups=4,
             groups=np.hstack([
@@ -668,7 +790,7 @@ class TestClassifierObjective(TestCase):
             objective.evaluate(parameter=np.ones((dimension, 1)))
         except ValueError as ex:
             message = ex.args[0]
-        self.assertEqual(message, "Parameter must be a 1D array.")
+        self.assertEqual(message, "Parameter parameter must be a 1D array.")
 
     def test_evaluate_fail_2(self):
         objective = ClassifierObjective(
@@ -693,7 +815,7 @@ class TestClassifierObjective(TestCase):
         self.assertEqual(
             message,
             " ".join([
-                "Parameter must have as many elements as the number of features and candidates",
+                "Parameter parameter must have as many elements as the number of features and candidates",
                 "(expected {}, found {}).".format(dimension, dimension - 1)
             ])
         )
@@ -757,7 +879,7 @@ class TestClassifierObjective(TestCase):
         parameter = np.zeros(dimensions[1] + dimensions[0])
         # test that penalties are correctly applied even if optimization for sparseness is in effect
         value, gradient = objective.evaluate(parameter)
-        ref_value_1, ref_feature_gradient_1, ref_prototype_gradient_1 = objective._evaluate_penalty(
+        ref_value_1, _, ref_prototype_gradient_1 = objective._evaluate_penalty(
             feature_weights=parameter[:dimensions[1]],
             prototype_weights=parameter[dimensions[1]:],
             lambda_v=LAMBDA_V,
@@ -769,7 +891,7 @@ class TestClassifierObjective(TestCase):
             feature_weights=parameter[:dimensions[1]],
             sample_data=objective._sample_data
         )
-        ref_value_2, ref_feature_gradient_2, ref_prototype_gradient_2 = objective._evaluate_likelihood(
+        ref_value_2, _, ref_prototype_gradient_2 = objective._evaluate_likelihood(
             feature_weights=parameter[:dimensions[1]],
             prototype_weights=parameter[dimensions[1]:],
             sample_data=objective._sample_data,
@@ -781,7 +903,7 @@ class TestClassifierObjective(TestCase):
             LAMBDA_V * (1.0 - ALPHA_V) * np.ones(dimensions[0]), ref_prototype_gradient_1 + ref_prototype_gradient_2
         ]))
 
-    # method _check_evaluate_parameter() not tested as it deals with logging only
+    # method _check_evaluate_parameter() already tested by the above
 
     def test_verify_sparseness_1(self):
         parameter = np.array([1.0, 0.0, 1.0, 0.0, 1.0])
@@ -789,7 +911,8 @@ class TestClassifierObjective(TestCase):
         np.testing.assert_allclose(result, parameter)
         self.assertEqual(active_values, None)
 
-    def test_verify_sparseness_2(self):
+    @staticmethod
+    def test_verify_sparseness_2():
         parameter = np.array([1.0, 0.0, 1.0, 0.0, 1.0])
         result, active_values = ClassifierObjective._verify_sparseness(parameter, 0.6)
         np.testing.assert_allclose(result, np.ones(3))
@@ -817,7 +940,7 @@ class TestClassifierObjective(TestCase):
         np.testing.assert_allclose(prototype_grad, ref_prototype_grad)
 
     def test_shrink_sample_data_1(self):
-        sample_data = self._get_consistent_example()["sample_data"]
+        sample_data = _get_consistent_example()["sample_data"]
         reduced_data, cache = ClassifierObjective._shrink_sample_data(
             sample_data=sample_data,
             sample_cache=None,
@@ -827,56 +950,9 @@ class TestClassifierObjective(TestCase):
         # this check works although sample_data contains numpy arrays, probably because the objects are identical
         self.assertEqual(cache, None)
 
-    @staticmethod
-    def _get_consistent_example():
-        """Create a consistent sample, parameters, and pre-computed results suitable for testing.
-
-        :return: dict with the following keys:
-            - sample_data: dict, as output of ClassifierObjective._split_samples()
-            - feature_weights: 1D numpy array of non-negative floats; feature weights vector
-            - prototype_weights: 1D numpy array of non-negative floats; prototype weights vector
-            - impact: 2D numpy float array; as first return value of ClassifierObjective._compute_impact()
-            - similarity: 2D numpy float array; as second return value of ClassifierObjective._compute_impact()
-        """
-        sample_data = ClassifierObjective._split_samples(
-            features=FEATURES,
-            target=TARGET,
-            weights=WEIGHTS,
-            num_candidates=NUM_CANDIDATES,
-            max_fraction=MAX_FRACTION,
-            set_manager=MockSetManager(),
-            random_state=RANDOM_STATE,
-            meta={"counts": COUNTS}
-        )
-        feature_weights = np.linspace(0.0, 1.0, sample_data["cand_features"].shape[1])
-        prototype_weights = np.linspace(1.0, 2.0, sample_data["cand_features"].shape[0])
-        similarity = ClassifierObjective._compute_similarity(
-            feature_weights=feature_weights,
-            sample_data=sample_data
-        )
-        impact = similarity * prototype_weights
-        ref_unscaled = sample_data["ref_unscaled"].copy()
-        for i in range(ref_unscaled.shape[1]):  # naive calculation as reference: loop over classes
-            ix = sample_data["cand_target"] == i
-            ref_unscaled[:, i] += np.sum(impact[:, ix], axis=1)
-        ref_scale = np.sum(ref_unscaled, axis=1)
-        ref_unscaled = np.array([
-            ref_unscaled[i, sample_data["ref_target"][i]] for i in range(sample_data["ref_target"].shape[0])
-        ])
-        return {
-            "sample_data": sample_data,
-            "feature_weights": feature_weights,
-            "prototype_weights": prototype_weights,
-            "impact": impact,
-            "similarity": similarity,
-            "total_weight": np.sum(sample_data["ref_weights"]),
-            "ref_unscaled": ref_unscaled,
-            "ref_scale": ref_scale
-        }
-
     def test_shrink_sample_data_2(self):
-        example = self._get_consistent_example()
-        active_features = self._choose_half(example["feature_weights"])
+        example = _get_consistent_example()
+        active_features = _choose_half(example["feature_weights"])
         ref_cache = {
             "active_features": active_features,
             "active_prototypes": None,
@@ -891,19 +967,9 @@ class TestClassifierObjective(TestCase):
         self.assertEqual(cache, ref_cache)
         # this check works although sample_data contains numpy arrays, probably because the objects are identical
 
-    @staticmethod
-    def _choose_half(x):
-        """Return an index vector referencing the first half of a vector.
-
-        :param x: 1D numpy array
-        :return: 1D numpy integer array; indices referencing the first half of x (excluding the middle point in case of
-            odd length)
-        """
-        return np.nonzero(np.arange(x.shape[0]) < x.shape[0] / 2)[0]
-
     def test_shrink_sample_data_3(self):
-        example = self._get_consistent_example()
-        active_features = self._choose_half(example["feature_weights"])
+        example = _get_consistent_example()
+        active_features = _choose_half(example["feature_weights"])
         reduced_data, cache = ClassifierObjective._shrink_sample_data(
             sample_data=example["sample_data"],
             sample_cache=None,
@@ -935,8 +1001,9 @@ class TestClassifierObjective(TestCase):
         np.testing.assert_equal(cache["active_features"], active_features)
         self.assertEqual(cache["sample_data"], reduced_data)
 
-    def test_compute_similarity_1(self):
-        example = self._get_consistent_example()
+    @staticmethod
+    def test_compute_similarity_1():
+        example = _get_consistent_example()
         # this function already calls ClassifierObjective._compute_similarity()
         scaled_reference = example["sample_data"]["ref_features"] * example["feature_weights"]
         scaled_prototypes = example["sample_data"]["cand_features"] * example["feature_weights"]
@@ -949,7 +1016,7 @@ class TestClassifierObjective(TestCase):
         np.testing.assert_allclose(example["similarity"], reference_similarity)
 
     def test_evaluate_likelihood_1(self):
-        example = self._get_consistent_example()
+        example = _get_consistent_example()
         value, feature_gradient, prototype_gradient = ClassifierObjective._evaluate_likelihood(
             feature_weights=example["feature_weights"],
             prototype_weights=example["prototype_weights"],
@@ -973,7 +1040,8 @@ class TestClassifierObjective(TestCase):
         np.testing.assert_allclose(feature_gradient, ref_feature_gradient)
         np.testing.assert_allclose(prototype_gradient, ref_prototype_gradient)
 
-    def test_expand_gradient_1(self):
+    @staticmethod
+    def test_expand_gradient_1():
         feature_gradient = np.linspace(0.2, 1.0, 5)
         result = ClassifierObjective._expand_gradient(
             gradient=feature_gradient,
@@ -982,7 +1050,8 @@ class TestClassifierObjective(TestCase):
         )
         np.testing.assert_allclose(result, feature_gradient)
 
-    def test_expand_gradient_2(self):
+    @staticmethod
+    def test_expand_gradient_2():
         feature_gradient = np.linspace(0.2, 1.0, 5)
         active_features = np.array([1, 3, 5, 7, 9])
         result = ClassifierObjective._expand_gradient(
@@ -1039,7 +1108,7 @@ class TestClassifierObjective(TestCase):
         self.assertEqual(result, 11)
 
     def test_compute_shared_expressions_1(self):
-        example = self._get_consistent_example()
+        example = _get_consistent_example()
         result = ClassifierObjective._compute_shared_expressions(
             similarity=example["similarity"],
             sample_data=example["sample_data"],
@@ -1066,7 +1135,7 @@ class TestClassifierObjective(TestCase):
         np.testing.assert_allclose(result["total_weight"], example["total_weight"])
 
     def test_compute_negative_log_likelihood_1(self):
-        example = self._get_consistent_example()
+        example = _get_consistent_example()
         shared_expressions = ClassifierObjective._compute_shared_expressions(
             similarity=example["similarity"],
             sample_data=example["sample_data"],
@@ -1080,8 +1149,9 @@ class TestClassifierObjective(TestCase):
         ) / shared_expressions["total_weight"]
         self.assertAlmostEqual(result, reference)
 
-    def test_compute_partial_feature_weights_1(self):
-        example = self._get_consistent_example()
+    @staticmethod
+    def test_compute_partial_feature_weights_1():
+        example = _get_consistent_example()
         shared_expressions = ClassifierObjective._compute_shared_expressions(
             similarity=example["similarity"],
             sample_data=example["sample_data"],
@@ -1108,8 +1178,9 @@ class TestClassifierObjective(TestCase):
 
     # method _quick_compute_part() already tested by the above
 
-    def test_compute_partial_prototype_weights_1(self):
-        example = self._get_consistent_example()
+    @staticmethod
+    def test_compute_partial_prototype_weights_1():
+        example = _get_consistent_example()
         shared_expressions = ClassifierObjective._compute_shared_expressions(
             similarity=example["similarity"],
             sample_data=example["sample_data"],

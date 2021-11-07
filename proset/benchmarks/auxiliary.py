@@ -7,7 +7,8 @@ Released under the MIT license - see LICENSE file for details
 import logging
 
 
-class _LogTracker:
+# pylint: disable=too-few-public-methods
+class _LogTracker:  # pragma: no cover
     """Singleton class for tracking the state of the console log.
 
     :cvar log_enabled: boolean; whether the console log has already been enabled
@@ -15,7 +16,7 @@ class _LogTracker:
     log_enabled = False
 
 
-def start_console_log(log_level=logging.INFO):
+def start_console_log(log_level=logging.INFO):  # pragma: no cover
     """Start root logger output to console if not already enabled.
 
     :param log_level: log level specifier recognized by logging module

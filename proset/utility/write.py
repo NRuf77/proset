@@ -31,7 +31,7 @@ COLUMN_FORMAT = {  # assign widths and cell formats to report columns
 }
 
 
-def write_report(file_path, report, column_format=None, cell_format=None):
+def write_report(file_path, report, column_format=None, cell_format=None):  # pragma: no cover
     """Save results of model.Model.export() or model.Model.explain() as formatted xlsx file.
 
     :param file_path: string; file name with full or relative path
@@ -44,7 +44,7 @@ def write_report(file_path, report, column_format=None, cell_format=None):
     """
     column_format = _update_format(format_=column_format, default=COLUMN_FORMAT)
     cell_format = _update_format(format_=cell_format, default=CELL_FORMAT)
-    writer = pd.ExcelWriter(file_path)
+    writer = pd.ExcelWriter(file_path)  # pylint: disable=abstract-class-instantiated
     workbook = writer.book
     cell_format = {key: workbook.add_format(value) for key, value in cell_format.items()}
     worksheet = workbook.add_worksheet("export")

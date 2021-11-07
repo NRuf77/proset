@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 MAX_SEED = 1e6
+LAMBDA_V_RANGE = (1e-6, 1e-1)
+LAMBDA_W_RANGE = (1e-9, 1e-4)
+NUM_BATCH_GRID = np.arange(11)
 
 
 class FitMode(Enum):
@@ -50,7 +53,7 @@ def select_hyperparameters(
         num_folds=5,
         num_jobs=None,
         random_state=None
-):
+):  # pragma: no cover
     """Select hyperparameters for proset model via cross-validation.
 
     Note: stage 1 uses randomized search in case that a range is given for both lambda_v and lambda_w, sampling values
@@ -70,7 +73,7 @@ def select_hyperparameters(
     :param lambda_w_range: as lambda_v_range above but for the prototype weights and default (1e-9, 1e-4)
     :param stage_1_trials: positive integer; number of penalty combinations to try in stage 1 of fitting
     :param num_batch_grid: 1D numpy array of non-negative integers or None; batch numbers to try in stage 2 of fitting;
-        pass None to use np.linspace(0, 11)
+        pass None to use np.arange(0, 11)
     :param num_folds: integer greater than 1; number of cross-validation folds to use
     :param num_jobs: integer greater than 1 or None; number of jobs to run in parallel; pass None to disable parallel
         execution; for parallel execution, this function must be called inside an 'if __name__ == "__main__"' block to
@@ -161,11 +164,12 @@ def _process_select_settings(
         - random_state: an instance of numpy.random.RandomState initialized with input random_state
     """
     if lambda_v_range is None:
-        lambda_v_range = (1e-6, 1e-1)
+        lambda_v_range = LAMBDA_V_RANGE  # no need to copy immutable object
     if lambda_w_range is None:
-        lambda_w_range = (1e-9, 1e-4)
+        lambda_w_range = LAMBDA_W_RANGE
     if num_batch_grid is None:
-        num_batch_grid = np.arange(0, 11)
+        num_batch_grid = NUM_BATCH_GRID
+    num_batch_grid = num_batch_grid.copy()
     _check_select_settings(
         lambda_v_range=lambda_v_range,
         lambda_w_range=lambda_w_range,
@@ -179,16 +183,7 @@ def _process_select_settings(
         prefix = "model__"
     else:
         prefix = ""
-    if isinstance(lambda_v_range, np.float):
-        if isinstance(lambda_w_range, np.float):
-            fit_mode = FitMode.NEITHER
-        else:
-            fit_mode = FitMode.LAMBDA_W
-    else:
-        if isinstance(lambda_w_range, np.float):
-            fit_mode = FitMode.LAMBDA_V
-        else:
-            fit_mode = FitMode.BOTH
+    fit_mode = _get_fit_mode(lambda_v_range=lambda_v_range, lambda_w_range=lambda_w_range)
     splitter = StratifiedKFold if is_classifier(model) else KFold
     random_state = check_random_state(random_state)
     return {
@@ -205,6 +200,7 @@ def _process_select_settings(
     }
 
 
+# pylint: disable=too-many-branches
 def _check_select_settings(lambda_v_range, lambda_w_range, stage_1_trials, num_batch_grid, num_jobs):
     """Check input to select_hyperparameters() for consistency.
 
@@ -215,39 +211,65 @@ def _check_select_settings(lambda_v_range, lambda_w_range, stage_1_trials, num_b
     :param num_jobs: see docstring of select_hyperparameters() for details
     :return: no return value; raises an exception if an issue is found
     """
-    if isinstance(lambda_v_range, np.float):
-        if lambda_v_range < 0.0:
-            raise ValueError("Parameter lambda_v must not be negative if passing a single value.")
-    else:
-        if len(lambda_v_range) != 2:
-            raise ValueError("Parameter lambda_v must have length two if passing a tuple.")
-        if lambda_v_range[0] < 0.0 or lambda_v_range[1] < 0.0:
-            raise ValueError("Parameter lambda_v must not contain negative values if passing a tuple.")
-        if lambda_v_range[0] >= lambda_v_range[1]:
-            raise ValueError("Parameter lambda_v must contain strictly increasing values if passing a tuple.")
-    if isinstance(lambda_w_range, np.float):
-        if lambda_w_range < 0.0:
-            raise ValueError("Parameter lambda_w must not be negative if passing a single value.")
-    else:
-        if len(lambda_w_range) != 2:
-            raise ValueError("Parameter lambda_w must have length two if passing a tuple.")
-        if lambda_w_range[0] < 0.0 or lambda_w_range[1] < 0.0:
-            raise ValueError("Parameter lambda_w must not contain negative values if passing a tuple.")
-        if lambda_w_range[0] >= lambda_w_range[1]:
-            raise ValueError("Parameter lambda_w must contain strictly increasing values if passing a tuple.")
+    _check_lambda(lambda_v_range, "lambda_v")
+    _check_lambda(lambda_w_range, "lambda_w")
+    if not np.issubdtype(type(stage_1_trials), np.integer):
+        raise TypeError("Parameter stage_1_trials must be integer.")
     if stage_1_trials < 1:
-        raise ValueError("Parameter stage_1_trials must be a positive integer.")
+        raise ValueError("Parameter stage_1_trials must be positive.")
     if len(num_batch_grid.shape) != 1:
-        raise ValueError("Parameters num_batch_grid must be a 1D array.")
+        raise ValueError("Parameter num_batch_grid must be a 1D array.")
+    if not np.issubdtype(num_batch_grid.dtype, np.integer):
+        raise TypeError("Parameter num_batch_grid must be an integer array.")
     if np.any(num_batch_grid < 0):
-        raise ValueError("Parameters num_batch_grid must not contain negative values.")
+        raise ValueError("Parameter num_batch_grid must not contain negative values.")
     if np.any(np.diff(num_batch_grid) <= 0):
-        raise ValueError("Parameters num_batch_grid must contain strictly increasing values.")
+        raise ValueError("Parameter num_batch_grid must contain strictly increasing values.")
+    if num_jobs is not None and not np.issubdtype(type(num_jobs), np.integer):
+        raise ValueError("Parameter num_jobs must be integer if not passing None.")
     if num_jobs is not None and num_jobs < 2:
-        raise ValueError("Parameter num_jobs must be at least 2 if passing an integer.")
+        raise ValueError("Parameter num_jobs must be greater than 1 if not passing None.")
 
 
-def _execute_stage_1(settings, features, target, weights):
+def _check_lambda(lambda_range, lambda_name):
+    """Check that search range for one penalty term is consistent.
+
+    :param lambda_range: non-negative float or tuple of two non-negative floats; fixed penalty or lower and upper bounds
+        for search
+    :param lambda_name: string; parameter name to show in exception messages
+    :return: no return value; raises an exception if an issue is found
+    """
+    if isinstance(lambda_range, np.float):
+        if lambda_range < 0.0:
+            raise ValueError("Parameter {} must not be negative if passing a single value.".format(lambda_name))
+    else:
+        if len(lambda_range) != 2:
+            raise ValueError("Parameter {} must have length two if passing a tuple.".format(lambda_name))
+        if lambda_range[0] < 0.0 or lambda_range[1] < 0.0:
+            raise ValueError("Parameter {} must not contain negative values if passing a tuple.".format(lambda_name))
+        if lambda_range[0] >= lambda_range[1]:
+            raise ValueError(
+                "Parameter {} must contain strictly increasing values if passing a tuple.".format(lambda_name)
+            )
+
+
+def _get_fit_mode(lambda_v_range, lambda_w_range):
+    """Determine fit mode indicator for stage 1.
+
+    :param lambda_v_range: see docstring of select_hyperparameters() for details; None not allowed
+    :param lambda_w_range: see docstring of select_hyperparameters() for details; None not allowed
+    :return: one element of FitMode
+    """
+    if isinstance(lambda_v_range, np.float):
+        if isinstance(lambda_w_range, np.float):
+            return FitMode.NEITHER
+        return FitMode.LAMBDA_W
+    if isinstance(lambda_w_range, np.float):
+        return FitMode.LAMBDA_V
+    return FitMode.BOTH
+
+
+def _execute_stage_1(settings, features, target, weights):  # pragma: no cover
     """Execute search stage 1 for penalty weights.
 
     :param settings: dict; as return value of process_select_settings()
@@ -279,7 +301,7 @@ def _execute_stage_1(settings, features, target, weights):
         )
     )
     return _evaluate_stage_1(
-        stage=stage_1,
+        scores=stage_1,
         parameters=stage_1_parameters,
         fit_mode=settings["fit_mode"]
     )
@@ -288,7 +310,7 @@ def _execute_stage_1(settings, features, target, weights):
 def _make_stage_1_plan(settings, features, target, weights):
     """Create cross-validation plan for stage 1.
 
-    :param settings: dict; as return value of process_select_settings()
+    :param settings: dict; as return value of _process_select_settings()
     :param features: see docstring of select_hyperparameters() for details
     :param target: see docstring of select_hyperparameters() for details
     :param weights: see docstring of select_hyperparameters() for details
@@ -323,7 +345,7 @@ def _make_stage_1_plan(settings, features, target, weights):
     parameters = [{"lambda_v": lambda_v[i], "lambda_w": lambda_w[i]} for i in range(settings["stage_1_trials"])]
     train_ix = _make_train_ix(features=features, target=target, splitter=settings["splitter"])
     return [{
-        "model": settings["model"],
+        "model": deepcopy(settings["model"]),
         "features": features,
         "target": target,
         "weights": weights,
@@ -375,14 +397,14 @@ def _make_train_ix(features, target, splitter):
     """
     folds = list(splitter.split(X=features, y=target))
     train_ix = []
-    for i in range(len(folds)):
+    for fold in folds:
         new_ix = np.zeros(features.shape[0], dtype=bool)
-        new_ix[folds[i][0]] = True
+        new_ix[fold[0]] = True
         train_ix.append(new_ix)
     return train_ix
 
 
-def _execute_plan(plan, num_jobs, fit_function, collect_function):
+def _execute_plan(plan, num_jobs, fit_function, collect_function):  # pragma: no cover
     """Execute cross-validation plan.
 
     :param plan: as return value of _make_stage_1_plan
@@ -398,7 +420,7 @@ def _execute_plan(plan, num_jobs, fit_function, collect_function):
     return collect_function(result)
 
 
-def _fit_stage_1(step):
+def _fit_stage_1(step):  # pragma: no cover
     """Fit model using one set of hyperparameters for cross-validation for stage 1.
 
     :param step: dict; as one element of the return value of _make_stage_1_plan()
@@ -412,7 +434,7 @@ def _fit_stage_1(step):
     )
 
 
-def _fit_model(step):
+def _fit_model(step):  # pragma: no cover
     """Fit model using one set of hyperparameters.
 
     :param step: see docstring of _fit_stage_1() for details
@@ -436,20 +458,20 @@ def _collect_stage_1(results, num_folds, trials):
     :return: as return value of _execute_plan()
     """
     scores = np.zeros((num_folds, trials))
-    for i in range(len(results)):
-        scores[results[i][0], results[i][1]] = results[i][2]
+    for result in results:
+        scores[result[0], result[1]] = result[2]
     return scores
 
 
-def _evaluate_stage_1(stage, parameters, fit_mode):
+def _evaluate_stage_1(scores, parameters, fit_mode):
     """Select hyperparameters for stage 1.
 
-    :param stage: as return value of _execute_plan()
+    :param scores: as return value of _execute_plan()
     :param parameters: as second return value of _make_stage_1_plan()
     :param fit_mode: as field "fit_mode" of return value of _process_select_settings()
     :return: as return value of _execute_stage_1()
     """
-    stats = _compute_stats(stage)
+    stats = _compute_stats(scores)
     lambda_grid = np.array([[p["lambda_v"], p["lambda_w"]] for p in parameters])
     reference = np.sum(np.log(lambda_grid), axis=1)  # this is equivalent to the geometric mean of the penalties
     candidates = np.logical_and(stats["mean"] >= stats["threshold"], reference >= reference[stats["best_index"]])
@@ -465,21 +487,21 @@ def _evaluate_stage_1(stage, parameters, fit_mode):
     }
 
 
-def _compute_stats(stage):
+def _compute_stats(scores):
     """Determine optimal parameter combination and threshold from cross-validation scores.
 
-    :param stage: as return value of _execute_plan()
+    :param scores: as return value of _execute_plan()
     :return: dict with the following fields:
         - mean: 1D numpy float array; column means of stage
         - best_index: non-negative integer; index of largest mean score
         - threshold: float; largest mean score minus standard deviation for that parameter combination
     """
-    mean = np.mean(stage, axis=0)
+    mean = np.mean(scores, axis=0)
     best_index = np.argmax(mean)
     return {
         "mean": mean,
         "best_index": best_index,
-        "threshold": mean[best_index] - np.std(stage[:, best_index], ddof=1)
+        "threshold": mean[best_index] - np.std(scores[:, best_index], ddof=1)
         # use variance correction for small sample size
     }
 
@@ -501,7 +523,7 @@ def _fake_stage_1(lambda_v, lambda_w):
     }
 
 
-def _execute_stage_2(settings, features, target, weights):
+def _execute_stage_2(settings, features, target, weights):  # pragma: no cover
     """Execute search stage 2 for number of batches.
 
     :param settings: dict; as return value of process_select_settings()
@@ -522,13 +544,13 @@ def _execute_stage_2(settings, features, target, weights):
         fit_function=_fit_stage_2,
         collect_function=np.vstack
     )
-    return _evaluate_stage_2(stage=stage_2, num_batch_grid=settings["num_batch_grid"])
+    return _evaluate_stage_2(scores=stage_2, num_batch_grid=settings["num_batch_grid"])
 
 
 def _make_stage_2_plan(settings, features, target, weights):
     """Create cross-validation plan for stage 2.
 
-    :param settings: dict; as return value of process_select_settings()
+    :param settings: dict; as return value of _process_select_settings()
     :param features: see docstring of select_hyperparameters() for details
     :param target: see docstring of select_hyperparameters() for details
     :param weights: see docstring of select_hyperparameters() for details
@@ -542,11 +564,11 @@ def _make_stage_2_plan(settings, features, target, weights):
         - train_ix: 1D numpy boolean array; indicator vector for the training set
         - parameters: dict of hyperparameters to be used for fitting; this function specifies n_iter and random_state
     """
-    n_iter = np.max(settings["num_batch_grid"])
+    n_iter = settings["num_batch_grid"][-1]
     states = _sample_random_state(size=settings["splitter"].n_splits, random_state=settings["random_state"])
     train_ix = _make_train_ix(features=features, target=target, splitter=settings["splitter"])
     return [{
-        "model": settings["model"],
+        "model": deepcopy(settings["model"]),
         "features": features,
         "target": target,
         "weights": weights,
@@ -557,7 +579,7 @@ def _make_stage_2_plan(settings, features, target, weights):
     } for i in range(len(train_ix))]
 
 
-def _fit_stage_2(step):
+def _fit_stage_2(step):  # pragma: no cover
     """Fit model using one set of hyperparameters for cross-validation for stage 2.
 
     :param step: dict; as one element of the return value of _make_stage_2_plan()
@@ -581,14 +603,14 @@ def _fit_stage_2(step):
     )
 
 
-def _evaluate_stage_2(stage, num_batch_grid):
+def _evaluate_stage_2(scores, num_batch_grid):
     """Select hyperparameters for stage 2.
 
-    :param stage: as return value of _execute_plan()
+    :param scores: as return value of _execute_plan()
     :param num_batch_grid: see docstring of select_hyperparameters() for details
     :return: as return value of _execute_stage_2()
     """
-    stats = _compute_stats(stage)
+    stats = _compute_stats(scores)
     selected_index = np.nonzero(stats["mean"] >= stats["threshold"])[0][0]
     return {
         "num_batch_grid": num_batch_grid,

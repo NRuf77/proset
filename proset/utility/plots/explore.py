@@ -101,7 +101,11 @@ class ModelPlots(metaclass=ABCMeta):
             - 1D numpy float array: as input offset or default if None
         """
         check_is_fitted(model, attributes="n_features_in_")
-        feature_names = check_feature_names(num_features=model.n_features_in_, feature_names=feature_names)
+        feature_names = check_feature_names(
+            num_features=model.n_features_in_,
+            feature_names=feature_names,
+            active_features=None
+        )
         scale, offset = check_scale_offset(num_features=model.n_features_in_, scale=scale, offset=offset)
         if alpha <= 0.0 or alpha > 1.0:
             raise ValueError("Parameter alpha must lie in (0.0, 1.0].")
@@ -301,6 +305,7 @@ class ModelPlots(metaclass=ABCMeta):
         return features, target, baseline, highlight, reference, explain_features, explain_target, quantiles, x_range, \
             y_range
 
+    # pylint: disable=too-many-branches
     @staticmethod
     def _check_plot_parameters(
             num_features,
@@ -438,7 +443,7 @@ class ModelPlots(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def _compute_colors(cls, model, grid, familiarity, **kwargs):
+    def _compute_colors(cls, model, grid, compute_familiarity, **kwargs):
         """Compute colors and familiarity for surface plot.
 
         :param model: a fitted sklearn classifier with at most 3 classes
@@ -1076,15 +1081,15 @@ class ModelPlots(metaclass=ABCMeta):
         """Add index number to plot points.
 
         :param features: features: 2D numpy float array with 2 columns
-        :param index: 1D numpy array of non-negative integers; index values to print
+        :param index: 1D numpy array of non-negative integers, may be encoded as floats; index values to print
         :param x_range: see docstring of plot_batch_map() for details
         :param y_range: see docstring of plot_batch_map() for details
         :return:
         """
         x_offset = (x_range[1] - x_range[0]) * TEXT_OFFSET
         y_offset = (y_range[1] - y_range[0]) * TEXT_OFFSET
-        for i, index in enumerate(index):
-            plt.text(x=features[i, 0] + x_offset, y=features[i, 1] + y_offset, s=str(int(index)))
+        for i, value in enumerate(index):
+            plt.text(x=features[i, 0] + x_offset, y=features[i, 1] + y_offset, s=str(int(value)))
 
     def plot_features(
             self,
@@ -1415,16 +1420,14 @@ class ModelPlots(metaclass=ABCMeta):
                         y_label = feature_names[row]
                         show_y_axis = "left"
                     if row == column:
-                        if make_single_figure:
-                            supertitle = None,
-                            title = None
-                        else:
-                            supertitle = "Batch {} distribution plot for {}".format(batch, model_name)
-                            if comment is not None:
-                                supertitle += " ({})".format(comment)
-                            title = "Solid curve & vertical lines = prototypes"
-                            if features is not None:
-                                title += " / dashed curve & dots = additional samples"
+                        supertitle, title = cls._get_titles(
+                            batch=batch,
+                            model_name=model_name,
+                            comment=comment,
+                            is_density=True,
+                            make_single_figure=make_single_figure,
+                            has_features=features is not None
+                        )
                         cls._plot_feature_density(
                             model=model,
                             alpha=alpha,
@@ -1448,17 +1451,14 @@ class ModelPlots(metaclass=ABCMeta):
                             x_range=axes[row]
                         )
                     else:
-                        if make_single_figure:
-                            supertitle = None,
-                            title = None
-                        else:
-                            supertitle = "Batch {} scatter plot for {}".format(batch, model_name)
-                            if comment is not None:
-                                supertitle += " ({})".format(comment)
-                            if features is None:
-                                title = "Marker area proportional to prototype weight"
-                            else:
-                                title = "Large markers = prototypes / small markers = additional samples"
+                        supertitle, title = cls._get_titles(
+                            batch=batch,
+                            model_name=model_name,
+                            comment=comment,
+                            is_density=False,
+                            make_single_figure=make_single_figure,
+                            has_features=features is not None
+                        )
                         cls._plot_points(
                             model=model,
                             alpha=alpha,
@@ -1489,6 +1489,27 @@ class ModelPlots(metaclass=ABCMeta):
             if comment is not None:
                 supertitle += " ({})".format(comment)
             plt.suptitle(supertitle)
+
+    @staticmethod
+    def _get_titles(batch, model_name, comment, is_density, make_single_figure, has_features):
+        if make_single_figure:
+            return None, None
+        if is_density:
+            supertitle = "Batch {} distribution plot for {}".format(batch, model_name)
+            if comment is not None:
+                supertitle += " ({})".format(comment)
+            title = "Solid curve & vertical lines = prototypes"
+            if has_features:
+                title += " / dashed curve & dots = additional samples"
+            return supertitle, title
+        supertitle = "Batch {} scatter plot for {}".format(batch, model_name)
+        if comment is not None:
+            supertitle += " ({})".format(comment)
+        if has_features:
+            title = "Large markers = prototypes / small markers = additional samples"
+        else:
+            title = "Marker area proportional to prototype weight"
+        return supertitle, title
 
     @classmethod
     def _plot_feature_density(
