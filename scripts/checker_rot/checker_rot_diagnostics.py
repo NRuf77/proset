@@ -37,7 +37,7 @@ train_features = result["model"]["transform"].transform(result["data"]["X_train"
 train_labels = result["data"]["y_train"]
 test_features = result["model"]["transform"].transform(result["data"]["X_test"])
 test_labels = result["data"]["y_test"]
-prediction = result["model"]["model"].predict(test_features)
+prediction, familiarity = result["model"]["model"].predict(test_features, compute_familiarity=True)
 probabilities = result["model"]["model"].predict_proba(test_features)
 active_features = result["model"]["model"].set_manager_.get_active_features()
 misclassified = prediction != test_labels
@@ -68,6 +68,8 @@ x_range, y_range = plotter.plot_surface(
     comment="training samples",
     highlight=prototype_ix,
     highlight_name="prototypes",
+    familiarity=familiarity,
+    quantiles=0.01,
     use_proba=True
 )
 plotter.plot_surface(
@@ -76,6 +78,8 @@ plotter.plot_surface(
     comment="test samples",
     highlight=misclassified,
     highlight_name="misclassified",
+    familiarity=familiarity,
+    quantiles=0.01,
     x_range=x_range,
     y_range=y_range,
     use_proba=True
@@ -86,6 +90,8 @@ plotter.plot_surface(
     comment="test samples",
     highlight=misclassified,
     highlight_name="misclassified",
+    familiarity=familiarity,
+    quantiles=0.01,
     x_range=x_range,
     y_range=y_range,
 )

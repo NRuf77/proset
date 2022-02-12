@@ -1,5 +1,205 @@
-\chapter{About proset}
+\chapter{About prototype set models}
 \label{ch_about}
 %
-
+This report describes a supervised learning method we call the prototype set or `proset' algorithm.
+It is an attempt to apply feature selection via the elastic net penalty to a nonlinear distribution model inspired by kernel regression.
+The algorithm is implemented as Python package \texttt{proset} using an interface compatible with machine learning library \texttt{sklearn} \cite{Pedregosa_11}.\par
+%
+The elastic net penalty was proposed by Zou and Hastie \cite{Zou_05} as a combination of $L_1$- and $L_2$-regularization for linear regression.
+Regularization with either penalty has been studied by several authors in different contexts, usually with the purpose of preventing overfitting or finding a robust solution to an ill-conditioned problem.
+In case of linear regression, the name `ridge regression' for applying an $L_2$-penalty appears to be due to Hoerl and Kennard \cite{Hoerl_70}.
+The LASSO algorithm that uses an $L_1$-penalty was proposed by Tibshirani \cite{Tibshirani_96}.\par
+%
+The main advantage of an $L_1$-penalty over an $L_2$-penalty is that its derivative does not vanish near the origin.
+Thus, a sufficiently large penalty weight selects features by forcing some model coefficients exactly to zero.
+The main disadvantage is that the penalty term is not differentiable at zero, which means that model fitting usually requires specialized solvers.
+For example, Andrew and Gao \cite{Andrew_07} developed the OWL-QN algorithm to minimize an otherwise smooth objective function with an additional $L_1$-term.
+This algorithm solves the optimization problem restricted to a particular orthant via backtracking line search.
+The absolute value of each coefficient is represented as plus or minus identity depending on the orthant, so the restricted problem is everywhere differentiable.
+If an optimum is found where any coefficients are exactly zero, the generalized Kuhn-Tucker conditions for the subgradient of the original term determine whether the solution is a local minimum or can be improved by moving to another orthant.
+In case of proset, all model coefficients nonnegative, so optimization is naturally restricted to the first orthant.
+Thus, we can rely on a standard algorithm for constrained continuous optimization like L-BFGS-B \cite{Byrd_95}.\par
+%
+Zou and Hastie \cite{Zou_05} show that a combined $L_1$- and $L_2$-penalty overcome some issues observed for the $L_1$-penalty applied to linear regression, but which we expect to affect other models as well.
+One of these issues is that, in case of several highly correlated features, the LASSO tends to arbitrarily select only one of them.
+With the elastic net penalty, highly correlated features are typically either included or excluded as a group.
+Furthermore, empirical results indicate that $L_2$-regularization improves the quality of the selected models.
+For these reasons and because an $L_2$-penalty does not complicate the optimization problem, we decided to use an elastic net penalty for fitting proset models.\par
+%
+To derive a penalized version of negative log-likelihood, we follow the approach used by Friedman, Hastie, and Tibshirani \cite{Friedman_10} for applying elastic net regularization to generalized linear models (GLMs).
+This method is implemented as R package \texttt{glmnet} \cite{Friedman_10} for a variety of link functions.
+In each case, a functional like this is minimized to determine model coefficients (with optional observation weights):\par
+%
+\begin{equation}
+f_{\alpha,\lambda}\left(\beta\left|\{(x_i,y_i)\}_i\right.\right):=\frac{1}{N}\sum_{i=1}^Nl(y_i,\beta_0+\beta^Tx_i)+\lambda\left(\frac{\alpha}{2}\sum_{j=1}^d\beta_j^2+(1-\alpha)\sum_{j=1}^d|\beta_j|\right)\label{eq_regularization}
+\end{equation}
+%
+Here, $(x_i,y_i)$ are $N\gg1$ observations with feature vectors $x_i\in\R^d$ and associated targets $y_i\in\R$, or some suitable subset thereof, e.g., the integers from $0$ to $K-1$ in case of classification with $K>1$ classes.
+The link function $l$ is the negative log-likelihood for target $y_i$ conditional on a linear combination of $x_i$ with coefficients $\beta\in\R^d$ and intercept $\beta_0\in\R$.
+Penalty weights $\lambda\geq0$ and $\alpha\in[0,1]$ determine the overall magnitude of the elastic net penalty and the relative importance of the $L_1$- and $L_2$-terms.
+Note that the we have reversed the role of $\alpha$ compared to the formulation used in \cite{Friedman_10}, i.e., $\alpha=1$ is pure $L_2$-regularization.\par
+%
+Feature selection via $L_1$-penalty is a powerful technique.
+It allows the user to evaluate a large number of potential input variables without having to worry about overfitting.
+Unfortunately, linear regression and GLMs are limited in the achievable model quality.
+As the fitting procedure only deals with feature weights in the linear combination, modeling a nonlinear relationship requires that the effect is anticipated and explicitly coded as features.
+Generalized additive models (GAMs) mitigate this somewhat by automatically applying nonlinear transform to the features.
+However, these transforms are restricted to a particular function class, e.g., splines with a predefined order and number of knots, and modeling higher order interactions can lead to a prohibitive number of terms.
+The main reason for developing proset was to try overcoming these issues by using a different expression for the conditional distribution.\par
+%
+The distribution model for proset estimators is inspired by kernel-based methods from nonparametric statistics, in particular the Nadaraya-Watson estimator \cite{Nadaraya_64}\cite{Watson_64}.
+This regression method uses a locally weighted average of the target values for training data to compute the conditional expectation of the target at an arbitrary point.
+Let $K:\R\rightarrow\R$ be a kernel function, meaning that it is nonnegative, symmetric around the origin, and integrates to one.
+Then, for any bandwidth $h>0$, $K_h(x):=\frac{1}{h}K\left(\frac{x}{h}\right)$ is also a kernel function.
+Given $N$ training samples $(x_n, y_n)\in\R^2$, the Nadaraya-Watson estimator with bandwidth $h$ at $x\in\R$ is defined as
+%
+\begin{equation}
+\hat{m}_h(x):=\frac{\sum_{n=1}^Ny_nK_h(x-x_n)}{\sum_{n=1}^NK_h(x-x_n)}\label{eq_nadaraya_watson}
+\end{equation}
+%
+As $K_h$ goes to zero for $x\rightarrow\pm\infty$, samples where $x_n$ is close to $x$ have the most impact on $\hat{m}(x)$.
+The bandwidth controls the degree of smoothing, i.e., the impact of distant points increases with $h$.
+The approach can be extended to multiple features using a multivariate kernel function with positive semi-definite bandwidth matrix $H$.
+Unlike GLMs or even GAMs, the Nadaraya-Watson estimator can approximate an arbitrary, smooth relationship between the features and target, as shown, e.g., by Devroye \cite{Devroye_78}.\par
+%
+Locally weighted averaging can also be used to estimate the conditional distribution itself instead of its expectation.
+This requires replacing $y$ in (\ref{eq_nadaraya_watson}) with a kernel function centered on $y$.
+A general framework that covers both continuous and discrete targets is proposed by Hall, Racine, and Li in \cite{Hall_04}.
+The prototype set algorithm uses a similar approach.
+A full description is given later, but two key features of proset models are:
+%
+\begin{itemize}
+\item The bandwidth matrix is limited to a diagonal structure.
+To select features, we apply an elastic-net penalty to the inverse bandwidth term for each feature.
+Thus, the penalty counteracts overfitting by enforcing smoothness and removing irrelevant features from the model altogether.
+%
+\item Instead of including all samples with unit weight, the proset estimator includes only a subset of the training data with individual weights.
+These are fitted subject to a separate elastic-net penalty term, which ensures that points are only included if they are suitably `representative' of their neighborhood.
+\end{itemize}
+%
+We refer to the set of training points selected for a proset model as `prototypes', which is how the method gets its name.
+Note that the term `prototype' has two slightly different meanings in English, both of which can be said to apply here:
+%
+\begin{itemize}
+\item A `prototype' can be a typical example in the sense of `archetype'.
+The selected samples are considered typical for their neighborhood in the feature space.
+%
+\item A `prototype' can be an incomplete version in the sense of `demonstrator'.
+Due to feature selection, each sample included in the model is reduced to its essential features.
+\end{itemize}
+%
+\section{Properties of proset}
+\label{sec_properties}
+%
+The first version of the \texttt{proset} package implements a classifier -- a regressor is planned for a future release.
+Chapter \ref{ch_classifier} describes the model in detail, shows how to select good hyperparameters, and provides evaluation results for several public data sets and artificial test cases.
+For comparison, we also trained k-nearest-neighbor (kNN)\footnote{
+The kNN method is commonly attributed to Fix and Hodges \cite{Fix_51}, although they study nonparametric density estimators for discriminatory analysis, not supervised learning.
+}
+and extreme gradient boosting (XGBoost) \cite{Chen_16} classifiers on the same data.
+The former algorithm is conceptually close to proset as it relies on local averaging.
+There is even an extension for $k=1$, Hart's `condensed nearest neighbor' algorithm \cite{Hart_68}, concerned with extracting a subset of representative points from the training data.
+XGBoost has become a kind of industry standard for machine learning with highly informative features, i.e., those problems not requiring deep learning.
+Empirical results shows that it is often very good at optimizing a model in terms of a chosen metric.
+Both algorithms are capable of representing a nonlinear relationship between the features and target.\par
+%
+In the benchmark study, we optimize the models on each data set for minimal log-loss.
+For the best performing algorithm, we compute the sum of cross-validation mean and standard deviation for log-loss using the optimal hyperparameters.
+If another algorithm reaches a score less than or equal to this threshold, we consider it `equivalent' to the best model.
+Table \ref{tab_classifier_comparison} summarizes the relative performance of the classifiers on eleven test cases.
+A model is rated as either `best' (lowest log-loss), `equivalent' (log-loss less than or equal to the threshold), `worse' (log-loss above the threshold), or `worst' (classifier returns constant estimator).\par
+%
+\begin{table}
+\caption{Comparison of classification algorithms}
+\label{tab_classifier_comparison}
+%
+\begin{center}
+\begin{tabular}{|lcccc|}
+\hline
+&\multicolumn{4}{c|}{\textbf{Log-loss score}}\\
+\textbf{Classifier}&\textbf{Best}&\textbf{Equivalent}&\textbf{Worse}&\textbf{Worst$^*$}\\
+proset&4&2&5&--\\
+kNN&1&3&6&1\\
+XGBoost&7&--&2&2\\
+\multicolumn{5}{|l|}{$^*$ Algorithm returns constant estimator.}\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+For the test cases -- which are of course not representative of anything in particular -- the performance of proset is in-between kNN and XGBoost.
+There are also several instances where two or all three of the models are equivalent.
+The exception are three of the four cases where XGBoost is `worse' or `worst'.
+These are artificial data sets where the target is a deterministic function of five or six features.
+The fourth data set is very small and performance on testing data highly variable.\par
+%
+Our study contains artificial test cases relying on the interaction of three to six features.
+XGBoost provides very good results up to four features, is worse than the other two models for five features, and fails on six features.
+This may be a limitation of the binary decision trees used as base learners.
+Both kNN and proset models have some predictive value for the higher order interaction terms, although results are far from perfect given that the relationship between features and target is deterministic.
+If we add six more irrelevant features to the sixth order interaction, kNN also fails.
+The proset classifier is able to select only the relevant inputs and produce a nontrivial estimate as before.\par
+%
+One particular strength of proset models we found while studying the example cases is that they tend to be highly explainable.
+This is due to feature selection and that fact that the distance-based approach allows for geometric interpretation.
+Another important reason is that the estimate for a particular sample tends to depend meaningfully only on a few prototypes, although the total number can go into the hundreds or thousands.
+Chapter \ref{ch_explainability} `Explainability' shows examples for the following:
+%
+\begin{itemize}
+\item Feature selection makes it easier for humans to review the model structure.
+If the number of relevant features is small, users can assess whether the choice is sensible and study low-dimensional representations like scatter plots or cuts through the decision space.
+%
+\item Prototype selection simplifies reviewing the model structure even if the number of features is large.
+We can perform weighted PCA on the feature matrix for the prototypes and use this to create low-dimensional maps of the data.
+Also, a check whether the training data has labeling errors or artifacts can start with the smaller set of prototypes.
+%
+\item The estimate for a particular sample can be explained by reviewing the prototypes with the highest impact.
+This is an explanation in terms of similar training instances instead of more abstract properties, which can help nontechnical users to understand and trust the model.
+%
+\item Proset rates new samples based on their absolute distance to the prototypes.
+That means the algorithm can detect whether a new sample is far away from the training data and the estimate should not be relied on.
+\end{itemize}
+%
+Note that the last three properties do not require the selected number of features to be small.
+For example, proset could be used as the final stage in transfer learning and add its capabilities to a model of arbitrary complexity like a deep neural network.
+%
+\section{The curse of dimensionality}
+\label{sec_curse}
+%
+The Nadaraya-Watson estimator is known to have poor convergence properties in feature spaces of high dimension.
+For $n$ samples in a $d$-dimensional space, the asymptotic rate of convergence for the error is $n^{-\frac{4}{4+d}}$ \cite{Haerdle_04}.
+This is due to the trade-off between the point-wise bias and variance.
+Consider the simple case where $H$ is a diagonal matrix with constant bandwidth $h_n$ in each dimension.
+To reduce the bias, $h_n$ has to converge to zero as $n$ goes to infinity.
+To reduce the variance, the number of training points with nonnegligible impact on the estimator at any one point has to go to infinity with $n$.
+As the volume containing such points is proportional to $h_n^d$, the number of points is proportional to $nh_n^d$.
+Thus, the bandwidth can only converge to zero very slowly with $n$ if $d$ is large, with a corresponding slow reduction in bias.\par
+%
+What are the implications for proset?
+Feature selection is obviously beneficial as the convergence rate of the estimator should depend only on the number of features included in the model.
+The impact of prototype selection is harder to quantify.
+Consider a target distribution that can be replicated exactly by proset, i.e., it is generated by local averaging using a finite number of kernel functions for weighting.
+In this situation, the bandwidth does no longer have to vanish asymptotically with $n$ to yield a small bias.
+We have established no theoretical results, but it would be interesting to study the convergence behavior for distributions that can be reproduced or at least closely approximated by proset.\par
+%
+The case with the largest dimension in the benchmark study has a 64 features.
+Proset selects around 30 of these to build a model with reasonable performance, although XGBoost achieves a better log-loss.
+This number of features is not particularly large for a classification problem.
+However, it appears to be quite large compared to problems that are typically considered feasible for local kernel methods.
+For comparison, we found published examples with 8 features (local linear regression: Ormoneit and Hastie \cite{Ormoneit_99}),
+7 to 17 features depending on the encoding of categorical variables (nonparametric conditional distribution: Bontemps, Racine, and Simoni \cite{Bontemps_09}),
+or 24 variables, of which any one can serve as target (the largest sample data set for R package \texttt{np}: Hayfield and Racine \cite{Hayfield_08}).
+%
+\section{Release history}
+\label{sec_release_history}
+%
+These versions of the \texttt{proset} Python package have been released:
+%
+\begin{description}
+\item[0.1.0:] implementation of proset classifier using algorithm L-BFGS-B \cite{Byrd_95} for hyperparameter selection;
+helper functions for model fitting and plotting;
+benchmark code for hyperparameter selection, comparison to other classifiers, and demonstration of explanatory features;
+first version of technical report.
+\end{description}
+%
 \endinput

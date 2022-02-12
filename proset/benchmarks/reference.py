@@ -93,7 +93,7 @@ def fit_xgb_classifier(
         features,
         labels,
         eta=(1e-1, 1e-2),
-        num_iter=(100, 1000),
+        num_iter=(100, 10000),
         max_depth=10,
         colsample_range=1.0,
         subsample_range=1.0,

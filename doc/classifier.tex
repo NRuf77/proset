@@ -1,13 +1,18 @@
 \chapter{Prototype set classifier}
 \label{ch_classifier}
 %
-We observe $N\gg1$ pairs $(X_n,Y_n)$ of random variables such that $X_n$ takes values in $\R^D$, $D\geq1$, and $Y_n$ is one of $K>1$ classes represented by the integers from 1 to $K$.
-Our goal is to estimate the conditional distribution of the class $Y_n$ given features $X_n$, presuming that the $Y_n$ are independent conditional on $X_n$.
-The distribution of $X_n$ is of no concern, so that we just deal with the observed realizations $x_n\in\R^D$ for practical purposes.
-Nominal or ordinal features can be included in the model by encoding them as real vectors.\par
+In this chapter, we introduce the prototype set classifier, consider how to fit it to data, test the fitting procedure on benchmark cases, and compare model performance to other algorithms.
 %
-The model we consider is built from $B\geq0$ ``batches'' of points selected from the available samples.
-Each batch is defined by a a non-empty subset $S_1,\dots,S_B\subset\{1,\dots,N\}$ of the observation indices.
+\section{Definition}
+\label{sec_classifier_definition}
+%
+We observe $N\gg1$ i.i.d.\ pairs $(X_n,Y_n)$ of random variables such that $X_n$ takes values in $\R^D$, $D\geq1$, and $Y_n$ is one of $K>1$ classes represented by the integers from 0 to $K-1$.
+Our goal is to estimate the conditional distribution of $Y_n$ given $X_n$.
+As proset models are discriminative instead of generative, the distribution of $X_n$ is of no concern and we just deal with the observed realizations $x_n\in\R^D$ in practice.
+Nominal or ordinal features can be included in the model via encoding as real vectors.\par
+%
+A proset classifier is built from $B\geq0$ ``batches'' of points selected from the available samples.
+Each batch is defined by a a nonempty subset $S_1,\dots,S_B\subset\{1,\dots,N\}$ of the observation indices.
 The collection of batches is denoted by
 %
 \begin{equation}
@@ -16,8 +21,8 @@ The collection of batches is denoted by
 %
 or $\mathcal{S}=\emptyset$ if $B=0$.
 The indices of each batch are $S_b=:\{s_{b,1},\dots,s_{b,J_b}\}$ where $J_b:=|S_b|$.
-We refer to the points $(x_{s_{b,j}},y_{s_{b,j}})$ as ``prototypes''.
-The model treats each as a representative example for the distribution of $Y_n$ when $X_n$ is in a neighbourhood of $x_{s_{b,j}}$.
+We refer to the samples $(x_{s_{b,j}},y_{s_{b,j}})$ as `prototypes'.
+The model treats each as a representative example for the distribution of $Y_n$ when $X_n$ is in a neighborhood of $x_{s_{b,j}}$.
 To make this notion more precise, we require additional notation:\par
 %
 The empirical marginal probabilities of $Y$ are
@@ -28,76 +33,82 @@ The empirical marginal probabilities of $Y$ are
 %
 where $\1_A$ is the indicator function of a set $A$.\par
 %
-The unscaled Gaussian kernel $K_v$ with feature weights (inverse bandwidths) $v\in\R^D$, $v_d\geq0$, is
+The unnormalized Gaussian kernel $G_v$ with feature weights (inverse bandwidths) $v\in\R^D$, $v_d\geq0$, is
 %
 \begin{equation}
-K_v:\R^D\rightarrow(0,1],
-z\mapsto K_v(z):=\exp\left(-\frac{1}{2}\sum_{d=1}^D(v_dx_d)^2\right)\label{eq_kernel}
+G_v:\R^D\rightarrow(0,1],
+z\mapsto G_v(z):=\exp\left(-\frac{1}{2}\sum_{d=1}^D(v_dx_d)^2\right)\label{eq_kernel}
 \end{equation}
 %
-We associate each batch $b$ with a vector $v_b\in\R^D$, $v_{b,d}\geq0$, and each prototype with a weight $w_{b,j}>0$ to express the desired conditional distribution as
+We associate each batch $b$ with a vector $v_b\in\R^D$, $v_{b,d}\geq0$, and each prototype with a weight $w_{b,j}>0$ to estimate the conditional distribution as
 %
 \begin{equation}
-P(Y=k|X=x)=\hat{p}_k(x):=
-\frac{\hat{p}_{0,k}+\sum_{b=1}^B\sum_{j=1}^{J_b}\1_{\{k\}}(y_{s_{b,j}})w_{b,j}K_{v_b}(x-x_{s_{b,j}})}
-{1+\sum_{b=1}^B\sum_{j=1}^{J_b}w_{b,j}K_{v_b}(x-x_{s_{b,j}})}
+P(Y=k|X=x)\approx\hat{p}_k(x):=
+\frac{\hat{p}_{0,k}+\sum_{b=1}^B\sum_{j=1}^{J_b}\1_{\{k\}}(y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
+{1+\sum_{b=1}^B\sum_{j=1}^{J_b}w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
 \label{eq_pkx}
 \end{equation}
 %
 \begin{remark}
 \begin{enumerate}
 \item The sets $S_b$ are not required to be disjoint, so the same point can appear multiple times in (\ref{eq_pkx}).
-As each batch is associated with its own $v_b$, the impact on the model may be different every time the point appears.
+As each batch is associated with its own $v_b$, the impact on the model may be different every time a sample appears.
 %
-\item The kernels are parameterized in terms of inverse bandwidth to enable features selection via an $l_1$ penalty on the $v_{b,d}$.
-If $v_{b,d}$ is forced to zero by the penalty, the values of the corresponding feature in points of batch $b$ cease to affect the model.
+\item We use unnormalized kernels, i.e., the integral over the kernel function is in general not equal to 1, since the scaling can be considered to be subsumed in the choice of $w_{b,j}$.
+This avoids any complications related to the fact that the scaling for a Gaussian kernel depends on the number of features with nonzero coefficients.
+%
+\item The kernels are parameterized in terms of inverse bandwidth to enable feature selection via an $L_1$ penalty on $v_{b,d}$.
+If a weight is forced to zero by the penalty, the values of the corresponding feature in points of batch $b$ cease to affect the model.
 Conversely, a large value of $v_{b,d}$ means that the model is very sensitive to variations in the feature.
-We limit the kernels to a diagonal bandwidth structure instead of a full semi-positive definite matrix to be able to fit on large feature spaces with reasonable effort.
+Kernels are limited to a diagonal bandwidth structure (product kernel) instead of a full semi-positive definite matrix to be able to fit on large feature spaces with reasonable effort.
 %
-\item The form of the conditional probability (\ref{eq_pkx}) resembles kernel-based estimators used in non-parameteric statistics.
-A key difference is that we use a subset of the training data with individual weights instead of the entire data with unit weights.
+\item The conditional probability (\ref{eq_pkx}) is computed as a locally weighted average similar to the Nadaraya-Watson estimator (\ref{eq_nadaraya_watson}) or the conditional distributions studied in \cite{Hall_04}.
+However, there are two important differences:
+%
+\begin{itemize}
+\item The model uses a subset of the training samples with individual weights instead of the entire data with unit weights.
 This is done to reduce the computational effort for training and scoring if data size is large.
-Also, studying the prototypes selected for the model may help to understand its local structure.
+Also, studying the prototypes selected for the model may help to understand its structure.
 %
-\item Including the empirical probabilities in the model serves two important functions.
-First, they set the scale for the weights $w_{b,j}$, which would otherwise be determined only up to a multiplicative constant.
-Second, they define a natural baseline for $B=0$ , i.e., the model that treats $Y_n$ as independent of the features.
+\item The model adds the marginal probabilities to the contribution of the prototypes
+This sets the scale for the weights $w_{b,j}$, which would otherwise be determined only up to a multiplicative constant.
+Additionally, it defines a natural baseline for $B=0$ , i.e., the model that treats $Y_n$ as independent of the features.
+\end{itemize}
 \end{enumerate}
 \end{remark}
 %
 Finding an optimal representation of the form (\ref{eq_pkx}) for anything but a very small sample appears intractable.
-We thus focus on providing a heuristic that results in models of sufficient quality.
-The general idea is to iteratively add batches of prototypes to a base model consisting of the constant probabilities $p_{0,k}$.
+We thus focus on providing a heuristic that results in models of good quality.
+The general idea is to iteratively add batches of prototypes to a base model consisting of the marginal probabilities $p_{0,k}$.
 In each iteration, the available samples are split into a set of candidates for prototypes and a remainder used for scoring.
-The weights for the candidates and the feature weights for the new batch are chosen to maximize a modified log-likelihood function for the scoring set.
+The weights for the candidates and the feature weights for the new batch are chosen to maximize a modified log-likelihood function for the scoring data.
 Modifications to the likelihood are
 %
 \begin{enumerate}
 \item reweighting the terms such that each class has the same overall weight as in the set of all samples.
-This enables us to use sampling schemes for candidates that do not draw proportionally from each class.
+This enables us to use a sampling scheme for candidates that does not draw proportionally from each class.
 %
-\item adding a combination of $l_1$- and $l_2$-penalty terms (elastic net penalty) for both prototype and feature weights.
-The $l_1$-penalty is used to suppress candidates and features with negligible impact on the model.
+\item adding elastic net penalties for both prototype and feature weights to suppress candidates and features with negligible impact on the model.
 \end{enumerate}
 %
-The method is greedy in so far that parameters selected during earlier iterations remain constant.
+The method is greedy in so far that parameters selected during earlier iterations remain untouched.
 Hyperparameters -- penalty weights and the number of batches -- are selected via cross-validation.\par
 %
-To state the modified likelihood and its derivatives, we make use of the following expression representing the unscaled class probabilities truncated at batch $c\geq0$:
+To state the modified likelihood and its derivatives, we make use of the following expression representing the unnormalized class probabilities truncated at batch $c\geq0$:
 %
 \begin{equation}
 \hat{q}_{c,k}(x)=\hat{p}_{0,k}
-+\sum_{b=1}^c\sum_{j=1}^{J_b}\1_{\{k\}}(y_{s_{b,j}})w_{b,j}K_{v_b}(x-x_{s_{b,j}})
++\sum_{b=1}^c\sum_{j=1}^{J_b}\1_{\{k\}}(y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})
 \label{eq_qckx}
 \end{equation}
 %
 These satisfy
 %
 \begin{align}
-\hat{p}_{k}(x)&=\frac{\hat{q}_{B,k}(x)}{\sum_{l=1}^K\hat{q}_{B,l}(x)}\label{eq_q_properties}\\
+\hat{p}_{k}(x)&=\frac{\hat{q}_{B,k}(x)}{\sum_{l=0}^{K-1}\hat{q}_{B,l}(x)}\label{eq_q_properties}\\
 \hat{q}_{0,k}(x)&=\hat{p}_{0,k}\notag\\
 \forall c>0:\hat{q}_{c,k}(x)&
-=\hat{q}_{c-1,k}(x)+\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}K_{v_c}(x-x_{s_{c,j}})
+=\hat{q}_{c-1,k}(x)+\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}G_{v_c}(x-x_{s_{c,j}})
 \notag
 \end{align}
 %
@@ -105,16 +116,16 @@ During the training phase, we do not yet know the final number of batches $B$ bu
 The conditional probabilities using only batches up to $c$ are given by
 %
 \begin{equation}
-\hat{p}_{c,k}(x)=\frac{\hat{q}_{c,k}(x)}{\sum_{l=1}^K\hat{q}_{c,l}(x)}\label{eq_pckx}
+\hat{p}_{c,k}(x)=\frac{\hat{q}_{c,k}(x)}{\sum_{l=0}^{K-1}\hat{q}_{c,l}(x)}\label{eq_pckx}
 \end{equation}
 %
 which also satisfy $\hat{p}_{0,k}(x)=\hat{p}_{0,k}$.\par
 %
-Given the first $c-1$ batches, the parameters for batch $c>0$ are chosen to minimize the negative log-likelihood function
+Given the first $c-1$ batches, the parameters for batch $c>0$ are chosen to minimize the following function, which is the negative log-likelihood with regularization as per (\ref{eq_regularization}) and reweighting as discussed above:
 %
 \begin{align}
-l\left(v_c,\{w_{c,j}\}_j|\{x_n\}_n\right)
-&=-\frac{1}{N}\sum_{k=1}^K\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
+f\left(v_c,\{w_{c,j}\}_j|\{x_n\}_n\right)
+&=-\frac{1}{N}\sum_{k=0}^{K-1}\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
 \1_{\{k\}}(y_n)\log(\hat{p}_{c,k}(x_n))\label{eq_log_likelihood}\\
 &+\lambda_v\left(\frac{\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2
 +(1-\alpha_v)\sum_{d=1}^D|v_{c,d}|\right)\notag\\
@@ -130,23 +141,23 @@ The following expressions still need to be defined:
 \item $J_{c,k}:=\left|\{j\in\{1,\dots,J_c\}:y_{s_{c,j}}=k\}\right|$
 is the number of all candidates in batch $c>0$ that have class $k$.
 %
-\item $T_c:=\{1,\dots,N\}\setminus S_c$ is the set of samples not included as prototypes in batch $c>0$.
+\item $T_c:=\{1,\dots,N\}\setminus S_c$ is the set of samples not included as candidates for prototypes in batch $c>0$.
 %
 \item $\lambda_v\geq0$ is the weight for the elastic net penalty applied to feature weights.
 %
 \item $\lambda_w\geq0$ is the weight for the elastic net penalty applied to prototype weights.
 %
-\item $\alpha_v\in[0,1]$ is the portion of $\lambda_v$ assigned to the $l_2$ penalty for feature weights.
+\item $\alpha_v\in[0,1]$ is the portion of $\lambda_v$ assigned to the $L_2$ penalty for feature weights.
 %
-\item $\alpha_w\in[0,1]$ is the portion of $\lambda_w$ assigned to the $l_2$ penalty for prototype weights.
+\item $\alpha_w\in[0,1]$ is the portion of $\lambda_w$ assigned to the $L_2$ penalty for prototype weights.
 \end{itemize}
 %
-Given a set of prototypes $S_c$, the penalized log-likelihood (\ref{eq_log_likelihood}) is maximized subject to $v_{c,d}\geq0$ and $w_{c,j}\geq0$.
+Given a set of prototypes $S_c$, the objective function (\ref{eq_log_likelihood}) is maximized subject to $v_{c,d}\geq0$ and $w_{c,j}\geq0$.
 Note that we permit $w_{c,j}=0$ as solution of the optimization problem which contradicts our earlier definition.
 However, since assigning zero weight to a point is equivalent to excluding it from the model, this does not cause any issues.\par
 %
-As all parameters are constrained to the first orthant, the fact that the $l_1$ penalty is not differentiable in zero does not pose a problem.
-In fact, we can simply replace the absolute value with the identity function and solve the optimization task using a standard implementation of algorithm L-BFGS-B.\par
+As all parameters are constrained to the first orthant, the fact that the $L_1$ penalty is not differentiable in zero does not pose a problem.
+In fact, we can simply replace the absolute value with the identity function and solve the optimization task using a standard solver for continuous optimization with bounds like L-BFGS-B \cite{Byrd_95}.\par
 %
 To gain the full advantage of using L-BFGS-B, we need to compute the gradient of (\ref{eq_log_likelihood}) analytically.
 The partial derivatives of $\log(\hat{p}_{c,k}(x))$, $c>0$, are:
@@ -154,44 +165,44 @@ The partial derivatives of $\log(\hat{p}_{c,k}(x))$, $c>0$, are:
 \begin{align}
 \frac{\partial}{\partial v_{c,d}}\log(\hat{p}_{c,k}(x))&
 =\frac{\frac{\partial}{\partial v_{c,d}}
-\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}K_{v_c}(x-x_{s_{c,j}})}
+\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}G_{v_c}(x-x_{s_{c,j}})}
 {\hat{q}_{c,k}(x)}
 \label{eq_p_partial_v}\\
 &-\frac{\frac{\partial}{\partial v_{c,d}}
-\sum_{j=1}^{J_c}w_{c,j}K_{v_c}(x-x_{s_{c,j}})}
-{\sum_{l=1}^K\hat{q}_{c,l}(x)}\notag\\
+\sum_{j=1}^{J_c}w_{c,j}G_{v_c}(x-x_{s_{c,j}})}
+{\sum_{l=0}^{K-1}\hat{q}_{c,l}(x)}\notag\\
 &=v_{c,d}\left(\frac{\sum_{j=1}^{J_c}w_{c,j}
-(x_d-x_{s_{c,j},d})^2K_{v_c}(x-x_{s_{c,j}})}
-{\sum_{l=1}^K\hat{q}_{c,l}(x)}\right.\notag\\
+(x_d-x_{s_{c,j},d})^2G_{v_c}(x-x_{s_{c,j}})}
+{\sum_{l=0}^{K-1}\hat{q}_{c,l}(x)}\right.\notag\\
 &\left.-\frac{\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}
-(x_d-x_{s_{c,j},d})^2K_{v_c}(x-x_{s_{c,j}})}
+(x_d-x_{s_{c,j},d})^2G_{v_c}(x-x_{s_{c,j}})}
 {\hat{q}_{c,k}(x)}\right)\notag\\
 \frac{\partial}{\partial w_{c,i}}\log(\hat{p}_{c,k}(x))&
 =\frac{\frac{\partial}{\partial w_{c,i}}
-\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}K_{v_c}(x-x_{s_{c,j}})}
+\sum_{j=1}^{J_c}\1_{\{k\}}(y_{s_{c,j}})w_{c,j}G_{v_c}(x-x_{s_{c,j}})}
 {\hat{q}_{c,k}(x)}
 \label{eq_p_partial_w}\\
 &-\frac{\frac{\partial}{\partial w_{c,i}}
-\sum_{j=1}^{J_c}w_{c,j}K_{v_c}(x-x_{s_{c,j}})}
-{\sum_{l=1}^K\hat{q}_{c,l}(x)}\notag\\
-&=\frac{\1_{\{k\}}(y_{s_{c,i}})K_{v_c}(x-x_{s_{c,i}})}
+\sum_{j=1}^{J_c}w_{c,j}G_{v_c}(x-x_{s_{c,j}})}
+{\sum_{l=0}^{K-1}\hat{q}_{c,l}(x)}\notag\\
+&=\frac{\1_{\{k\}}(y_{s_{c,i}})G_{v_c}(x-x_{s_{c,i}})}
 {\hat{q}_{c,k}(x)}
--\frac{K_{v_c}(x-x_{s_{c,i}})}
-{\sum_{l=1}^K\hat{q}_{c,l}(x)}\notag
+-\frac{G_{v_c}(x-x_{s_{c,i}})}
+{\sum_{l=0}^{K-1}\hat{q}_{c,l}(x)}\notag
 \end{align}
 %
-The partial derivatives of the negative log-likelihood on the first orthant are
+The partial derivatives of the objective function on the first orthant are
 %
 \begin{align}
-\frac{\partial}{\partial v_{c,d}}l(v_c,\{w_{c,j}\}_j|\{x_n\}_n)
-&=-\frac{1}{N}\sum_{k=1}^K\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
+\frac{\partial}{\partial v_{c,d}}f(v_c,\{w_{c,j}\}_j|\{x_n\}_n)
+&=-\frac{1}{N}\sum_{k=0}^{K-1}\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
 \1_{\{k\}}(y_n)\frac{\partial}{\partial v_{c,d}}\log(\hat{p}_{c,k}(x_n))
 \label{eq_l_partial_v}\\
 &+\lambda(\alpha_v v_{c,d}+(1-\alpha_v))\notag\\
-\frac{\partial}{\partial w_{c,j}}l(v_c,\{w_{c,j}\}_j|\{x_n\}_n)
-&=-\frac{1}{N}\sum_{k=1}^K\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
+\frac{\partial}{\partial w_{c,j}}f(v_c,\{w_{c,j}\}_j|\{x_n\}_n)
+&=-\frac{1}{N}\sum_{k=0}^{K-1}\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
 \1_{\{k\}}(y_n)\frac{\partial}{\partial w_{c,j}}\log(\hat{p}_{c,k}(x_n))
-\notag\\
+\label{eq_l_partial_w}\\
 &+\lambda\beta(\alpha_w w_{c,j}+(1-\alpha_w))\notag
 \end{align}
 %
@@ -202,11 +213,11 @@ This enables us to split the samples into $2K$ bins, i.e., the correctly and inc
 We now draw prototypes from these bins as evenly as possible, subject to the constraint that no bin is depleted, i.e., some samples from each bin should remain for scoring.\par
 %
 To make the above notion more precise, let $M>0$ be the total number of prototypes we want to consider for the new batch and $\eta\in(0,1)$ the  maximum fraction of samples we want to take from one bin.
-Also, let $g_1,\dots, g_{2K}\geq0$ be the number of samples actually available in each bin which can be ordered to satisfy $g_1\leq g_2\leq\dots\leq g_{2K}$.
+Also, let $g_1,\dots, g_{2K}\geq0$ be the number of samples actually available in each bin, which satisfy w.l.o.g.\ $g_1\leq g_2\leq\dots\leq g_{2K}$.
 To arrive at a number of samples $h_1,\dots,h_{2K}$ to draw from each bin, we use the following algorithm:
 %
 \begin{samepage}
-\begin{algorithm}[Choose number of prototpes per bin]~
+\begin{algorithm}[Number of prototypes per bin]~
 \label{alg_bins}
 %
 \begin{description}
@@ -225,10 +236,11 @@ To arrive at a number of samples $h_1,\dots,h_{2K}$ to draw from each bin, we us
 %
 Thus, we draw the maximum number of samples from the smallest bin that has not been processed until the remaining bins are large enough to draw an equal amount from each.
 In case $\sum_{i=1}^{2K}g_i<M$,  we draw the maximum admissible number of samples from each bin.
-In case $g_i\leq\frac{M}{2K}$ for all $i$, we draw an even amount $\frac{M}{2K}$ from each bin.\par
+In case $g_i\leq\frac{M}{2K}$ for all $i$, we draw an even amount $\frac{M}{2K}$ from each bin.
+Note that rounding or a lack of suitable samples may mean that we do not draw exactly $M$ candidates.\par
 %
 \begin{remark}
-This choice of sampling prototypes is motivated by the desire to give equal consideration to each class, as well as to `easy wins' -- samples that are classfied correctly but could be assigned still higher probability -- and `hard cases' -- samples that are not classified correctly by the current iteration.
+This choice of sampling prototypes is motivated by the desire to give equal consideration to each class, as well as to `easy wins' -- samples that are classified correctly but could be assigned still higher probability -- and `hard cases' -- samples that are not classified correctly by the current iteration.
 For a very unbalanced population, it may not be possible to treat the rare classes exactly equal to the frequent ones.
 However, the rare classes are still assigned greater weight in model building than their proportion in the population.\par
 %
@@ -236,22 +248,22 @@ Note also that at the start of iteration $c=1$, when the model consists only of 
 Thus, half of all bins are completely empty in this situation.
 \end{remark}
 %
-In order to identify good prototypes for every class, we need to include samples from each among the candidates and the remainder used for scoring. Using the proposed algorithm for distribution, the following condition is necessary and sufficient:
+In order to identify good prototypes for every class, we need to include samples from each among the candidates for prototypes and the remaining samples used for scoring. Using the proposed algorithm for distribution, the following condition is necessary and sufficient:
 %
 \begin{align}
-&\forall k\in\{1,\dots,K\}:\forall n\in\{0,\dots,N_k\}:\label{eq_min_cases}\\
+&\forall k\in\{0,\dots,K-1\}:\forall n\in\{0,\dots,N_k\}:\label{eq_min_cases}\\
 &(\eta n\geq0.5\vee\eta(N_k-n)\geq0.5)\wedge(\eta n<n-0.5\vee\eta(N_k-n)<N_k-n-0.5)\notag
 \end{align}
 %
 The $n$ represents the number of samples of class $k$ that are correctly classified in iteration $c-1$.
-Thus, the first conditions states that the fraction $\eta$ of either the correctly or incorrectly classified cases needs to be large enough to result in a single prototype being drawn after rounding.
-Likewise, the second condition states that the fraction $\eta$ of either group needs to be small enough such that at least one sample remains for scoring.\par
+Thus, the first clause states that the fraction $\eta$ of either the correctly or incorrectly classified cases needs to be large enough to result in a single prototype being drawn after rounding.
+Likewise, the second clause states that the fraction $\eta$ of either group needs to be small enough such that at least one sample remains for scoring.\par
 %
 \begin{lemma}
 Condition (\ref{eq_min_cases}) can be restated more compactly as
 %
 \begin{equation}
-\forall k\in\{1,\dots,K\}:\lceil0.5N_k\rceil\geq0.5\eta^{-1}\wedge\lceil0.5N_k\rceil>0.5(1-\eta)^{-1}\label{eq_min_cases_2}
+\forall k\in\{0,\dots,K-1\}:\lceil0.5N_k\rceil\geq0.5\eta^{-1}\wedge\lceil0.5N_k\rceil>0.5(1-\eta)^{-1}\label{eq_min_cases_2}
 \end{equation}
 %
 where the brackets indicate rounding up.
@@ -276,14 +288,12 @@ For example, the recommended default $\eta=0.5$ requires only that $N_k\geq3$ fo
 Regarding the starting values for optimization, we initialize all $v_{c,d}$ to $10D^{-1}$ and all $w_{c,j}$ to 1.
 The former choice assumes that the features have a scale on the order of magnitude of 1, e.g., they have been scaled to unit variance.
 Thus, setting the inverse bandwidth for a single feature to 10 means the kernels for the starting solution describe a structure that is more granular than the whole distribution.
-For multiple features, normalizing by their number ensures that the sum of squares in the exponent of (\ref{eq_kernel}) is always of a similar magnitude and the exponential function does not vanish.\par
-%
+Dividing the weight by the total number of features ensures that the sum of squares in the exponent of (\ref{eq_kernel}) is always of a similar magnitude and the exponential function does not vanish.
 A prototype weight of 1 is of the same order of magnitude as the marginal probabilities.
 %
 \begin{remark}
 The optimization problem does in general have multiple stationary points, including the trivial solution where all weights are equal to zero.
-Provided the features are scaled, the proposed starting value for the feature weights appears to work well in practice.
-I.e., it usually leads to a choice of prototypes that improve the predictive abilities of the model.\par
+Provided the features are scaled, the proposed starting value for the feature weights appears to work well in practice.\par
 %
 Scaling the features is also recommended for a different reason.
 The size of the elastic net penalty can only be interpreted relative to the scale of the partial derivatives.
@@ -291,11 +301,1048 @@ Thus, to penalize all features equally, they need to be equally scaled.
 \end{remark}
 %
 Despite regularization, there is one situation in which the selection of prototypes is not parsimonious.
-If multiple candidate points have the same target and same feature values for all features with positive weights, the $l_2$-penalty causes the algorithm to assign equal weight to all.
-If this weight is positive, the model retains multiple copies of the same prototype (the original samples may differ only in features that have been excluded).
-To simplify the model representation, we add a clean-up stage to the algorithm after weights have been selected:\par
+If multiple candidate points have the same target and feature values for all features with positive weights, the $L_2$-penalty causes the algorithm to assign equal weight to all candidates.
+If this weight is positive, the model retains multiple copies of what is effectively the same prototype (the original samples can differ in the values of excluded features).
+To simplify the model representation, we add a clean-up stage to the algorithm:\par
 %
-To safeguard against small numeric disturbances, we consider two prototypes as equivalent if the maximum norm of the combined feature and target vector does not exceed some small tolerance.
+Each prototype in a batch is represented by the combined vector of the active features and target.
+Two prototypes are considered equivalent if the maximum norm of the difference of their associated vectors does not exceed some small tolerance.
 This notion is generalized from pairs to larger groups by finding all connected components in the graph where each node represents a prototype and an edge indicates pairwise equivalence.
 We then replace all prototypes belonging to the same component by a single prototype using the combined weight, as well as the features of the sample appearing first in the training data.
+%
+\section{Fit strategy}
+\label{sec_classifier_fit}
+%
+Fitting a proset classifier is controlled by seven hyperparameters:
+%
+\begin{itemize}
+\item The number of batches $B$.
+%
+\item The number $M$ of candidates for prototypes evaluated per batch.
+%
+\item The maximum fraction $\eta$ of candidates drawn from one bin using Algorithm \ref{alg_bins}.
+%
+\item The penalty term $\lambda_v$ for the feature weights.
+%
+\item The penalty term $\lambda_w$ for the prototype weights.
+%
+\item The ratio $\alpha_v$ of $\lambda_v$ assigned as $L_2$ penalty term.
+%
+\item The ratio $\alpha_w$ of $\lambda_w$ assigned as $L_2$ penalty term.
+\end{itemize}
+%
+One goal of the case studies in this section is to identify good default values and indicate which parameters are worthwhile to tune.
+Some of the key findings are summarized here:
+%
+\begin{enumerate}
+\item Fitting a few large batches is preferable to many small ones.
+The first batch has the largest impact on the model score and a large first batch results in a better overall score.
+We believe the reason for this is that model quality depends on finding good constellations of prototypes, not just individual prototypes.
+Suitable constellations are more likely to occur in larger batches.\par
+%
+Adding too many batches to a model leads to saturation, not overfitting.
+The number of prototypes chosen per batch decreases, possibly down to zero.
+The corresponding model scores fluctuate slightly around a common level.
+Thus, using a small number of batches is mostly a question of reducing computational effort.\par
+%
+We recommend $M=1,000$ candidates per batch and a single batch ($B=1$) as default.
+If optimizing with respect to the number of batches, $B=10$ is a reasonable upper limit.
+%
+\item If the number of samples in a bin is too small for drawing the desired number of candidates, a compromise is to use half of the samples as candidates and the others as reference points for computing the likelihood.
+Thus, we fix $\eta=0.5$.
+%
+\item The penalty $\lambda_v$ for the feature weights controls the smoothness of the model.
+It is the main safeguard against overfitting.\par
+%
+In the case study for the classifier, good values lie in the range from $10^{-6}$ to $10^{-1}$.
+Choosing $10^{-3}$ as default works for all cases.
+However, if an experimenter wants to tune only one parameter, it should be $\lambda_v$.
+%
+\item The penalty $\lambda_w$ for the prototype weights controls how much weight can be assigned to a single prototype.
+We observe that increasing $\lambda_w$ within a certain range can actually lead to more candidate points being included in the model with nonzero weight.
+Further increases gradually lead to underfitting.
+However, reducing $\lambda_w$ does not lead to appreciable overfitting.
+It appears that values below a certain threshold mostly control the preference for few prototypes with large weights versus more prototypes with smaller weights.
+Above the threshold, the estimated distribution is shrunk towards the marginal probabilities.
+This is desirable to some degree for avoiding overfitting.\par
+%
+In the case study for the classifier, good values lie in the range from $10^{-9}$ to $10^{-4}$.
+Choosing $10^{-8}$ as default works for all cases.
+%
+\item A dominant $L_2$-penalty ($\alpha_v$ and $\alpha_w$ close to 1.0) yields slightly better results in the case study than either a dominant $L_1$- or balanced penalty.
+The default values recommended for the algorithm are $\alpha_v=\alpha_w=0.95$.
+\end{enumerate}
+%
+The case study uses the following procedure for hyperparameter search, subject to small variations described later:
+%
+\begin{algorithm}[Hyperparameter selection]~
+\label{alg_hyperparameters}
+%
+\begin{enumerate}
+\item Choose $M$, $\eta$, $\alpha_v$, and $\alpha_w$ based on the above recommendations.
+Choose a range for $\lambda_v$, a range for $\lambda_w$, and a set of candidates for $B$ (e.g., the numbers from 0 to 10).
+%
+\item Split the data into a training set (70 \%) and test set (30 \%), stratified by class.
+%
+\item\textbf{Stage 1}
+%
+\begin{enumerate}
+\item Randomly generate 50 pairs $(\lambda_v,\lambda_w)$.
+Each $\lambda$ is sampled uniformly on the log-scale from the chosen range.
+%
+\item Perform five-fold cross-validation on the training set using $B=1$.
+%
+\item Compute the mean and standard deviation of log-loss for each pair of penalties over the left-out folds.
+%
+\item Determine a threshold for model quality by taking the minimal mean log-loss and adding the corresponding standard deviation.
+%
+\item Among all pairs whose mean log-loss is less than or equal to the threshold, choose the one maximizing the geometric mean $\sqrt{\lambda_v\lambda_w}$.
+\end{enumerate}
+%
+\item\textbf{Stage 2}
+\begin{enumerate}
+\item Perform five-fold cross-validation on the training set using the parameters from stage 1 and the maximal number of batches.
+%
+\item For each value of $B$ up to the maximum, evaluate the models on the left-out fold and compute mean and standard deviation of log-loss.
+%
+\item Determine a threshold for model quality by taking the minimal mean log-loss and adding the corresponding standard deviation.
+%
+\item Among all candidates whose mean log-loss is less than or equal to the threshold, choose the smallest $B$.
+\end{enumerate}
+%
+\item Refit the model with parameters selected in stages 1 and 2 on all training data.
+%
+\item Score the final model on the test data.
+\end{enumerate}
+\end{algorithm}
+%
+The purpose of stage 1 is to identify good values for the most important parameters $\lambda_v$ and $\lambda_w$.
+Based on the observation that the first batch has the most impact, we fix $B=1$ during this stage to save computation time.
+Controlling $B$ can be treated as a secondary concern, since it appears to be impossible to overfit by increasing $B$.
+It is still necessary to test larger values as more complex problems may be underfitted with $B=1$.\par
+%
+Note that stage 2 only fits five models up to the maximum number of batches as these can also be evaluated for smaller choices of $B$.
+This introduces a dependency between the means and standard deviations as estimates reuse the same initial batches.
+However, as keeping $B$ small is a secondary concern, we consider this time-saving approach acceptable.\par
+%
+The parameters selected in each stage are not necessarily those that minimize mean cross-validation log-loss.
+Instead, we consider all sets of parameters that are `equivalent' to the optimizer in the sense that their mean log-loss is within one standard error of the optimum.
+From these, we pick the parameters that yield the sparsest model.
+This `1 SE rule' is a recommendation from R package \texttt{glmnet} \cite{Friedman_10}.
+The authors observe that a model using the optimal parameters tends to overfit the cross-validation sample, which is mitigated by the rule.
+The multiplier of 1 is of course arbitrary but a common `rule of thumb' in statistics.
+In case multiple parameters control sparseness, we need to decide which set we consider `sparsest'.
+For stage 1, maximizing the geometric mean gives equal importance to both penalties.\par
+%
+As discussed in the introduction, we use the threshold obtained via the `1 SE rule' also to compare models derived via different fit strategies or classification algorithms.
+For the classifier that performs best on testing data, the threshold found during stage 2 is used as upper bound on log-loss to determine which of the other classifiers are still considered `equivalent'.
+%
+\section{Benchmarks for hyperparameter selection}
+\label{sec_classifier_benchmarks}
+%
+In this section, we test variations of the fit strategy outlined above on different benchmark cases.
+We use four small data sets that come as `toy' examples with Python package \texttt{sklearn} \cite{Pedregosa_11}, plus two slightly larger artificial data sets:
+%
+\begin{enumerate}
+\item\textbf{Iris 2f:} this data set consists of the first two features of Fisher's famous iris data set \cite{Fisher_36}.
+We limit the analysis to two of four features (sepal length and width) as this allows us to visualize the decision surface of the classifier as a 2d plot.
+The data set comprises 150 samples for three species of iris flower, with 50 samples per class.
+One class is linearly separable from the others, but measurements for the remaining two overlap.
+%
+\item\textbf{Wine:} this data set from the  UCI Machine Learning Repository \cite{Dua_19} consists of chemical analysis data for wines from three different cultivators.
+It consists of 178 samples with between 48 and 71 samples per class.
+The data is known to be separable \cite{Aeberhard_92}.
+%
+\item\textbf{Cancer:} this data set from the UCI Machine Learning Repository \cite{Dua_19} consists of medical analysis data from breast tissue samples.
+The 569 samples are classified as either malignant (212 samples) or benign (357 samples).
+%
+\item\textbf{Digits:} this data set from the UCI Machine Learning Repository \cite{Dua_19} consists of monochrome images of handwritten digits downsampled to an eight-by-eight grid.
+The 1,797 samples are approximately balanced among the 10 digits.
+%
+\item\textbf{Checker:} for this artificial data set, we sample two features uniformly on the unit square and assign class labels deterministically to create an eight-by-eight checkerboard.
+The pattern defeats methods that rely on global properties of the data like correlation, e.g., logistic regression.
+It can be recovered successfully by methods that model local structure, e.g., a k-nearest neighbor classifier or decision tree.
+The total number of samples is 6,400, so each square of the pattern contains approximately 100 data points.
+%
+\item\textbf{XOR 6f:} for this artificial data set, we sample six features independently and uniformly on the interval $[-1.0, 1.0]$.
+The class label is assigned deterministically based on the sign of the product of features: a positive (or zero) sign is class 1, a negative sign is class 0.
+This is similar to the `continuous XOR' problem found in the \texttt{mlbench} library for R \cite{Leisch_21}, except that we only distinguish two classes.
+Despite being deterministic, this problem appears to be a hard even for classifiers that model local structure.
+The total number of samples is 6,400, so each orthant of the feature space contains approximately 100 data points.
+\end{enumerate}
+%
+The first three experiments consider the impact of $\alpha_v$ and $\alpha_w$ on model behavior.
+Proset classifiers are fitted to all six data sets with fixed $M=1,000$ and $\eta=0.5$.
+Penalty weights are sampled from the ranges $\lambda_v\in(10^{-6},10^{-1})$ and $\lambda_w\in(10^{-9},10^{-4})$, while the number of batches is allowed to vary between 0 and 10.
+The first experiment uses a dominant $L_1$-penalty ($\alpha_v=\alpha_w=0.05$), the second uses balanced penalties ($\alpha_v=\alpha_w=0.50$), and the third a dominant $L_2$-penalty ($\alpha_v=\alpha_w=0.95$).\par
+%
+\begin{figure}
+\caption{[E1] Parameter search for Iris 2F data}
+\label{fig_parameter_search}
+%
+\begin{center}
+\subfloat[\textbf{Stage 1}]{\includegraphics[height=0.4\textheight]{figures/iris_2f_dominant_l1_2d_search.pdf}}\\
+\subfloat[\textbf{Both stages}]{\includegraphics[width=0.99\textwidth]{figures/iris_2f_dominant_l1_1d_search.pdf}}
+\end{center}
+\end{figure}
+%
+Figure \ref{fig_parameter_search} shows parameter search results for the first experiment using iris data.
+In the lower plot, the log-loss for stage 1 as a function of either $\lambda_v$ or $\lambda_w$ appears highly variable.
+However, this is mostly due to changes in the other parameter, as evidenced by the surface plot.
+Complete results for all data sets are presented in tables \ref{tab_e1}, \ref{tab_e2}, and \ref{tab_e3}.
+A comparison of the first six experiments is found in table \ref{tab_e1_to_e6}.
+The description of individual experiments comprises the following information:
+%
+\begin{description}
+\item[Data:] the number of classes, as well as the size of the whole data set and train-test split.
+%
+\item[Candidates:] the approximate number of candidates for prototypes used to build the final model.
+While $M=1,000$ candidates are specified for each model, the effective maximum for small data sets is around 35 \% of the available samples: training data is 70 \% of all samples and $\eta=0.5$ allows at most 50 \% of data in one bin to be used as prototypes.
+%
+\item[Stage 1:] results for selecting $\lambda_v$ and $\lambda_w$ using a single batch.
+Lists the optimal and chosen parameters according to the `1 SE rule' (see algorithm \ref{alg_hyperparameters}), together with the achieved mean log-loss from cross-validation.
+The given threshold is the one for the `1 SE rule', i.e., the sum of the minimal mean log-loss and corresponding standard deviation.
+%
+\item[Stage 2:] results for selecting $B$ using the penalty weights chosen in stage 1.
+%
+\item[Final model:] information about the final model fitted on all training data with parameters determined in stages 1 and 2.
+The number of features and prototypes, as well as the scores achieved for the test data.
+Apart from log-loss, the measures used for evaluation are ROC-AUC and balanced accuracy.\par
+%
+For multi-class problems, the stated ROC-AUC values is the unweighted average for all pairwise comparisons of two classes.
+This generalization to more than two classes is recommended in \cite{Hand_01} as being robust to class imbalance.\par
+%
+To compute balanced accuracy, we use the `naive' rule that assigns each sample the class label with the highest estimated probability.
+The reported score is the unweighted average of the correct classification rates for each class.
+\end{description}
+%
+\begin{table}
+\caption{[E1] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}
+\label{tab_e1}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$1.1\times10^{-2}$&$6.9\times10^{-4}$&$5.5\times10^{-3}$&$1.2\times10^{-5}$&$4.5\times10^{-3}$&$1.0\times10^{-2}$\\
+Selected $\lambda_v$&$1.1\times10^{-2}$&$3.5\times10^{-3}$&$1.1\times10^{-2}$&$1.8\times10^{-3}$&$5.5\times10^{-3}$&$1.1\times10^{-2}$\\
+Optimal $\lambda_w$&$1.0\times10^{-5}$&$1.1\times10^{-6}$&$8.3\times10^{-8}$&$3.4\times10^{-9}$&$1.3\times10^{-8}$&$4.6\times10^{-7}$\\
+Selected $\lambda_w$&$1.8\times10^{-5}$&$3.1\times10^{-5}$&$1.8\times10^{-5}$&$7.7\times10^{-8}$&$8.3\times10^{-8}$&$1.0\times10^{-5}$\\
+Optimal log-loss&0.47&0.12&0.09&0.16&0.17&0.53\\
+Threshold&0.60&0.17&0.14&0.19&0.18&0.55\\
+Selected log-loss&0.54&0.12&0.09&0.19&0.18&0.55\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&2&5&1&9&1&1\\
+Selected batches&2&2&1&1&1&1\\
+Optimal log-loss&0.46&0.12&0.10&0.18&0.19&0.55\\
+Threshold&0.54&0.16&0.14&0.22&0.20&0.56\\
+Selected log-loss&0.46&0.13&0.10&0.19&0.19&0.55\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&6&3&19&2&6\\
+Prototypes&34&43&24&546&257&309\\
+Log-loss&0.62&0.14&0.13&0.15&0.17&0.55\\
+ROC-AUC&0.86&0.99&0.99&1.00&0.99&0.81\\
+Balanced acc.&0.76&0.97&0.94&0.97&0.95&0.71\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E2] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.50$)}
+\label{tab_e2}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$5.6\times10^{-3}$&$1.0\times10^{-2}$&$5.5\times10^{-3}$&$1.2\times10^{-5}$&$9.5\times10^{-4}$&$5.5\times10^{-3}$\\
+Selected $\lambda_v$&$1.1\times10^{-2}$&$3.5\times10^{-3}$&$1.1\times10^{-2}$&$4.5\times10^{-3}$&$9.5\times10^{-4}$&$1.0\times10^{-2}$\\
+Optimal $\lambda_w$&$1.7\times10^{-5}$&$4.6\times10^{-7}$&$8.3\times10^{-8}$&$3.4\times10^{-9}$&$5.6\times10^{-9}$&$8.3\times10^{-8}$\\
+Selected $\lambda_w$&$1.0\times10^{-5}$&$3.1\times10^{-5}$&$1.8\times10^{-5}$&$1.3\times10^{-8}$&$5.6\times10^{-9}$&$4.6\times10^{-7}$\\
+Optimal log-loss&0.45&0.10&0.09&0.17&0.17&0.53\\
+Threshold&0.51&0.17&0.14&0.20&0.17&0.54\\
+Selected log-loss&0.46&0.13&0.09&0.19&0.17&0.54\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&4&10&1&3&1&1\\
+Selected batches&3&2&1&1&1&1\\
+Optimal log-loss&0.46&0.13&0.10&0.16&0.18&0.54\\
+Threshold&0.49&0.16&0.14&0.19&0.19&0.55\\
+Selected log-loss&0.47&0.14&0.10&0.18&0.18&0.54\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&7&3&18&2&6\\
+Prototypes&30&69&54&533&281&360\\
+Log-loss&0.49&0.20&0.13&0.18&0.16&0.53\\
+ROC-AUC&0.90&0.98&0.99&1.00&0.99&0.82\\
+Balanced acc.&0.73&0.93&0.95&0.97&0.95&0.72\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E3] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}
+\label{tab_e3}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$5.6\times10^{-3}$&$3.8\times10^{-5}$&$5.5\times10^{-3}$&$7.8\times10^{-6}$&$3.1\times10^{-5}$&$5.5\times10^{-3}$\\
+Selected $\lambda_v$&$1.1\times10^{-2}$&$1.1\times10^{-2}$&$1.1\times10^{-2}$&$9.5\times10^{-4}$&$2.9\times10^{-4}$&$5.5\times10^{-3}$\\
+Optimal $\lambda_w$&$1.7\times10^{-5}$&$6.9\times10^{-9}$&$8.3\times10^{-8}$&$1.6\times10^{-9}$&$4.3\times10^{-9}$&$8.3\times10^{-8}$\\
+Selected $\lambda_w$&$1.0\times10^{-5}$&$1.8\times10^{-5}$&$1.8\times10^{-5}$&$5.6\times10^{-9}$&$6.9\times10^{-8}$&$8.3\times10^{-8}$\\
+Optimal log-loss&0.44&0.11&0.09&0.17&0.18&0.53\\
+Threshold&0.49&0.18&0.14&0.19&0.20&0.54\\
+Selected log-loss&0.46&0.17&0.11&0.18&0.19&0.53\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&5&5&1&8&1&10\\
+Selected batches&3&2&1&2&1&1\\
+Optimal log-loss&0.51&0.14&0.10&0.14&0.19&0.51\\
+Threshold&0.57&0.17&0.14&0.17&0.20&0.53\\
+Selected log-loss&0.56&0.15&0.10&0.16&0.19&0.53\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&7&4&30&2&6\\
+Prototypes&49&52&56&861&328&413\\
+Log-loss&0.43&0.14&0.13&0.15&0.18&0.52\\
+ROC-AUC&0.91&1.00&0.99&1.00&0.99&0.82\\
+Balanced acc.&0.71&0.98&0.98&0.97&0.95&0.72\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\clearpage
+%
+In the experiments, a dominant $L_1$-penalty yields slightly worse results than balanced penalties or a dominant $L_2$-penalty.
+Also, we have occasionally observed (not in the results reported here) that a dominant $L_1$-penalty causes too few features to be selected for the final model.
+This happens even though models created during cross-validation do not underfit.
+The likely reason is that random candidate selection for small sample size can result in a set of candidates hat does not fully represent the data.
+Since a dominant $L_2$-penalty slightly outperforms the balanced case in the trials, we recommend $\alpha_v=\alpha_w=0.95$ as default values.\par
+%
+\begin{table}
+\caption{[E4] Use optimal hyperparameters ($\alpha_v=\alpha_w=0.95$)}
+\label{tab_e4}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$5.6\times10^{-3}$&$3.8\times10^{-5}$&$5.5\times10^{-3}$&$7.8\times10^{-6}$&$3.1\times10^{-5}$&$5.5\times10^{-3}$\\
+Optimal $\lambda_w$&$1.7\times10^{-5}$&$6.9\times10^{-9}$&$8.3\times10^{-8}$&$1.6\times10^{-9}$&$4.3\times10^{-9}$&$8.3\times10^{-8}$\\
+Optimal log-loss&0.44&0.11&0.09&0.17&0.18&0.53\\
+Threshold&0.49&0.18&0.14&0.19&0.20&0.54\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&5&5&1&8&1&10\\
+Optimal log-loss&0.51&0.14&0.10&0.14&0.19&0.51\\
+Threshold&0.57&0.17&0.14&0.17&0.20&0.53\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&11&3&41&2&6\\
+Prototypes&65&204&93&3,053&595&403\\
+Log-loss&0.48&0.05&0.11&0.13&0.16&0.52\\
+ROC-AUC&0.87&1.00&0.99&1.00&0.99&0.83\\
+Balanced acc.&0.69&0.98&0.95&0.97&0.94&0.74\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The fourth experiment shows the effect of using the optimal parameters from cross-validation instead of the equivalent sparser solution (see table \ref{tab_e4}).
+In half of the cases, results actually outperform those of the first three experiments.
+However, the log-loss scores for [E3] are still below the equivalence thresholds for [E4] in these cases.
+This means the metrics for the benchmark cases do not indicate that the `1 SE rule' is necessary to prevent overfitting, but we can use it to obtain a sparser parameterization with negligible loss in quality.
+%
+\clearpage
+%
+\begin{figure}
+\caption{Proset decision surfaces for case Iris 2f}
+\label{fig_proset_decision_iris_2f}
+%
+\begin{center}
+\subfloat[\textbf{[E1] $\lambda_v=\lambda_w=0.05$, `1 SE rule'}]{\includegraphics[width=0.49\textwidth]{figures/iris_2f_dominant_l1_surf_test.pdf}}
+\subfloat[\textbf{[E2] $\lambda_v=\lambda_w=0.50$, `1 SE rule'}]{\includegraphics[width=0.49\textwidth]{figures/iris_2f_balanced_surf_test.pdf}}\\
+\subfloat[\textbf{[E3] $\lambda_v=\lambda_w=0.95$, `1 SE rule'}]{\includegraphics[width=0.49\textwidth]{figures/iris_2f_dominant_l2_surf_test.pdf}}
+\subfloat[\textbf{[E4] $\lambda_v=\lambda_w=0.95$, optimal hyperparameters}]{\includegraphics[width=0.49\textwidth]{figures/iris_2f_dominant_l2_surf_opt_test.pdf}}
+\end{center}
+\end{figure}
+%
+If we study the decision surfaces for the Iris 2f benchmark, it does look like [E4] has a slight tendency to overfit.
+Figure \ref{fig_proset_decision_iris_2f} shows the surface plots for experiments [E1] to [E4].
+The colors indicates the class with the highest estimated probability in that region of the feature space.
+Only the result for [E3] appears fully convincing to us.
+It separates the feature space near the training data into three contiguous regions with smooth boundaries.
+The surfaces for [E1] and [E4] appear overly complex and somewhat arbitrary, which we take as a visual indicator of overfitting.
+[E2] oddly prefers class `virginica' in the lower left, although there is no training data in this region.
+This is due to the layering of kernels with different bandwidths in a model with multiple batches.\par
+%
+\clearpage
+%
+\begin{table}
+\caption{[E5] Grid search for $\lambda_v$ ($\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.95$)}
+\label{tab_e5}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$1.0\times10^{-2}$&$3.2\times10^{-6}$&$1.0\times10^{-2}$&$1.0\times10^{-4}$&$3.2\times10^{-4}$&$1.0\times10^{-2}$\\
+Selected $\lambda_v$&$1.0\times10^{-2}$&$3.2\times10^{-2}$&$3.2\times10^{-2}$&$3.2\times10^{-2}$&$3.2\times10^{-4}$&$1.0\times10^{-2}$\\
+Optimal log-loss&0.51&0.11&0.08&0.20&0.17&0.52\\
+Threshold&0.63&0.16&0.12&0.22&0.18&0.53\\
+Selected log-loss&0.51&0.14&0.10&0.21&0.17&0.52\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&10&1&1&2&1&1\\
+Selected batches&1&1&1&1&1&1\\
+Optimal log-loss&0.60&0.11&0.10&0.21&0.17&0.52\\
+Threshold&0.71&0.21&0.15&0.26&0.19&0.53\\
+Selected log-loss&0.67&0.11&0.10&0.21&0.17&0.52\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&4&3&18&2&6\\
+Prototypes&25&25&69&410&409&421\\
+Log-loss&0.47&0.12&0.13&0.18&0.17&0.53\\
+ROC-AUC&0.90&1.00&0.99&1.00&0.99&0.81\\
+Balanced acc.&0.73&0.97&0.96&0.97&0.95&0.71\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The fifth experiment shows what happens if we fix $\lambda_w$ and perform cross-validation only with respect to $\lambda_v$ and $B$.
+Based on the previous experiments, $\lambda_w=10^{-8}$ appears to be a suitable choice.
+As stage 1 now deals with a single parameter, we replace the random search with a grid search using 11 points equidistantly spaced on the log-scale.
+The results in table \ref{tab_e5} show that fixing the penalty on prototype weights has only a small impact on model quality.
+All log-loss scores except that for the digits case are below the equivalence threshold for the best model found.
+Therefore, $\lambda_w=10^{-8}$ is the recommended default for the proset classifier.\par
+%
+\clearpage
+%
+\begin{table}
+\caption{[E6] Stage 2 only ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}
+\label{tab_e6}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&9&8&9&7&1&10\\
+Selected batches&4&2&1&4&1&3\\
+Optimal log-loss&0.54&0.10&0.10&0.15&0.19&0.50\\
+Threshold&0.72&0.17&0.15&0.17&0.20&0.52\\
+Selected log-loss&0.71&0.15&0.12&0.16&0.19&0.51\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&7&4&34&2&6\\
+Prototypes&82&72&149&1,270&252&1,261\\
+Log-loss&0.45&0.16&0.13&0.12&0.18&0.49\\
+ROC-AUC&0.89&0.99&0.99&1.00&0.99&0.84\\
+Balanced acc.&0.76&0.95&0.95&0.98&0.95&0.75\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The sixth experiment considers fixing both $\lambda_w$ and $\lambda_v$ (see table \ref{tab_e6}).
+The former is again set to $\lambda_w=10^{-8}$, the latter to $\lambda_w=10^{-3}$, which is close to the parameters selected in previous experiments.
+The mean scores for the digits and XOR 6f data are the best for any of the experiments.
+All other results are equivalent to the best model.
+Based on this finding, we recommend $\lambda_w=10^{-3}$ as default for the classifier.\par
+%
+\begin{table}
+\caption{[E1--E6] Comparison of results (best log-loss bold)}
+\label{tab_e1_to_e6}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{[E1] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}}\\
+Active features&2&6&3&19&2&6\\
+Prototypes&34&43&24&546&257&309\\
+Log-loss&0.62&0.14&0.13&0.15&0.17&0.55\\
+Threshold stage 2&0.54&0.16&0.14&0.22&0.20&0.56\\
+ROC-AUC&0.86&0.99&0.99&1.00&0.99&0.81\\
+Balanced acc.&0.76&0.97&0.94&0.97&0.95&0.71\\
+\multicolumn{7}{|l|}{\textbf{[E2] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.50$)}}\\
+Active features&2&7&3&18&2&6\\
+Prototypes&30&69&54&533&281&360\\
+Log-loss&0.49&0.20&0.13&0.18&\textbf{0.16}&0.53\\
+Threshold stage 2&0.49&0.16&0.14&0.19&0.19&0.55\\
+ROC-AUC&0.90&0.98&0.99&1.00&0.99&0.82\\
+Balanced acc.&0.73&0.93&0.95&0.97&0.95&0.72\\
+\multicolumn{7}{|l|}{\textbf{[E3] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&7&4&30&2&6\\
+Prototypes&49&52&56&861&328&413\\
+Log-loss&\textbf{0.43}&0.14&0.13&0.15&0.18&0.52\\
+Threshold stage 2&0.57&0.17&0.14&0.17&0.20&0.53\\
+ROC-AUC&0.91&1.00&0.99&1.00&0.99&0.82\\
+Balanced acc.&0.71&0.98&0.98&0.97&0.95&0.72\\
+\multicolumn{7}{|l|}{\textbf{[E4] Use optimal hyperparameters ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&11&3&41&2&6\\
+Prototypes&65&204&93&3,053&595&403\\
+Log-loss&0.48&\textbf{0.05}&\textbf{0.11}&0.13&\textbf{0.16}&0.52\\
+Threshold stage 2&0.57&0.17&0.14&0.17&0.20&0.53\\
+ROC-AUC&0.87&1.00&0.99&1.00&0.99&0.83\\
+Balanced acc.&0.69&0.98&0.95&0.97&0.94&0.74\\
+\multicolumn{7}{|l|}{\textbf{[E5] Grid search for $\lambda_v$ ($\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&4&3&18&2&6\\
+Prototypes&25&25&69&410&409&421\\
+Log-loss&0.47&0.12&0.13&0.18&0.17&0.53\\
+Threshold stage 2&0.71&0.21&0.15&0.26&0.19&0.53\\
+ROC-AUC&0.90&1.00&0.99&1.00&0.99&0.81\\
+Balanced acc.&0.73&0.97&0.96&0.97&0.95&0.71\\
+\multicolumn{7}{|l|}{\textbf{[E6] Stage 2 only  ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&7&4&34&2&6\\
+Prototypes&82&72&149&1,270&2527&1,261\\
+Log-loss&0.45&0.16&0.13&\textbf{0.12}&0.18&\textbf{0.49}\\
+Threshold stage 2&0.72&0.17&0.15&0.17&0.20&0.52\\
+ROC-AUC&0.89&0.99&0.99&1.00&0.99&0.84\\
+Balanced acc.&0.76&0.95&0.95&0.98&0.95&0.75\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\clearpage
+%
+\begin{table}
+\caption{[E7] Stage 2, vary candidates ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}
+\label{tab_e7}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker}&\textbf{Checker}&\textbf{Checker}&\textbf{XOR 6f}&\textbf{XOR 6f}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2&2\\
+Features&2&2&2&6&6&6\\
+Samples&6,400&6,400&6,400&6,400&6,400&6,400\\
+Train samples&4,480&4,480&4,480&4,480&4,480&4,480\\
+Test samples&1,920&1,920&1,920&1,920&1,920&1,920\\
+\textbf{Candidates}&100&300&1,500&100&300&1,500\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&3&1&1&10&9&10\\
+Selected batches&2&1&1&7&4&4\\
+Optimal log-loss&0.41&0.29&0.18&0.57&0.53&0.50\\
+Threshold&0.42&0.31&0.19&0.58&0.55&0.51\\
+Selected log-loss&0.41&0.29&0.18&0.57&0.54&0.51\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&2&2&6&6&6\\
+Prototypes&112&125&300&365&487&2,188\\
+Log-loss&0.43&0.28&0.17&0.57&0.54&0.48\\
+ROC-AUC&0.90&0.97&0.99&0.78&0.80&0.85\\
+Balanced acc.&0.79&0.90&0.96&0.70&0.72&0.76\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The seventh experiment shows the impact of different batch sizes $M$ (see table \ref{tab_e7}).
+It deals only with the checkerboard and XOR data, as the maximum batch size for the first four cases is limited by their small sample size.
+For each of the two large data sets, we try using 100, 300, and 1,500 samples instead of the default $M=1,000$.
+The model metrics for 100 and 300 samples are worse than before, while the results for 1,500 candidates are comparable.
+Clearly, there is an advantage to using large batches as long as the sample size permits.
+%
+\section{Comparison with other classifiers}
+\label{sec_classifier_comparison}
+%
+In this section, we compare the proset classifier to the $k$-nearest neighbor (kNN) and XGBoost methods.
+The former is conceptually similar to proset, as it scores new points based on their proximity to training samples.
+However, there are at least three major differences between proset and kNN:
+%
+\begin{enumerate}
+\item kNN uses all training samples for scoring and gives equal importance to each sample.
+Proset selects prototypes and assigns individual weights.
+%
+\item kNN relies on the user's choice of features and distance metric.
+Irrelevant features or a badly scaled metric can degrade performance.
+Proset adapts the metric to the problem and removes features that contribute little or nothing.
+%
+\item kNN has no notion of absolute distance.
+The nearest neighbors have the same impact on classification no matter how far away they are from the sample being scored.
+If that sample is far away from the training data, estimates become arbitrary.
+For proset, remote prototypes have negligible impact on classification.
+As the distance of a sample to the set of prototype increases, the estimated probabilities converge to the marginals of the training data.
+\end{enumerate}
+%
+XGBoost is a particular implementation of gradient boosting for decision trees (we do not consider other base learners in this study) \cite{Chen_16}.
+It has become a kind of industry standard for supervised learning outside the domain of deep learning.
+In terms of the three points stated above, XGBoost relates to proset and kNN as follows:
+%
+\begin{enumerate}
+\item XGBoost does not retain any training samples.
+It generates a set of rules in the form of decision trees and performs classification via weighted voting.
+%
+\item XGBoost relies only on the ordering of features, not on any kind of distance metric.
+When building trees, the algorithm selects features using a greedy heuristic.
+It is considered good practice to limit the number of features evaluated at each stage by subsampling \cite{Chen_16}.
+This results in a more diverse set of trees with less tendency to overfit.
+Even with this approach, features that have negligible impact on performance are unlikely to be selected.
+%
+\item Using XGBoost to score a sample that is far away from the training data gives arbitrary results.
+The decision trees have not been validated in that part of the feature space.
+\end{enumerate}
+%
+To fit kNN and XGBoost models, we follow the same general strategy as for proset.
+We determine optimal hyperparameters using cross-validation and then choose an equivalent set of parameters that is less likely to overfit via the `1 SE rule' (see algorithm \ref{alg_hyperparameters}).
+This is easy to implement for kNN, since the sole hyperparameter is the number of neighbors $k$.
+Note that we choose the equivalent solution with the \textit{largest} $k$ to achieve a high degree of smoothing.\par
+%
+For XGBoost, tuning is more complex as the number of hyperparameters that can be used to control the model fit is quite large.
+Based on prior experience, we focus on the following five only, leaving all others at their recommended defaults:
+%
+\begin{enumerate}
+\item Learning rate $\eta$.
+Controls the impact of each additional tree on the estimator.
+Choosing a smaller $\eta$ can increase model performance slightly but requires more boosting iterations.
+%
+\item Number of boosting iterations.
+Has to be sufficiently large for the model to capture all of the structure in the data.
+Increasing it further leads to saturation instead of overfitting, i.e., the model quality on test data fluctuates around a common level.
+%
+\item Maximum tree depth.
+Controls the complexity of each tree.
+Our experience is that XGBoost performs best if the individual trees underfit.
+%
+\item Fraction of features evaluated per split.
+Using a random subset of the features in each split results in a more diverse set of trees.
+This can result in a more favorable trade-off between bias and variance.
+%
+\item Fraction of records used for training each tree.
+Using a random subset of the training samples to build each tree has a similar effect as randomizing the features.
+\end{enumerate}
+%
+We follow a similar strategy as for proset (see algorithm \ref{alg_hyperparameters}) to fit XGBoost classifiers.
+In the first stage, we fix $\eta=0.1$ and use 100 boosting iterations to determine suitable values for maximum tree depth, fraction of features per split, and fraction of records per tree.
+Hyperparameter values are sampled randomly to generated 100 trial combinations:
+%
+\begin{itemize}
+\item Maximum tree depth is sampled from 0 (constant model) to 9 with equal probability.
+In case the maximum was selected or model performance looked inadequate, we increased the maximum parameter value.
+%
+\item Fraction of features per split is sampled uniformly between 0.1 and 0.9.
+Note that for a model with two features, any value of 0.5 or above just means to test both, while values below 0.5 means to select one at random.
+%
+\item Fraction of records per tree is sampled uniformly between 0.1 and 0.9.
+\end{itemize}
+%
+After five-fold cross-validation, we determine the parameter combination that minimizes log-loss, compute a threshold, and choose an equivalent combination.
+Among all candidates, we use the one that minimizes the depth of the tree first, then the fraction of features per split, and finally the fraction of records per tree.\par
+%
+In the second stage, we fix $\eta=0.01$ and use five-fold cross-validation to determine the number of boosting iterations up to a maximum of 10,000.
+We again apply the `1 SE rule' to find an equivalent smaller number of iterations.
+The model is then re-fitted to all training data and scored on test data.\par
+%
+\begin{table}
+\caption{[E8] $k$-nearest neighbor classifier with grid search for $k$}
+\label{tab_e8}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\multicolumn{7}{|l|}{\textbf{Cross-validation}}\\
+Optimal $k$&12&4&29&8&10&14\\
+Selected $k$&29&13&51&43&11&20\\
+Optimal log-loss&0.47&0.10&0.15&0.16&0.23&0.54\\
+Threshold&0.54&0.15&0.17&0.27&0.24&0.56\\
+Selected log-loss&0.53&0.15&0.17&0.27&0.24&0.55\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Log-loss&0.48&0.11&0.14&0.22&0.21&0.54\\
+ROC-AUC&0.93&1.00&1.00&1.00&0.98&0.83\\
+Balanced acc.&0.82&0.97&0.95&0.93&0.92&0.73\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E9] XGBoost classifier with randomized parameter search}
+\label{tab_e9}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal max.\ depth&2&3&4&4&18&1\\
+Selected max.\ depth&1&1&1&3&15&1\\
+Optimal colsample&0.43&0.48&0.38&0.27&0.79&0.81\\
+Selected colsample&0.11&0.27&0.11&0.24&0.39&0.81\\
+Optimal subsample&0.58&0.67&0.45&0.77&0.77&0.25\\
+Selected subsample&0.46&0.86&0.46&0.72&0.68&0.25\\
+Optimal log-loss&0.50&0.07&0.10&0.13&0.10&0.70\\
+Threshold&0.62&0.11&0.14&0.15&0.11&0.70\\
+Selected log-loss&0.52&0.09&0.12&0.15&0.11&0.70\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal iterations&1,586&2,344&5,579&6,187&9,973&16\\
+Selected iterations&337&887&668&1,168&1,519&1\\
+Optimal log-loss&0.50&0.08&0.10&0.11&0.07&0.69\\
+Threshold&0.62&0.11&0.14&0.14&0.09&0.69\\
+Selected log-loss&0.62&0.11&0.14&0.14&0.09&0.69\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&13&29&53&2&1\\
+Log-loss&0.63&0.11&0.12&0.11&0.06&0.69\\
+ROC-AUC&0.89&1.00&0.99&1.00&1.00&0.50\\
+Balanced acc.&0.69&0.97&0.96&0.98&0.98&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E3, E8, E9] Comparison of results (best log-loss bold)}
+\label{tab_e3_e8_e9}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{[E3] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&7&4&30&2&6\\
+Log-loss&\textbf{0.43}&0.14&0.13&0.15&0.18&\textbf{0.52}\\
+Threshold stage 2&0.57&0.17&0.14&0.17&0.20&0.53\\
+ROC-AUC&0.91&1.00&0.99&1.00&0.99&0.82\\
+Balanced acc.&0.71&0.98&0.98&0.97&0.95&0.72\\
+\multicolumn{7}{|l|}{\textbf{[E8] $k$-nearest neighbor classifier with grid search for $k$}}\\
+Active features&2&13&30&64&2&6\\
+Log-loss&0.48&\textbf{0.11}&0.14&0.22&0.21&0.54\\
+Threshold CV&0.54&0.15&0.17&0.27&0.24&0.56\\
+ROC-AUC&0.93&1.00&1.00&1.00&0.98&0.83\\
+Balanced acc.&0.82&0.97&0.95&0.93&0.92&0.73\\
+\multicolumn{7}{|l|}{\textbf{[E9] XGBoost classifier with randomized parameter search}}\\
+Active features&2&13&29&53&2&1\\
+Log-loss&0.63&\textbf{0.11}&\textbf{0.12}&\textbf{0.11}&\textbf{0.06}&0.69\\
+Threshold stage 2&0.62&0.11&0.14&0.14&0.09&0.69\\
+ROC-AUC&0.89&1.00&0.99&1.00&1.00&0.50\\
+Balanced acc.&0.69&0.97&0.96&0.98&0.98&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+Results for fitting kNN and XGBoost classifiers to the six examples used for the proset parameter study are given in tables \ref{tab_e8} and \ref{tab_e9}.
+The structure of the tables and reported metrics are essentially the same as for proset in the previous section.
+For XGBoost, the number of active features reported is the number of features with positive importance score using the method's built-in scoring.\par
+%
+Table \ref{tab_e3_e8_e9} summarizes the performance of all three models.
+For proset, reference values are taken from the full parameters search using $\alpha_v=\alpha_w=0.95$ (see table \ref{tab_e3}).\par
+%
+\begin{enumerate}
+\item\textbf{Iris 2f:} proset is best with kNN equivalent and XGBoost worse.
+However, the number of test samples is so small that these results are unreliable.
+Changing the random seed for the train-test split can have a large impact on the outcome.\par
+%
+Figure \ref{fig_comparison_decision_iris_2f} shows the decision surfaces resulting from the three algorithms.
+The different modeling strategies are apparent from the plots: the surface for proset is composed of many localized kernels, the one for kNN resembles a Voronoi tesselation, and for XGBoost, it is possible to see the splits made by the decision trees perpendicular to the coordinate axes.
+%
+\item\textbf{Wine:} XGBoost and kNN achieve the same log-loss.
+The score for for proset is above the threshold for XGBoost but not for kNN.
+In this case, we consider the lower threshold for the overall ranking in Table \ref{tab_classifier_comparison}.
+Proset does use only 7 of 13 features, while XGBoost uses the full set (kNN can perform no selection).
+%
+\item\textbf{Cancer:} XGBoost is best but both other models are considered `equivalent'.
+Proset reduces the number of features considerably from 30 to 4, while XGBoost uses 29.
+%
+\item\textbf{Digits}: there is a strict ranking with XGBoost being best and proset better than kNN.
+However, proset is close to XGBoost in terms of balanced accuracy while kNN is markedly worse.
+Proset reduces the number of features from 64 to 30, XGBoost uses 54.
+%
+\item\textbf{Checker:} there is a strict ranking with XGBoost being best and proset better than kNN.
+XGBoost is considerably better than both other models on this data set.
+Note that the maximum tree depth for XGBoost was increased to 19 as the fit with a limit of 9 selected the upper bound.
+%
+\item\textbf{XOR 6f:} proset is best, kNN worse, while XGBoost fails to find any patterns in the data and returns a constant estimator.
+Increasing the maximum tree depth for XGBoost to 99 does nothing to improve model quality.
+\end{enumerate}
+%
+\begin{figure}
+\caption{Comparison of decision surfaces for case Iris 2f}
+\label{fig_comparison_decision_iris_2f}
+%
+\begin{center}
+\subfloat[\textbf{[E3] proset}]{\includegraphics[width=0.49\textwidth]{figures/iris_2f_dominant_l2_surf_test.pdf}}
+\subfloat[\textbf{[E8] kNN}]{\includegraphics[width=0.49\textwidth]{figures/iris_2f_knn_surf_test.pdf}}\\
+\subfloat[\textbf{[E9] XGBoost}]{\includegraphics[width=0.49\textwidth]{figures/iris_2f_xgb_surf_test.pdf}}
+\end{center}
+\end{figure}
+%
+We draw the following conclusions from this study:
+%
+\begin{itemize}
+\item In terms of achieving a low log-loss, proset appears to rank in-between XGBoost and kNN.
+%
+\item Proset achieves a greater reduction in the number of features than XGBoost with a preference for small decision trees.
+While the fit strategy for XGBoost may not always select the smallest possible feature set due to feature subsampling, the difference is marked.
+%
+\item The extremely good performance of XGBoost on the checker data is possibly due to the fact that the approximating function is of the same class as the target.
+Both are step functions with edges parallel to the main coordinate axes.
+%
+\item XOR 6f appears to defeat tree ensembles, which choose features one at a time based on a greedy criterion.
+No matter how the first split is made, the expected number of cases per class in each resulting subspace is 50 \%, same as for the whole space.
+Thus, the first split is always made in response to random fluctuations in the data.
+This is also true for the checkerboard with an even number of squares per side, but the first split is almost sure to break the symmetry for this case.
+In contrast, for XOR 6f, at least five splits are required to expose the underlying structure.
+The partitions created by five random splits apparently do not contain sufficient information to build a meaningful decision tree.
+\end{itemize}
+%
+Based on these observations, we define five additional test cases to further explore the differences between the three algorithms:
+%
+\begin{enumerate}
+\item\textbf{Checker rot:} to determine how much of the good performance of XGBoost on the checker data is due to the axis-parallel steps, we rotate the checkerboard pattern by 45\textdegree.
+%
+\item\textbf{XOR 3f, XOR 4f, XOR 5f:} in order to find the point at which XGBoost fails on the `continuous XOR' class of problems, we generate instances with three, four, and five features.
+As for XOR 6f, these each have an average of 100 samples per orthant.
+%
+\item\textbf{XOR 6+6f:} to understand how easy it is to confuse the kNN classifier with irrelevant data, we add six more features to the XOR 6f problem.
+These are drawn from the same distribution as the first six but have no impact on the target.
+\end{enumerate}
+%
+\begin{table}
+\caption{[E10] New examples -- results for proset classifier}
+\label{tab_e10}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\textbf{Candidates}&1,000&$\sim280$&$\sim560$&$1000$&1,000\\
+\multicolumn{6}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$3.1\times10^{-5}$&$4.5\times10^{-2}$&$1.8\times10^{-3}$&$5.5\times10^{-3}$&$2.2\times10^{-4}$\\
+Selected $\lambda_v$&$2.9\times10^{-4}$&$4.2\times10^{-3}$&$1.0\times10^{-2}$&$5.5\times10^{-3}$&$1.9\times10^{-3}$\\
+Optimal $\lambda_w$&$4.3\times10^{-9}$&$1.3\times10^{-8}$&$7.7\times10^{-8}$&$8.3\times10^{-8}$&$5.7\times10^{-8}$\\
+Selected $\lambda_w$&$6.9\times10^{-8}$&$1.5\times10^{-6}$&$4.6\times10^{-7}$&$8.3\times10^{-8}$&$2.7\times10^{-6}$\\
+Optimal log-loss&0.18&0.19&0.30&0.40&0.55\\
+Threshold&0.19&0.21&0.34&0.42&0.56\\
+Selected log-loss&0.19&0.20&0.32&0.40&0.56\\
+\multicolumn{6}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&1&6&6&5&1\\
+Selected batches&1&1&1&2&1\\
+Optimal log-loss&0.19&0.19&0.32&0.39&0.57\\
+Threshold&0.20&0.23&0.33&0.40&0.57\\
+Selected log-loss&0.19&0.23&0.33&0.39&0.57\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&3&4&5&6\\
+Prototypes&320&89&124&572&425\\
+Log-loss&0.18&0.17&0.28&0.39&0.56\\
+ROC-AUC&0.99&0.99&0.97&0.91&0.80\\
+Balanced acc.&0.95&0.96&0.91&0.83&0.72\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E11]  New examples -- results for $k$-nearest neighbor classifier}
+\label{tab_e11}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\multicolumn{6}{|l|}{\textbf{Cross-validation}}\\
+Optimal $k$&10&7&8&9&100\\
+Selected $k$&11&16&9&13&100\\
+Optimal log-loss&0.23&0.22&0.34&0.43&0.70\\
+Threshold&0.24&0.27&0.35&0.44&0.71\\
+Selected log-loss&0.24&0.27&0.34&0.44&0.70\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Log-loss&0.21&0.25&0.31&0.45&0.71\\
+ROC-AUC&0.98&0.98&0.95&0.88&0.46\\
+Balanced acc.&0.92&0.91&0.86&0.80&0.48\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E12]  New examples -- results for XGBoost classifier}
+\label{tab_e12}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\multicolumn{6}{|l|}{\textbf{Stage 1}}\\
+Optimal max.\ depth&21&7&18&17&1\\
+Selected max.\ depth&12&6&11&12&1\\
+Optimal colsample&0.77&0.81&0.79&0.72&0.81\\
+Selected colsample&0.26&0.88&0.88&0.81&0.81\\
+Optimal subsample&0.43&0.84&0.77&0.69&0.25\\
+Selected subsample&0.54&0.81&0.88&0.49&0.25\\
+Optimal log-loss&0.18&0.10&0.30&0.64&0.70\\
+Threshold&0.19&0.11&0.32&0.67&0.70\\
+Selected log-loss&0.19&0.11&0.31&0.66&0.70\\
+\multicolumn{6}{|l|}{\textbf{Stage 2}}\\
+Optimal iterations&8,455&2,677&2,926&895&2\\
+Selected iterations&3,364&690&1,154&96&1\\
+Optimal log-loss&0.13&0.10&0.28&0.65&0.69\\
+Threshold&0.14&0.15&0.31&0.68&0.69\\
+Selected log-loss&0.14&0.15&0.31&0.68&0.69\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&3&4&5&1\\
+Log-loss&0.12&0.11&0.23&0.67&0.69\\
+ROC-AUC&0.99&1.00&0.98&0.65&0.50\\
+Balanced acc.&0.95&0.97&0.94&0.60&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E10, E11, E12] Comparison of results (best log-loss bold)}
+\label{tab_e10_e11_e12}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{[E10] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&3&4&5&6\\
+Log-loss&0.18&0.17&0.28&\textbf{0.39}&\textbf{0.56}\\
+Threshold stage 2&0.20&0.23&0.33&0.40&0.57\\
+ROC-AUC&0.99&0.99&0.97&0.91&0.80\\
+Balanced acc.&0.95&0.96&0.91&0.83&0.72\\
+\multicolumn{6}{|l|}{\textbf{[E11] $k$-nearest neighbor classifier with grid search for $k$}}\\
+Active features&2&3&4&5&12\\
+Log-loss&0.21&0.25&0.31&0.45&0.71\\
+Threshold CV&0.24&0.27&0.35&0.44&0.71\\
+ROC-AUC&0.98&0.98&0.95&0.88&0.46\\
+Balanced acc.&0.92&0.91&0.86&0.80&0.48\\
+\multicolumn{6}{|l|}{\textbf{[E12] XGBoost classifier with randomized parameter search}}\\
+Active features&2&3&4&5&1\\
+Log-loss&\textbf{0.12}&\textbf{0.11}&\textbf{0.23}&0.67&0.69\\
+Threshold stage 2&0.14&0.15&0.31&0.68&0.69\\
+ROC-AUC&0.99&1.00&0.98&0.65&0.50\\
+Balanced acc.&0.95&0.97&0.94&0.60&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\clearpage
+%
+Results for proset, kNN, and XGBoost are summarized in tables \ref{tab_e10}, \ref{tab_e11}, and \ref{tab_e12}.
+A comparison of the three algorithms is shown in table \ref{tab_e10_e11_e12}:
+%
+\begin{enumerate}
+\item\textbf{Checker rot:} XGBoost still yields the best model on this pattern, but the log-loss is higher than for the original checkerboard.
+The largest value for maximum tree depth used in cross-validation was set to 29 as smaller bounds meant the bound was selected.
+The metrics for the other two models are very similar to the original case.
+%
+\item\textbf{XOR 3f, XOR 4f, XOR 5f:} with three features, XGBoost performs better than other models, with four it is still best but the others are equivalent, and with five features, proset is better than the other two models, i.e., they are not affected by the orientation of the pattern.
+%
+\item\textbf{XOR 6+6f:} proset correctly selects the six relevant features and produces a model that is slightly worse than for the original XOR 6f.
+Neither kNN nor XGBoost are able to find any structure and return constant estimators.
+\end{enumerate}
+%
+Overall, we believe that these results show that proset is a worthwhile addition to the supervised learning toolbox.
+As intended, it performs feature selection as an integral part of model fitting and is able to identify a nonlinear relationship between the features and target.
+%
 \endinput

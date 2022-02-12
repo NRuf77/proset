@@ -1,5 +1,239 @@
 \chapter{Implementation notes}
 \label{ch_implementation}
 %
-
+This chapter provides a brief overview of the code repository for Python module \texttt{proset}, the module's public interface, and some implementation details.
+%
+\section{Repository structure}
+\label{sec_repository}
+%
+The code repository has the following directory structure:
+%
+\begin{description}
+\item[\texttt{<main directory>:}] configuration files and general information.
+%
+\item[\texttt{doc:}] the LaTeX source files and images for this document.
+%
+\item[\texttt{proset:}] the source code for Python module \texttt{proset}.
+%
+\item[\texttt{scripts:}] Python scripts for the benchmark study.
+Each data set has its own subfolder with similar content.
+E.g., the subfolder for the iris data contains the following files:
+%
+\begin{description}
+\item[\texttt{iris\_2f\_prepare\_data.py:}] fetch and format the data, apply a 70:30 train-test split, save results to disk.
+%
+\item[\texttt{iris\_2f\_fit.py:}] load prepared data and fit a proset model using one of several strategies for selecting hyperparameters, save results to disk.
+%
+\item[\texttt{iris\_2f\_diagnostics.py:}] load fitted proset model, create diagnostic reports and plots.
+The script generates all information for proset on iris data reported in Sections \ref{sec_classifier_benchmarks} and \ref{sec_classifier_comparison}.
+%
+\item[\texttt{iris\_2f\_explain.py:}] load fitted proset model, create explanatory reports and plots.
+The script demonstrates the explanatory features discussed in Chapter \ref{ch_explainability}.
+%
+\item[\texttt{iris\_2f\_knn\_fit.py:}] load prepared data and fit a kNN model with hyperparameter selection, save results to disk.
+%
+\item[\texttt{iris\_2f\_knn\_diagnostics.py:}] load fitted kNN model, create diagnostic reports and plots.
+The script generates all information for kNN on iris data found in Section \ref{sec_classifier_comparison}.
+%
+\item[\texttt{iris\_2f\_xgb\_fit.py:}] load prepared data and fit an XGBoost model with hyperparameter selection, save results to disk.
+%
+\item[\texttt{iris\_2f\_xgb\_diagnostics.py:}] load fitted XGBoost model, create diagnostic reports and plots.
+The script generates all information for XGBoost on iris data reported in Section \ref{sec_classifier_comparison}.
+\end{description}
+%
+Two additional subfolders \texttt{results} and \texttt{reports} contain only dummy files in the git repository.
+They are used by the benchmark scripts to store prepared data, fitted models, and explanatory reports.\par
+%
+Note that all scripts are set up to run from the parent directory of \texttt{scripts}.
+E.g., start data preparation from the iPython console via
+%
+\begin{center}
+\texttt{\%run scripts/iris\_2f/iris\_2f\_prepare\_data.py}
+\end{center}
+%
+\item[test:] unit tests for the \texttt{proset} module.
+\end{description}
+%
+\section{Python module \texttt{proset} -- public interface}
+\label{sec_proset_module}
+%
+This section describes the public interface of module \texttt{proset}.
+We do not provide complete call signatures for the functions.
+Pythons \texttt{help()} function can be used to obtain these from the docstrings.
+%
+\begin{description}
+\item[\texttt{proset:}] the main module exposes a single class:
+%
+\begin{description}
+\item[\texttt{ClassifierModel:}] the proset classifier has an interface compatible with Python module \texttt{sklearn} \cite{Pedregosa_11}.
+Its public methods are
+%
+\begin{description}
+\item[\texttt{\_\_init\_\_():}] initialize a proset classifier with hyperparameters and a random state, see Section \ref{sec_classifier_fit}.
+%
+\item[\texttt{fit():}] fit proset classifier given a feature matrix and target.
+This function can take observation weights as an optional parameter.
+It can also perform a warm start, in which case new batches are added to an existing model.
+%
+\item[\texttt{predict():}] predict classes given a feature matrix.
+This function requires the model to be already fitted.
+It takes the number of batches for evaluation as optional input and can provide familiarity (see Section \ref{sec_familiarity}) as optional output.\par
+%
+The prediction is made via the `naive'  rule to return the class with the highest estimated probability for each feature vector.
+See the discussion in \ref{sec_shap_values} why this is not suitable for real applications.
+We recommend to use \texttt{predict\_proba()} with a problem-specific decision rule instead.
+%
+\item[\texttt{predict\_proba():}] predict class probabilities given a feature matrix.
+This function requires the model to be already fitted.
+It has the same optional inputs and outputs as \texttt{predict()}.
+%
+\item[\texttt{score():}] compute the log-likelihood (not \textit{negative} log-likelihood due to \texttt{sklearn} conventions) for a feature matrix.
+This function requires the model to be already fitted.
+It takes sample weights as optional input, as well as the number of batches for evaluation.
+%
+\item[\texttt{export():}] export information on prototypes and parameters from a fitted model.
+This function returns a tabular report as a \texttt{pandas} data frame \cite{McKinney_10}.
+%
+\item[\texttt{explain():}] generate an explanation report for a single sample as described in Section \ref{sec_explanation_report}.
+This function returns a tabular report similar to \texttt{export}.
+See Figure \ref{fig_explanation_report} for an example.
+%
+\item[\texttt{shrink():}] reduce a fitted model to take only the features with nonzero weights as input.
+The model object gains as property the array \texttt{active\_features\_} containing the indices of active features with respect to the original feature vector.
+\end{description}
+%
+Before the \texttt{fit()} method is called, a \texttt{ClassifierModel} object's only public properties are the hyperparameters passed to \texttt{\_\_init\_\_()}.
+After fitting, it gains the following additional properties:
+%
+\begin{description}
+\item[\texttt{n\_features\_in\_}:] the expected number of input features.
+%
+\item[\texttt{classes\_}:] an array of class labels.
+%
+\item[\texttt{label\_encoder\_}:] an \texttt{sklearn} label encoder object that maps class labels to the integers from 0 to $K-1$.
+%
+\item[\texttt{set\_manager\_}:] an instance of the \texttt{SetManager} class that stores information on prototypes and proset model parameters, see Section \ref{sec_implementation} for details.
+The \texttt{SetManager} can provide additional information on the model via the following public methods and properties:
+%
+\begin{description}
+\item[\texttt{num\_batches:}] the number of batches.
+Note that the fitting procedure does not remove batches with no prototypes, i.e., the model always has the number of batches specified by the user even if some or all of them are empty.
+%
+\item[\texttt{num\_features:}] the expected number of input features.
+%
+\item[\texttt{get\_active\_features():}] returns the index vector of active features.
+%
+\item[\texttt{get\_num\_prototypes():}] returns the total number of prototypes.
+Note that the same training sample is counted multiple times if it appears as prototype in multiple batches.
+%
+\item[\texttt{get\_feature\_weights():}] returns a matrix of the weights of active features for all batches, sorted in descending order of weights, as well as the index vector of features with respect to the original ordering.
+%
+\item[\texttt{get\_batches():}] export the entire model structure as a Python \texttt{list} of \texttt{dict} objects.
+An empty batch is returned as \texttt{None} value instead of a \texttt{dict}.
+\end{description}
+\end{description}
+%
+Note that class \texttt{SetManager} has more public methods than listed above, but these are intended for the manipulation of its content via \texttt{fit()}.
+%
+\end{description}
+%
+\item[\texttt{proset.utility:}] this submodule contains helper functions for working with proset models:
+%
+\begin{description}
+\item[\texttt{select\_hyperparameters():}] fit a proset model using cross-validation to select hyperparameters.
+This function implements Algorithm \ref{alg_hyperparameters}.
+%
+\item[\texttt{print\_hyperparameter\_report():}] print a summary of hyperparameter selection and quality metrics to the console.
+%
+\item[\texttt{print\_feature\_report():}] print information about selected features to the console.
+%
+\item[\texttt{choose\_reference\_point():}] choose a reference point for the SHAP explainer, see Section \ref{sec_shap_values} for details.
+This function implements Algorithm \ref{alg_shap_baseline}.
+%
+\item[\texttt{print\_point\_report():}] print information about a single point to the console.
+%
+\item[\texttt{plot\_select\_results():}] create plots for hyperparameter search results.
+Figure \ref{fig_parameter_search} was created with this function.
+%
+\item[\texttt{ClassifierPlots:}] helper class used to create most of the diagnostic plots in this document.
+See the benchmark scripts for usage examples.
+%
+\item[\texttt{write\_report():}] save a report created by a proset model's \texttt{export()} or \texttt{explain()} functions to disk as a formatted Excel file.
+\end{description}
+%
+\item[\texttt{proset.benchmarks:}] this submodule contains additional functions for the benchmark study:
+%
+\begin{description}
+\item[\texttt{start\_console\_log():}] invoke \texttt{proset} logging so a progress report for model fitting is printed to the console.
+%
+\item[\texttt{fit\_knn\_classifier():}] fit a kNN classifier using cross-validation to select $k$.
+%
+\item[\texttt{fit\_xgb\_classifier():}] fit an XGBoost classifier using cross-validated selection of hyperparameters as discussed in Section \ref{sec_classifier_comparison}.
+%
+\item[\texttt{print\_xgb\_classifier\_report():}] print a summary of XGBoost hyperparameter selection and quality metrics to the console.
+%
+\item[\texttt{create\_checkerboard():}] create a sample of checkerboard data, see Section \ref{sec_classifier_benchmarks}.
+%
+\item[\texttt{create\_continuous\_xor():}] create a sample of `continuous XOR' data, see Section \ref{sec_classifier_benchmarks}.
+\end{description}
+\end{description}
+%
+\section{Implementation details}
+\label{sec_implementation}
+%
+The core functionality of proset is implemented as three interdependent classes.
+Each exists once as an abstract base class with shared functionality and then as a concrete subclass for each type of estimator:
+%
+\begin{description}
+\item[\texttt{Model:}] implements the public interface of estimators following the conventions established by Python package \texttt{sklearn} \cite{Pedregosa_11}.
+It relies on an instance of class \texttt{SetManager} for storing information on the model structure and on an instance of class \texttt{Objective} for parameter fitting.
+The solver is algorithm L-BFGS-B \cite{Byrd_95} from Python package \texttt{scipy} \cite{Virtanen_20}.
+%
+\item[\texttt{SetManager:}] stores information about the proset model structure, i.e., batches, prototypes, prototype weights, and feature weights.
+Computes scaled and unscaled versions of estimators like (\ref{eq_pkx}).
+%
+\item[\texttt{Objective:}] computes the objective function value and gradient for fitting an additional batch of prototypes to an existing proset model.
+See (\ref{eq_log_likelihood}), (\ref{eq_l_partial_v}), and (\ref{eq_l_partial_w}) for the expressions belonging to the proset classifier.
+The objective relies on an instance of class \texttt{SetManager} to provide distribution estimates for batches that have already been fitted.
+\end{description}
+%
+The implementation relies on Python package \texttt{numpy} \cite{Harris_20} for fast matrix operations.
+It also uses some problem-specific solutions to speed up computation:
+%
+\begin{enumerate}
+\item To evaluate the objective function (\ref{eq_log_likelihood}), we need to compute the squared weighted Euclidean distance between every pair of points where one is a sample reserved for scoring and the other a potential prototype.
+These distances can be computed using vector-matrix operations as follows:\par
+%
+Let $X_0\in\R^{N_0\times D}$ and $X_1\in\R^{N_1\times D}$, $N_1,N_2>0$, be the feature matrices corresponding to the points, and let $v\in\R^d$, $v_d\geq0$, be the vector of feature weights.
+For $i\in\{0,1\}$, denote the matrices of weighted features and squared weighted features by
+%
+\begin{align}
+Z_i&:=[v_dX_{i,n,d}]_{n,d}&S_i&:=[v_d^2X_{i,n,d}^2]_{n,d}\label{eq_ZiSi}
+\end{align}
+%
+The row sums of $S_i$ are $s_i:=S_i\1_D\in\R^{N_i}$, where $\1_D$ is the vector of ones in $\R^D$.
+Now compute
+%
+\begin{equation}
+W:=s_0\1_{N_1}^T-2Z_0Z_1^T+\1_{N_0}s_1^T\in\R^{N_0,N_1}\label{eq_W}
+\end{equation}
+%
+The elements of this matrix are the desired squared weighted distances, i.e.\
+%
+\begin{equation}
+W_{i,j}=\sum_{d=1}^Dv_d^2(X_{0,i,d}-X_{1,j,d})^2\label{eq_Wij}
+\end{equation}
+%
+Note that \texttt{numpy} has functions for adding a row (column) vector to each row (column) of a matrix, so the products $s_0\1_{N_1}^T$ and $\1_{N_0}s_1^T$ do not have to be generated explicitly.
+%
+\item When storing a batch of prototypes, the \texttt{SetManager} class reduces the feature matrix to the active features and precomputes $Z_1$ and $s_1$ as above.
+%
+\item The \texttt{Objective} class reduces both feature matrices to the active features, provided the number of active features is less than a fraction of the total.
+This limitation is in place as there is a trade-off between the performance gain from smaller matrices and the time required to copy the data.
+We found that a threshold of 70 \% improves performance on the digits data set, but the best value may depend on the structure of the data.\par
+%
+As an additional measure, the latest version of the reduced matrices is cached.
+Thus, if L-BFGS-B requests multiple evaluations of the objective or gradient for the same set of active features (not necessarily the exact same feature weights), no additional copy operations are triggered.
+\end{enumerate}
+%
 \endinput

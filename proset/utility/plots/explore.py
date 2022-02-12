@@ -291,7 +291,7 @@ class ModelPlots(metaclass=ABCMeta):
                 raise ValueError("Parameter familiarity must be 1D array.")
             if np.any(familiarity <= 0.0):
                 raise ValueError("Parameter familiarity must have positive elements.")
-        quantiles = np.array(quantiles)
+        quantiles = np.atleast_1d(quantiles)
         if np.any(quantiles <= 0.0) or np.any(quantiles >= 1.0):
             raise ValueError("Parameter quantiles must contain values in (0.0, 1.0).")
         x_range = cls._determine_plot_range(

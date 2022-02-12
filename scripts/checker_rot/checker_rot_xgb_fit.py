@@ -29,7 +29,8 @@ print("* Select hyperparameters via cross-validation")
 result = fit_xgb_classifier(
     features=data["X_train"],
     labels=data["y_train"],
-    colsample_range=1.0,  # no need to subsample if there are only two features
+    max_depth=30,  # default of 20 means depth 19 is selected
+    colsample_range=(0.1, 0.9),
     subsample_range=(0.1, 0.9),
     num_folds=5,
     random_state=random_state

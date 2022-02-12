@@ -6,15 +6,19 @@
 \usepackage[font=bf]{caption}
 \usepackage[T1]{fontenc}
 \usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
 \usepackage[utf8]{inputenc}
 \usepackage{lmodern}
+\usepackage[labelformat=empty]{subfig}
 \usepackage{textcomp}
 %
 \setcounter{tocdepth}{2}
-\setcounter{secnumdepth}{0}
+\setcounter{secnumdepth}{2}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{\medskipamount}
 \linespread{1.1}
+\renewcommand{\floatpagefraction}{0.8}
 %
 \newtheorem{lemma}{Lemma}[chapter]
 \newtheorem{remark}{Remark}[chapter]
@@ -23,9 +27,13 @@
 \newcommand*{\1}{\ensuremath{\mathbb{1}}}
 \newcommand*{\R}{\ensuremath{\mathbb{R}}}
 %
-\title{\Huge\textbf{Prototype set classifier and regressor}}
+\title{\textbf{Technical report\\Prototype set models for supervised learning}}
 \author{\Large\textcopyright\ by Nikolaus Ruf}
-\date{}
+\date{
+Python package \texttt{proset} and all associated documentation are released under the MIT software license.
+See the license file in the project's git repository for details:\\
+\url{https://github.com/NRuf77/proset}
+}
 %
 \begin{document}
 \maketitle
@@ -33,19 +41,21 @@
 \pagestyle{empty}
 \begin{center}
 \vspace*{2in}
-\Large For Shuo
+\Large For Shuo and Jonathan
 \end{center}
 \newpage
 \pagestyle{plain}
 %
 \frontmatter
+\phantomsection
+\addcontentsline{toc}{chapter}{\contentsname}
 \tableofcontents
-\input{about.tex}
 %
 \mainmatter
+\input{about.tex}
 \input{classifier.tex}
 \input{regressor.tex}
-\input{examples.tex}
+\input{explainability.tex}
 \input{implementation.tex}
 %
 \appendix

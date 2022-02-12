@@ -99,14 +99,12 @@ def choose_reference_point(features, model, scale=None, offset=None):
         prediction = model.predict_proba(features)
     else:  # pragma: no cover
         raise NotImplementedError("Function choose_reference_point() does not handle regressors yet.")
-    weights = model.set_manager_.get_feature_weights(num_batches=1)
+    active_features = model.set_manager_.get_active_features()
     index = _find_best_point(
-        features=features[:, weights["feature_index"]] * weights["weight_matrix"][0, :],
-        # use batch 1 metric to determine how 'typical' a point is in the feature space
+        features=features[:, active_features],
         prediction=prediction,
         is_classifier_=is_classifier(model)
     )
-    active_features = model.set_manager_.get_active_features()
     return {
         "index": index,
         "features_raw": features[index:(index + 1), :].copy(),
@@ -130,7 +128,7 @@ def _find_best_point(features, prediction, is_classifier_):
     if not is_classifier_:  # pragma: no cover
         raise NotImplementedError("Function choose_reference_point() does not handle regressors yet.")
     points = _compute_borda_points(np.mean(pairwise_distances(prediction), axis=1))
-    if features.shape[1] > 0:  # safeguard in case the first batch of prototypes has no active features
+    if features.shape[1] > 0:  # safeguard in case the model has no active features
         points += _compute_borda_points(np.mean(pairwise_distances(features), axis=1))
     candidates = np.nonzero(points == np.max(points))[0]
     if candidates.shape[0] > 1:

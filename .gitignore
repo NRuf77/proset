@@ -1,5 +1,6 @@
 .coverage
 .idea/*
+doc/*.log
 doc/*.pdf
 doc/*.gz
 proset/__pycache__/*

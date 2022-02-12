@@ -29,7 +29,7 @@ print("* Select hyperparameters via cross-validation")
 result = fit_xgb_classifier(
     features=data["X_train"],
     labels=data["y_train"],
-    max_depth=20,  # classifier is unable to engage with data for max_depth = 10
+    max_depth=100,  # classifier appears unable to engage with data
     colsample_range=(0.1, 0.9),
     subsample_range=(0.1, 0.9),
     num_folds=5,

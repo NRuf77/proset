@@ -44,7 +44,7 @@ def _plot_select_stage_1(stage_1, model_name):
     plt.tricontourf(
         np.log10(stage_1["lambda_grid"][:, 0]),
         np.log10(stage_1["lambda_grid"][:, 1]),
-        stage_1["scores"],
+        stage_1["scores"],  # do not invert scores as the color scale looks better this way
         levels=levels
     )
     legend = [
@@ -52,7 +52,7 @@ def _plot_select_stage_1(stage_1, model_name):
         plt.plot(selected[0], selected[1], "r+", markersize=8, markeredgewidth=2)[0]
     ]
     plt.grid(True)
-    plt.legend(legend, ["Maximizer", "Selection"])
+    plt.legend(legend, ["Minimizer", "Selection"])
     plt.suptitle("Hyperparameter search for {}: penalty weights".format(model_name))
     plt.xlabel("Log10(lambda_v)")
     plt.ylabel("Log10(lambda_w)")
@@ -152,11 +152,13 @@ def _plot_search_1d(grid, scores, threshold, selected_parameter, y_range, x_labe
     """
     order = np.argsort(grid)
     grid = grid[order]
-    scores = scores[order]
-    x_range = make_plot_range(grid, delta=0.0)
+    scores = -scores[order]  # display as log-loss minimization, not log-likelihood maximization
+    x_range = make_plot_range(grid, delta=0.0, min_margin=0.0)
+    threshold = -threshold
+    y_range = -y_range[-1::-1]
     legend = [
         plt.plot(grid, scores, linewidth=2, color="k")[0],
-        plt.plot(x_range, np.ones(2) * np.max(scores), linewidth=2, color="b", linestyle="--")[0],
+        plt.plot(x_range, np.ones(2) * np.min(scores), linewidth=2, color="b", linestyle="--")[0],
         plt.plot(x_range, np.ones(2) * threshold, linewidth=2, color="b")[0],
         plt.plot(np.ones(2) * selected_parameter, y_range, linewidth=2, color="r")[0]
     ]
@@ -164,7 +166,7 @@ def _plot_search_1d(grid, scores, threshold, selected_parameter, y_range, x_labe
     plt.xlim(x_range)
     plt.ylim(y_range)
     plt.xlabel(x_label)
-    plt.ylabel("Log-likelihood")
+    plt.ylabel("Log-loss")
     plt.title(title.format(selected_parameter))
     if do_show_legend:
-        plt.legend(legend, ["Mean score", "Best score", "Best score - 1 SE", "Selected parameter"], loc="lower left")
+        plt.legend(legend, ["Mean score", "Best score", "Best score + 1 SE", "Selected parameter"], loc="upper right")
