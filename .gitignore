@@ -1,5 +1,7 @@
 .coverage
 .idea/*
+build/*
+dist/*
 doc/*.log
 doc/*.pdf
 doc/*.gz
@@ -7,6 +9,7 @@ proset/__pycache__/*
 proset/benchmarks/__pycache__/*
 proset/utility/__pycache__/*
 proset/utility/plots/__pycache__/*
+proset.egg-info/*
 test/.pytest_cache/*
 test/__pycache__/*
 scripts/data/*.csv

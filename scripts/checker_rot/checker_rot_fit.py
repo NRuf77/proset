@@ -1,7 +1,5 @@
 """Train proset classifier on a deterministic checkerboard pattern rotated 45 degrees.
 
-Optimize w.r.t. both penalty weights with both alphas at 0.95 (dominant l2 penalty).
-
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """

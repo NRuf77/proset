@@ -1,7 +1,5 @@
 """Train proset classifier on the 'continuous XOR' problem with 3 features.
 
-Optimize w.r.t. both penalty weights with both alphas at 0.95 (dominant l2 penalty).
-
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """

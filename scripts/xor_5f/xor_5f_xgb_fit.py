@@ -1,7 +1,5 @@
 """Train XGBoost classifier on the 'continuous XOR' problem with 5 features.
 
-Optimize w.r.t. k.
-
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """

@@ -1,7 +1,5 @@
 """Train KNN classifier on the 'continuous XOR' problem with 4 features.
 
-Optimize w.r.t. k.
-
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """

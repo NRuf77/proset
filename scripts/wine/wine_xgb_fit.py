@@ -1,7 +1,5 @@
 """Train XGBoost classifier on wine classification data.
 
-Optimize w.r.t. k.
-
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """

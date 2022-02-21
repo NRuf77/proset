@@ -13,7 +13,11 @@ from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, Stratified
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_random_state
-import xgboost as xgb
+
+try:  # import guard for optional dependency
+    import xgboost as xgb
+except ImportError:  # pragma: no cover
+    xgb = None
 
 
 MAX_SEED = 1000000  # maximum value for sampling random seed
@@ -137,6 +141,8 @@ def fit_xgb_classifier(
           - best_num_iter: positive integer; optimal number of iterations
           - selected_num_iter: positive integer; selected number of iterations
     """
+    if xgb is None:
+        raise RuntimeError("Function fit_xgb_classifier() require the xgboost package to be installed.")
     settings = _check_xgb_classifier_settings(
         labels=labels,
         eta=eta,

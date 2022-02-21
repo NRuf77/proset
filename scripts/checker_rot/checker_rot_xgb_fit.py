@@ -1,7 +1,5 @@
 """Train XGBoost classifier on the rotated checkerboard pattern.
 
-Optimize w.r.t. k.
-
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """

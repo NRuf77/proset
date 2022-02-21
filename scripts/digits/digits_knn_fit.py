@@ -1,7 +1,5 @@
 """Train KNN classifier on the UCI ML hand-written digits dataset.
 
-Optimize w.r.t. k.
-
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """

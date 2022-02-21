@@ -1,2 +1,5 @@
 [run]
 omit=proset/utility/plots/*
+
+[report]
+show_missing=true

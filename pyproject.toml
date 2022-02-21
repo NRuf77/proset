@@ -1,0 +1,8 @@
+# Build system configuration for Python package proset.
+#
+# Copyright by Nikolaus Ruf
+# Released under the MIT license - see LICENSE file for details
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
