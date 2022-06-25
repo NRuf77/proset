@@ -12,12 +12,14 @@ from enum import Enum
 from functools import partial
 import logging
 from multiprocessing import Pool
+import warnings
 
 import numpy as np
+import pandas as pd
 from sklearn.base import is_classifier
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.pipeline import Pipeline
-from sklearn.utils.validation import check_random_state
+from sklearn.utils.validation import check_array, check_random_state
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,10 @@ MAX_SEED = 1e6
 LAMBDA_V_RANGE = (1e-6, 1e-1)
 LAMBDA_W_RANGE = (1e-9, 1e-4)
 NUM_BATCH_GRID = np.arange(11)
+SOLVER_FACTR = (1e10, 1e7)
+CV_GROUP_FOLD_TOL = 1.2
+# warn if the quotient between the size of the largest and smallest cross-validation fold; this is only relevant if
+# using the optional cv_groups argument for select_hyperparameters()
 
 
 class FitMode(Enum):
@@ -45,15 +51,18 @@ def select_hyperparameters(
         features,
         target,
         weights=None,
+        cv_groups=None,
         transform=None,
         lambda_v_range=None,
         lambda_w_range=None,
         stage_1_trials=50,
         num_batch_grid=None,
         num_folds=5,
+        solver_factr=None,
+        chunks=1,
         num_jobs=None,
         random_state=None
-):  # pragma: no cover
+):
     """Select hyperparameters for proset model via cross-validation.
 
     Note: stage 1 uses randomized search in case that a range is given for both lambda_v and lambda_w, sampling values
@@ -65,6 +74,10 @@ def select_hyperparameters(
     :param target: list-like object; target for supervised learning
     :param weights: 1D numpy array of positive floats or None; sample weights used for fitting and scoring; pass None to
         use unit weights
+    :param cv_groups: 1D numpy integer array or None; if not None, defines groups of related samples; during
+        cross-validation, elements with the same group index (group index + class for classification) are guaranteed to
+        stay in one fold; this reduces the risk that idiosyncratic properties of the group are selected as features;
+        there should be many groups, all of similar size, or the cross-validation folds will be skewed
     :param transform: sklearn transformer or None; if not None, the transform is applied as part of the model fit to
         normalize features
     :param lambda_v_range: non-negative float, tuple of two non-negative floats, or None; a single value is used as
@@ -75,6 +88,14 @@ def select_hyperparameters(
     :param num_batch_grid: 1D numpy array of non-negative integers or None; batch numbers to try in stage 2 of fitting;
         pass None to use np.arange(0, 11)
     :param num_folds: integer greater than 1; number of cross-validation folds to use
+    :param solver_factr: non-negative float, tuple of two non-negative floats, or None; a single value is used to set
+        solver tolerance for all model fits; if a tuple is given, the first value is used for cross-validation and the
+        second for the final model fit; pass None to use (1e10, 1e7)
+    :param chunks: positive integer; split training data into this many parts for fitting; the transformer is still
+        fitted to the entire training data; in stage 1, each experiment using a single batch is conducted on a random
+        subsample representing a fraction of 1 / chunks of the training data; in stage 2 and for the final model, the
+        training data is split into 'chunks' parts which are sequentially used to add batches of prototypes; once all
+        parts have been processed, a new random split is generated until the desired number of batches is reached
     :param num_jobs: integer greater than 1 or None; number of jobs to run in parallel; pass None to disable parallel
         execution; for parallel execution, this function must be called inside an 'if __name__ == "__main__"' block to
         avoid spawning infinitely many subprocesses; as numpy usually runs on four cores already, the number of jobs
@@ -84,11 +105,18 @@ def select_hyperparameters(
     :return: dict with the following fields:
         - 'model': an instance of a proset model fitted to all samples using the selected hyperparameters; if a
           transform is provided, the return value is an instance of sklearn.pipeline.Pipeline bundling the transform
-          with the proset model
+          with the proset model; if chunks is greater than 1, the model's n_iter parameter is set to 1 as it was built
+          by adding individual batches using the warm start option
         - 'stage_1': dict with information on parameter search for lambda_v and lambda_w
         - 'stage_2': dict with information on parameter search for number of batches
+        - 'chunk_ix': list of 1D numpy integer arrays; index vectors of training samples used for each batch; this is
+          only provided if chunks > 1
     """
     logger.info("Start hyperparameter selection")
+    target = check_array(target, dtype=None, ensure_2d=False)
+    # leave detailed validation to the model, but numpy-style indexing must be supported
+    # noinspection PyTypeChecker
+    cv_groups = _process_cv_groups(cv_groups=cv_groups, target=target, classify=is_classifier(model))
     settings = _process_select_settings(
         model=model,
         transform=transform,
@@ -97,33 +125,74 @@ def select_hyperparameters(
         stage_1_trials=stage_1_trials,
         num_batch_grid=num_batch_grid,
         num_folds=num_folds,
+        solver_factr=solver_factr,
+        chunks=chunks,
         num_jobs=num_jobs,
         random_state=random_state
     )
     if settings["fit_mode"] != FitMode.NEITHER:
         logger.info("Execute search stage 1 for penalty weights")
-        stage_1 = _execute_stage_1(settings=settings, features=features, target=target, weights=weights)
+        stage_1 = _execute_stage_1(
+            settings=settings, features=features, target=target, weights=weights, cv_groups=cv_groups
+        )
     else:
         logger.info("Skip stage 1, penalty weights are fixed")
         stage_1 = _fake_stage_1(settings["lambda_v_range"], settings["lambda_w_range"])
-    settings["model"].set_params(**{
-        settings["prefix"] + "lambda_v": stage_1["lambda_grid"][stage_1["selected_index"], 0],
-        settings["prefix"] + "lambda_w": stage_1["lambda_grid"][stage_1["selected_index"], 1]
-    })
+    settings["model"].set_params(
+        lambda_v=stage_1["lambda_grid"][stage_1["selected_index"], 0],
+        lambda_w=stage_1["lambda_grid"][stage_1["selected_index"], 1]
+    )
     if settings["num_batch_grid"].shape[0] > 1:
         logger.info("Execute search stage 2 for number of batches")
-        stage_2 = _execute_stage_2(settings=settings, features=features, target=target, weights=weights)
+        stage_2 = _execute_stage_2(
+            settings=settings, features=features, target=target, weights=weights, cv_groups=cv_groups
+        )
     else:
         logger.info("Skip stage 2, number of batches is fixed")
         stage_2 = _fake_stage_2(settings["num_batch_grid"])
-    settings["model"].set_params(**{
-        settings["prefix"] + "n_iter": stage_2["num_batch_grid"][stage_2["selected_index"]],
-        settings["prefix"] + "random_state": random_state
-    })
+    settings["model"].set_params(
+        n_iter=stage_2["num_batch_grid"][stage_2["selected_index"]],
+        solver_factr=settings["solver_factr"][1],
+        random_state=random_state
+    )
     logger.info("Fit final model with selected parameters")
-    settings["model"].fit(**{"X": features, "y": target, settings["prefix"] + "sample_weight": weights})
+    model, chunk_ix = _make_final_model(
+        settings=settings,
+        features=features,
+        target=target,
+        weights=weights
+    )
     logger.info("Hyperparameter selection complete")
-    return {"model": settings["model"], "stage_1": stage_1, "stage_2": stage_2}
+    result = {"model": model, "stage_1": stage_1, "stage_2": stage_2}
+    if chunk_ix is not None:
+        result["chunk_ix"] = chunk_ix
+    return result
+
+
+def _process_cv_groups(cv_groups, target, classify):
+    """Process information on cross-validation groups.
+
+    :param cv_groups: see docstring of select_hyperparameters() for details
+    :param target: numpy array; target for supervised learning; dimension and data type depend on model
+    :param classify: boolean; whether this is a classification or regression problem
+    :return: pandas data frame with the following columns or None:
+        - index: integer row index
+        - cv_group: as input 'cv_groups'
+        - target: as input 'target'; only included if 'classify' is True
+        If cv_groups is None, this function also returns None.
+    """
+    if cv_groups is None:
+        return None
+    if len(cv_groups.shape) != 1:
+        raise ValueError("Parameter cv_groups must be a 1D array.")
+    if cv_groups.shape[0] != target.shape[0]:
+        raise ValueError("Parameter cv_groups must have one element for each sample.")
+    if not np.issubdtype(cv_groups.dtype, np.integer):
+        raise TypeError("Parameter cv_groups must be integer.")
+    cv_groups = pd.DataFrame({"index": np.arange(cv_groups.shape[0]), "cv_group": cv_groups})
+    if classify:
+        cv_groups["target"] = target
+    return cv_groups
 
 
 def _process_select_settings(
@@ -134,7 +203,9 @@ def _process_select_settings(
         stage_1_trials,
         num_batch_grid,
         num_folds,
+        solver_factr,
         num_jobs,
+        chunks,
         random_state
 ):
     """Validate and prepare settings for select_hyperparameters().
@@ -146,13 +217,13 @@ def _process_select_settings(
     :param stage_1_trials: see docstring of select_hyperparameters() for details
     :param num_batch_grid: see docstring of select_hyperparameters() for details
     :param num_folds: see docstring of select_hyperparameters() for details
+    :param solver_factr: see docstring of select_hyperparameters() for details
+    :param chunks: see docstring of select_hyperparameters() for details
     :param num_jobs: see docstring of select_hyperparameters() for details
     :param random_state: see docstring of select_hyperparameters() for details
     :return: dict with the following fields:
-        - model: if transformer is None, a deep copy of the input model; else, an sklearn pipeline combining deep copies
-          of the transformer and model
-        - prefix: string; "" if transformer is None, else "model__"; use this to prefix parameters for the proset model
-          in case they have to be processed by the pipeline
+        - model: a deep copy of model
+        - transform: if transform is not None, a deep copy of transform
         - lambda_v_range: as input or default if input is None
         - lambda_w_range: as input or default if input is None
         - stage_1_trials: as input
@@ -160,6 +231,10 @@ def _process_select_settings(
         - num_batch_grid: as input or default if input is None
         - splitter: an sklearn splitter for num_fold folds; stratified K-fold splitter if model is a classifier,
           ordinary K-fold else
+        - solver_factr: tuple of two floats; float input is repeated, tuple input kept, None input replaced by default
+        - chunks: as input
+        - chunker: an sklearn splitter class or None; None if chunks is 1; otherwise, the class of which parameter
+          'splitter' is an instance
         - num_jobs: as input
         - random_state: an instance of numpy.random.RandomState initialized with input random_state
     """
@@ -169,45 +244,61 @@ def _process_select_settings(
         lambda_w_range = LAMBDA_W_RANGE
     if num_batch_grid is None:
         num_batch_grid = NUM_BATCH_GRID
-    num_batch_grid = num_batch_grid.copy()
+    if solver_factr is None:
+        solver_factr = SOLVER_FACTR
+    elif isinstance(solver_factr, float):
+        solver_factr = (solver_factr, solver_factr)
+    num_batch_grid = num_batch_grid.copy()  # ensure original value is never changed in place
     _check_select_settings(
         lambda_v_range=lambda_v_range,
         lambda_w_range=lambda_w_range,
         stage_1_trials=stage_1_trials,
         num_batch_grid=num_batch_grid,
+        solver_factr=solver_factr,
+        chunks=chunks,
         num_jobs=num_jobs
     )
     model = deepcopy(model)  # do not change original input
     if transform is not None:
-        model = Pipeline(steps=[("transform", deepcopy(transform)), ("model", model)])
-        prefix = "model__"
-    else:
-        prefix = ""
+        transform = deepcopy(transform)
     fit_mode = _get_fit_mode(lambda_v_range=lambda_v_range, lambda_w_range=lambda_w_range)
     splitter = StratifiedKFold if is_classifier(model) else KFold
     random_state = check_random_state(random_state)
     return {
         "model": model,
-        "prefix": prefix,
+        "transform": transform,
         "lambda_v_range": lambda_v_range,
         "lambda_w_range": lambda_w_range,
         "stage_1_trials": stage_1_trials,
         "fit_mode": fit_mode,
         "num_batch_grid": num_batch_grid,
         "splitter": splitter(n_splits=num_folds, shuffle=True, random_state=random_state),
+        "solver_factr": solver_factr,
+        "chunks": chunks,
+        "chunker": splitter if chunks > 1 else None,
         "num_jobs": num_jobs,
         "random_state": random_state
     }
 
 
 # pylint: disable=too-many-branches
-def _check_select_settings(lambda_v_range, lambda_w_range, stage_1_trials, num_batch_grid, num_jobs):
+def _check_select_settings(
+        lambda_v_range,
+        lambda_w_range,
+        stage_1_trials,
+        num_batch_grid,
+        solver_factr,
+        chunks,
+        num_jobs
+):
     """Check input to select_hyperparameters() for consistency.
 
     :param lambda_v_range: see docstring of select_hyperparameters() for details
     :param lambda_w_range: see docstring of select_hyperparameters() for details
     :param stage_1_trials: see docstring of select_hyperparameters() for details
     :param num_batch_grid: see docstring of select_hyperparameters() for details
+    :param solver_factr: tuple of two positive floats
+    :param chunks: see docstring of select_hyperparameters() for details
     :param num_jobs: see docstring of select_hyperparameters() for details
     :return: no return value; raises an exception if an issue is found
     """
@@ -225,6 +316,14 @@ def _check_select_settings(lambda_v_range, lambda_w_range, stage_1_trials, num_b
         raise ValueError("Parameter num_batch_grid must not contain negative values.")
     if np.any(np.diff(num_batch_grid) <= 0):
         raise ValueError("Parameter num_batch_grid must contain strictly increasing values.")
+    if len(solver_factr) != 2:
+        raise ValueError("Parameter solver_factr must have length two if passing a tuple.")
+    if solver_factr[0] <= 0.0 or solver_factr[1] <= 0.0:
+        raise ValueError("Parameter solver_factr must be positive / have positive elements.")
+    if not np.issubdtype(type(chunks), np.integer):
+        raise TypeError("Parameter chunks must be integer.")
+    if chunks < 1:
+        raise ValueError("Parameter chunks must be positive.")
     if num_jobs is not None and not np.issubdtype(type(num_jobs), np.integer):
         raise ValueError("Parameter num_jobs must be integer if not passing None.")
     if num_jobs is not None and num_jobs < 2:
@@ -239,7 +338,7 @@ def _check_lambda(lambda_range, lambda_name):
     :param lambda_name: string; parameter name to show in exception messages
     :return: no return value; raises an exception if an issue is found
     """
-    if isinstance(lambda_range, np.float):
+    if isinstance(lambda_range, float):
         if lambda_range < 0.0:
             raise ValueError("Parameter {} must not be negative if passing a single value.".format(lambda_name))
     else:
@@ -260,22 +359,23 @@ def _get_fit_mode(lambda_v_range, lambda_w_range):
     :param lambda_w_range: see docstring of select_hyperparameters() for details; None not allowed
     :return: one element of FitMode
     """
-    if isinstance(lambda_v_range, np.float):
-        if isinstance(lambda_w_range, np.float):
+    if isinstance(lambda_v_range, float):
+        if isinstance(lambda_w_range, float):
             return FitMode.NEITHER
         return FitMode.LAMBDA_W
-    if isinstance(lambda_w_range, np.float):
+    if isinstance(lambda_w_range, float):
         return FitMode.LAMBDA_V
     return FitMode.BOTH
 
 
-def _execute_stage_1(settings, features, target, weights):  # pragma: no cover
+def _execute_stage_1(settings, features, target, weights, cv_groups):
     """Execute search stage 1 for penalty weights.
 
     :param settings: dict; as return value of process_select_settings()
     :param features: see docstring of select_hyperparameters() for details
-    :param target: see docstring of select_hyperparameters() for details
+    :param target: numpy array; target for supervised learning; dimension and data type depend on model
     :param weights: see docstring of select_hyperparameters() for details
+    :param cv_groups: as return value of _process_cv_groups()
     :return: dict with the following fields:
         - lambda_grid: 2D numpy float array with two columns; values for lambda tried out
         - fit_mode: settings['fit_mode']
@@ -288,7 +388,8 @@ def _execute_stage_1(settings, features, target, weights):  # pragma: no cover
         settings=settings,
         features=features,
         target=target,
-        weights=weights
+        weights=weights,
+        cv_groups=cv_groups
     )
     stage_1 = _execute_plan(
         plan=stage_1_plan,
@@ -307,24 +408,27 @@ def _execute_stage_1(settings, features, target, weights):  # pragma: no cover
     )
 
 
-def _make_stage_1_plan(settings, features, target, weights):
+def _make_stage_1_plan(settings, features, target, weights, cv_groups):
     """Create cross-validation plan for stage 1.
 
     :param settings: dict; as return value of _process_select_settings()
     :param features: see docstring of select_hyperparameters() for details
-    :param target: see docstring of select_hyperparameters() for details
+    :param target: numpy array; target for supervised learning; dimension and data type depend on model
     :param weights: see docstring of select_hyperparameters() for details
+    :param cv_groups: as return value of _process_cv_groups()
     :return: two lists of dictionaries; elements of the first list have the following fields:
-        - model: as field "model" from settings
+        - model: a deep copy of field "model" from settings
+        - transform: a transform as specified in field "transform" of settings, already fitted to features[train_ix, :]
         - features: as input
         - target: as input
         - weights: as input
-        - prefix: as field "model" from settings
         - fold: non-negative integer; index of cross_validation fold used for testing
         - train_ix: 1D numpy boolean array; indicator vector for the training set
         - trial: non-negative integer; index of parameter combination used for fitting
-        - parameters: dict of hyperparameters to be used for fitting; this function specifies lambda_v, lambda_w, and
-          random_state
+        - parameters: dict of hyperparameters to be used for fitting; this function specifies lambda_v, lambda_w,
+          solver_factr, and random_state
+        - chunker: an sklearn splitter for settings["chunks"] folds or None if settings["chunks"] = 1; stratified K-fold
+          splitter if model is a classifier, ordinary K-fold else
         The second list contains the distinct combinations of parameters lambda_v and lambda_w.
     """
     lambda_v = _sample_lambda(
@@ -343,17 +447,29 @@ def _make_stage_1_plan(settings, features, target, weights):
         size=settings["stage_1_trials"] * settings["splitter"].n_splits,  random_state=settings["random_state"]
     )
     parameters = [{"lambda_v": lambda_v[i], "lambda_w": lambda_w[i]} for i in range(settings["stage_1_trials"])]
-    train_ix = _make_train_ix(features=features, target=target, splitter=settings["splitter"])
+    train_ix = _make_train_ix(features=features, target=target, cv_groups=cv_groups, splitter=settings["splitter"])
+    transforms = _make_transforms(features=features, train_ix=train_ix, transform=settings["transform"])
+    # pre-fit transformers to avoid refitting for every experiment; transformed features are not stored to avoid memory
+    # issues on large problems
     return [{
         "model": deepcopy(settings["model"]),
+        "transform": transforms[i],
         "features": features,
         "target": target,
         "weights": weights,
-        "prefix": settings["prefix"],
         "fold": i,
         "train_ix": train_ix[i],
         "trial": j,
-        "parameters": {**parameters[j], "random_state": states[i * settings["stage_1_trials"] + j]}
+        "parameters": {
+            **parameters[j],
+            "solver_factr": settings["solver_factr"][0],
+            "random_state": states[i * settings["stage_1_trials"] + j]
+        },
+        "chunker": settings["chunker"](
+            n_splits=settings["chunks"],
+            shuffle=True,
+            random_state=states[i * settings["stage_1_trials"] + j]
+        ) if settings["chunks"] > 1 else None
     } for i in range(settings["splitter"].n_splits) for j in range(settings["stage_1_trials"])], parameters
 
 
@@ -366,7 +482,7 @@ def _sample_lambda(lambda_range, trials, do_randomize, random_state):
     :param random_state: an instance of np.random.RandomState
     :return: 1D numpy float array of length trials; penalty weights for cross_validation
     """
-    if isinstance(lambda_range, np.float):
+    if isinstance(lambda_range, float):
         return lambda_range * np.ones(trials)
     logs = np.log(lambda_range)
     if do_randomize:
@@ -387,24 +503,66 @@ def _sample_random_state(size, random_state):
     return [np.random.RandomState(seed) for seed in seeds]
 
 
-def _make_train_ix(features, target, splitter):
+def _make_train_ix(features, target, cv_groups, splitter):
     """Create index vectors of training folds for cross-validation.
 
     :param features: see docstring of select_hyperparameters() for details
-    :param target: see docstring of select_hyperparameters() for details
+    :param target: numpy array; target for supervised learning; dimension and data type depend on model
+    :param cv_groups: as return value of _process_cv_groups()
     :param splitter: sklearn splitter to use for cross-validation
     :return: list of 1D numpy boolean arrays
     """
-    folds = list(splitter.split(X=features, y=target))
-    train_ix = []
-    for fold in folds:
-        new_ix = np.zeros(features.shape[0], dtype=bool)
-        new_ix[fold[0]] = True
-        train_ix.append(new_ix)
-    return train_ix
+    if cv_groups is None:
+        train_ix = list(splitter.split(X=features, y=target))
+    else:
+        keep_columns = list(cv_groups.columns)
+        keep_columns.remove("index")
+        distinct = cv_groups[keep_columns].drop_duplicates()
+        if "target" in distinct.columns:
+            train_ix = list(splitter.split(X=np.zeros((distinct.shape[0], 0)), y=distinct["target"].values))
+        else:
+            train_ix = list(splitter.split(X=np.zeros((distinct.shape[0], 0))))
+    train_ix = [ix[0] for ix in train_ix]
+    if cv_groups is not None:
+        # noinspection PyUnboundLocalVariable
+        train_ix = [cv_groups.merge(distinct.iloc[ix], on=keep_columns)["index"].values for ix in train_ix]
+        sizes = np.array([ix.shape[0] for ix in train_ix])
+        if np.max(sizes / np.min(sizes)) > CV_GROUP_FOLD_TOL:
+            warnings.warn(" ".join([
+                "The quotient between the sizes of the largest and smallest cross-validation folds",
+                "is greater than {:0.2f}.".format(CV_GROUP_FOLD_TOL),
+                "This can happen if the number of groups defined in cv_groups is too small",
+                "or the group sizes are too variable."
+            ]), RuntimeWarning)
+    return [_binarize_index(ix=ix, size=features.shape[0]) for ix in train_ix]
 
 
-def _execute_plan(plan, num_jobs, fit_function, collect_function):  # pragma: no cover
+def _binarize_index(ix, size):
+    """Convert integer index vector to boolean.
+
+    :param ix: 1D numpy array of non-negative integers
+    :param size: positive integer; number of objects to be indexed
+    :return: 1D numpy boolean array; indicator vector representing 'ix'
+    """
+    result = np.zeros((size, ), dtype=bool)
+    result[ix] = True
+    return result
+
+
+def _make_transforms(features, train_ix, transform):
+    """Create list of transformers for training data excluding in turn each left-out fold for cross-validation.
+
+    :param features: see docstring of select_hyperparameters() for details
+    :param train_ix: as return value of _make_train_ix()
+    :param transform: see docstring of select_hyperparameters() for details
+    :return: list of fitted transformers or None values if transform is None
+    """
+    if transform is None:
+        return [None] * len(train_ix)
+    return [deepcopy(transform).fit(features[ix, :]) for ix in train_ix]
+
+
+def _execute_plan(plan, num_jobs, fit_function, collect_function):
     """Execute cross-validation plan.
 
     :param plan: as return value of _make_stage_1_plan
@@ -420,7 +578,7 @@ def _execute_plan(plan, num_jobs, fit_function, collect_function):  # pragma: no
     return collect_function(result)
 
 
-def _fit_stage_1(step):  # pragma: no cover
+def _fit_stage_1(step):
     """Fit model using one set of hyperparameters for cross-validation for stage 1.
 
     :param step: dict; as one element of the return value of _make_stage_1_plan()
@@ -428,25 +586,71 @@ def _fit_stage_1(step):  # pragma: no cover
     """
     model, validate_ix = _fit_model(step)
     return step["fold"], step["trial"], model.score(
-        X=step["features"][validate_ix],
+        X=_prepare_features(features=step["features"], sample_ix=validate_ix, transform=step["transform"]),
         y=step["target"][validate_ix],
         sample_weight=step["weights"][validate_ix] if step["weights"] is not None else None
     )
 
 
-def _fit_model(step):  # pragma: no cover
+def _prepare_features(features, sample_ix, transform):
+    """Prepare feature matrix for model fitting or scoring.
+
+    :param features: see docstring of select_hyperparameters() for details
+    :param sample_ix: 1D numpy boolean array with one element per row of features; indicate rows to include in output
+    :param transform: a fitted sklearn transformer or None
+    :return: feature matrix reduced to relevant samples and transformed if applicable
+    """
+    features = features[sample_ix, :]
+    if transform is not None:
+        features = transform.transform(features)
+    return features
+
+
+def _fit_model(step):
     """Fit model using one set of hyperparameters.
 
     :param step: see docstring of _fit_stage_1() for details
     :return: fitted model and 1D numpy bool array indicating the validation fold
     """
-    model = step["model"].set_params(**{step["prefix"] + key: value for key, value in step["parameters"].items()})
-    model.fit(**{
-        "X": step["features"][step["train_ix"]],
-        "y": step["target"][step["train_ix"]],
-        step["prefix"] + "sample_weight": step["weights"][step["train_ix"]] if step["weights"] is not None else None
-    })
-    return model, np.logical_not(step["train_ix"])
+    model = step["model"].set_params(**step["parameters"])
+    target, use_ix = _get_first_chunk(target=step["target"], train_ix=step["train_ix"], chunker=step["chunker"])
+    model.fit(
+        X=_prepare_features(features=step["features"], sample_ix=use_ix, transform=step["transform"]),
+        y=target,
+        sample_weight=step["weights"][use_ix] if step["weights"] is not None else None
+    )
+    return model, np.logical_not(step["train_ix"])  # validation fold is not affected by chunking
+
+
+def _get_first_chunk(target, train_ix, chunker):
+    """Provide reduced target vector and index for first chunk of training data to be processed.
+
+    :param target: numpy array; target for supervised learning; dimension and data type depend on model
+    :param train_ix: 1D numpy boolean array; indicator vector of training samples
+    :param chunker: an sklearn splitter or None
+    :return: two return values:
+        - numpy array; target reduced to samples of first chunk
+        - 1D numpy boolean array; indicator vector for samples of first chunk
+    """
+    target = target[train_ix]
+    if chunker is not None:
+        chunk_ix = chunker.split(X=np.zeros((target.shape[0], 0)), y=target).__next__()[1]
+        target = target[chunk_ix]
+        train_ix = _update_index(sample_ix=train_ix, subset_ix=chunk_ix)
+    return target, train_ix
+
+
+def _update_index(sample_ix, subset_ix):
+    """Reduce index vector to subset.
+
+    :param sample_ix: 1D numpy boolean array; original index vector
+    :param subset_ix: 1D numpy integer array; index vector indicating which of the True entries in sample_ix to keep
+    :return: 1D numpy boolean array of same length as sample_ix; reduced index vector
+    """
+    keep_ix = np.nonzero(sample_ix)[0][subset_ix]
+    sample_ix = np.zeros_like(sample_ix)
+    sample_ix[keep_ix] = True
+    return sample_ix
 
 
 def _collect_stage_1(results, num_folds, trials):
@@ -523,13 +727,14 @@ def _fake_stage_1(lambda_v, lambda_w):
     }
 
 
-def _execute_stage_2(settings, features, target, weights):  # pragma: no cover
+def _execute_stage_2(settings, features, target, weights, cv_groups):
     """Execute search stage 2 for number of batches.
 
     :param settings: dict; as return value of process_select_settings()
     :param features: see docstring of select_hyperparameters() for details
-    :param target: see docstring of select_hyperparameters() for details
+    :param target: numpy array; target for supervised learning; dimension and data type depend on model
     :param weights: see docstring of select_hyperparameters() for details
+    :param cv_groups: as return value of _process_cv_groups()
     :return: dict with the following fields:
         - num_batch_grid: as field 'num_batch_grid' of settings
         - scores: 1D numpy float array; mean scores corresponding to num_batch_grid
@@ -537,7 +742,9 @@ def _execute_stage_2(settings, features, target, weights):  # pragma: no cover
         - best_index: integer; index for best score
         - selected_index: integer; index for selected score
     """
-    stage_2_plan = _make_stage_2_plan(settings=settings, features=features, target=target, weights=weights)
+    stage_2_plan = _make_stage_2_plan(
+        settings=settings, features=features, target=target, weights=weights, cv_groups=cv_groups
+    )
     stage_2 = _execute_plan(
         plan=stage_2_plan,
         num_jobs=settings["num_jobs"],
@@ -547,60 +754,131 @@ def _execute_stage_2(settings, features, target, weights):  # pragma: no cover
     return _evaluate_stage_2(scores=stage_2, num_batch_grid=settings["num_batch_grid"])
 
 
-def _make_stage_2_plan(settings, features, target, weights):
+def _make_stage_2_plan(settings, features, target, weights, cv_groups):
     """Create cross-validation plan for stage 2.
 
     :param settings: dict; as return value of _process_select_settings()
     :param features: see docstring of select_hyperparameters() for details
-    :param target: see docstring of select_hyperparameters() for details
+    :param target: numpy array; target for supervised learning; dimension and data type depend on model
     :param weights: see docstring of select_hyperparameters() for details
+    :param cv_groups: as return value of _process_cv_groups()
     :return: lists of dictionaries; each element has the following fields:
-        - model: as input
+        - model: a deep copy of field "model" from settings
+        - transform: a transform as specified in field "transform" of settings, already fitted to features[train_ix, :]
         - features: as input
         - target: as input
         - weights: as input
         - num_batch_grid: as input
-        - prefix: as input
         - train_ix: 1D numpy boolean array; indicator vector for the training set
-        - parameters: dict of hyperparameters to be used for fitting; this function specifies n_iter and random_state
+        - parameters: dict of hyperparameters to be used for fitting; this function specifies n_iter, solver_factr, and
+          random_state
+        - chunker: an sklearn splitter for settings["chunks"] folds or None if settings["chunks"] = 1; stratified K-fold
+          splitter if model is a classifier, ordinary K-fold else
     """
     n_iter = settings["num_batch_grid"][-1]
     states = _sample_random_state(size=settings["splitter"].n_splits, random_state=settings["random_state"])
-    train_ix = _make_train_ix(features=features, target=target, splitter=settings["splitter"])
+    train_ix = _make_train_ix(features=features, target=target, cv_groups=cv_groups, splitter=settings["splitter"])
+    transforms = _make_transforms(features=features, train_ix=train_ix, transform=settings["transform"])
+    # pre-fit transformers to avoid refitting for every experiment; transformed features are not stored to avoid memory
+    # issues on large problems
     return [{
         "model": deepcopy(settings["model"]),
+        "transform": transforms[i],
         "features": features,
         "target": target,
         "weights": weights,
         "num_batch_grid": settings["num_batch_grid"],
-        "prefix": settings["prefix"],
         "train_ix": train_ix[i],
-        "parameters": {"n_iter": n_iter, "random_state": states[i]}
+        "parameters": {"n_iter": n_iter, "solver_factr": settings["solver_factr"][0], "random_state": states[i]},
+        "chunker": settings["chunker"](
+            n_splits=settings["chunks"], shuffle=True, random_state=states[i]
+        ) if settings["chunks"] > 1 else None
     } for i in range(len(train_ix))]
 
 
-def _fit_stage_2(step):  # pragma: no cover
+def _fit_stage_2(step):
     """Fit model using one set of hyperparameters for cross-validation for stage 2.
 
     :param step: dict; as one element of the return value of _make_stage_2_plan()
     :return: 1D numpy float array; scores for different numbers of batches to be evaluated
     """
-    model, validate_ix = _fit_model(step)
-    if step["prefix"] == "":  # model without transformer can be scored normally
-        return model.score(
-            X=step["features"][validate_ix],
-            y=step["target"][validate_ix],
-            sample_weight=step["weights"][validate_ix] if step["weights"] is not None else None,
-            n_iter=step["num_batch_grid"]
-        )
-    features = model["transform"].transform(step["features"][validate_ix])
-    # sklearn pipeline does not support passing custom parameters to the score function so break it apart
-    return model["model"].score(
-        X=features,
+    if step["chunker"] is None:
+        model, validate_ix = _fit_model(step)
+    else:
+        model, validate_ix = _fit_model_chunked(step)
+    return model.score(
+        X=_prepare_features(features=step["features"], sample_ix=validate_ix, transform=step["transform"]),
         y=step["target"][validate_ix],
         sample_weight=step["weights"][validate_ix] if step["weights"] is not None else None,
         n_iter=step["num_batch_grid"]
     )
+
+
+def _fit_model_chunked(step):
+    """Fit model with multiple batches using chunking strategy.
+
+    :param step: dict; as one element of the return value of _make_stage_2_plan(); field 'chunker' must not be None
+    :return: two return values:
+        - fitted proset model object
+        - 1D numpy boolean array; indicator vector of validation fold
+    """
+    model = _add_chunks(
+        model=step["model"].set_params(**step["parameters"]),
+        transform=step["transform"],
+        features=step["features"],
+        target=step["target"],
+        weights=step["weights"],
+        train_ix=step["train_ix"],
+        num_batches=step["parameters"]["n_iter"],
+        chunker=step["chunker"],
+        return_ix=False
+    )
+    return model, np.logical_not(step["train_ix"])  # validation fold is not affected by chunking
+
+
+def _add_chunks(model, transform, features, target, weights, train_ix, num_batches, chunker, return_ix):
+    """Iteratively add subsets of the training data to a proset model.
+
+    :param model: see return value of _make_stage_2_plan() for details
+    :param transform: see return value of _make_stage_2_plan() for details
+    :param features: see return value of _make_stage_2_plan() for details
+    :param target: see return value of _make_stage_2_plan() for details
+    :param weights: see return value of _make_stage_2_plan() for details
+    :param train_ix: see return value of _make_stage_2_plan() for details
+    :param num_batches: see return value of _make_stage_2_plan() for details
+    :param chunker: see return value of _make_stage_2_plan() for details
+    :param return_ix: boolean; whether to return the list of sample indices for each chunk as second return value
+    :return: two return values:
+        - model as input, after fitting
+        - list of 1D numpy integer arrays; list of index vectors for each chunk; only provided if return_ix is True
+    """
+    target = target[train_ix]
+    model.set_params(n_iter=0)  # initialize model with marginal probabilities
+    model.fit(
+        X=_prepare_features(features=features, sample_ix=train_ix, transform=transform),
+        y=target,
+        sample_weight=weights[train_ix] if weights is not None else None,
+    )
+    model.set_params(n_iter=1)  # now add batches separately
+    chunks = []
+    collect_ix = [] if return_ix else None
+    for _ in range(num_batches):
+        if not chunks:  # split training data into chunks
+            chunks = list(chunker.split(X=np.zeros((target.shape[0], 0)), y=target))
+            chunks = [chunk[1] for chunk in chunks]  # keep only validation fold indices which define disjoint sets
+        chunk_ix = chunks.pop()
+        use_ix = _update_index(sample_ix=train_ix, subset_ix=chunk_ix)
+        if return_ix:
+            collect_ix.append(np.nonzero(use_ix)[0])
+        model.fit(
+            X=_prepare_features(features=features, sample_ix=use_ix, transform=transform),
+            y=target[chunk_ix],
+            sample_weight=weights[use_ix] if weights is not None else None,
+            warm_start=True  # keep adding batches
+        )
+    if return_ix:
+        return model, collect_ix
+    return model
 
 
 def _evaluate_stage_2(scores, num_batch_grid):
@@ -634,3 +912,47 @@ def _fake_stage_2(num_batch_grid):
         "best_index": 0,
         "selected_index": 0
     }
+
+
+def _make_final_model(
+        settings,
+        features,
+        target,
+        weights
+):
+    """Fit model on all available data with selected hyperparameters.
+
+    :param settings: as return value of _process_select_settings()
+    :param features: see docstring of select_hyperparameters() for details
+    :param target: numpy array; target for supervised learning; dimension and data type depend on model
+    :param weights: see docstring of select_hyperparameters() for details
+    :return: two return values:
+        - machine learning model; if settings["transform"] is None, returns settings["model"] after fitting; else,
+          returns ans sklearn Pipeline object containing the fitted transform and model
+        - list of 1D numpy integer arrays or None; index vectors of chunks if settings['chunks'] > 1; else None
+    """
+    if settings["transform"] is not None:
+        settings["transform"].fit(features)
+    if settings["chunks"] == 1:
+        if settings["transform"] is not None:
+            features = settings["transform"].transform(features)
+        settings["model"].fit(X=features, y=target, sample_weight=weights)
+        chunk_ix = None
+    else:
+        num_batches = settings["model"].get_params()["n_iter"]
+        settings["model"], chunk_ix = _add_chunks(
+            model=settings["model"].set_params(n_iter=1),
+            transform=settings["transform"],
+            features=features,
+            target=target,
+            weights=weights,
+            train_ix=np.ones(features.shape[0], dtype=bool),
+            num_batches=num_batches,
+            chunker=settings["chunker"](
+                n_splits=settings["chunks"], shuffle=True, random_state=settings["random_state"]
+            ),
+            return_ix=True
+        )
+    if settings["transform"] is not None:
+        return Pipeline([("transform", settings["transform"]), ("model", settings["model"])]), chunk_ix
+    return settings["model"], chunk_ix

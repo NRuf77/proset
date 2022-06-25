@@ -53,6 +53,14 @@ experiments = (
         "select_para": {
             "lambda_v_range": 5.47739482e-03, "lambda_w_range": 8.30316381e-08, "num_batch_grid": np.array([1])
         }
+    }),
+    ("cancer_timing_1e7_model", {  # as cancer_2d_95_model with solver_factr fixed to 1e7 for timing purposes
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"solver_factr": 1e7}
+    }),
+    ("cancer_timing_1e10_model", {  # as cancer_2d_95_model with solver_factr fixed to 1e7 for timing purposes
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"solver_factr": 1e10}
     })
 )
 print("  Select experiment")

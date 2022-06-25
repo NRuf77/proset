@@ -6,7 +6,8 @@ max-module-lines=2000
 max-line-length=120
 
 [BASIC]
-good-names=i,
+good-names=d,
+           i,
            j,
 		   x,
 		   y,
@@ -16,7 +17,7 @@ good-names=i,
 		   ix
 
 [SIMILARITIES]
-min-similarity-lines=15  # longest block with false positive duplicate-code has 15 lines
+min-similarity-lines=45  # longest block with false positive duplicate-code has 44 lines
 
 [MESSAGES CONTROL]
 disable=logging-format-interpolation,

@@ -53,6 +53,14 @@ experiments = (
         "select_para": {
             "lambda_v_range": 3.81836792e-05, "lambda_w_range": 6.89780867e-09, "num_batch_grid": np.array([5])
         }
+    }),
+    ("wine_timing_1e7_model", {  # as wine_2d_95_model with solver_factr fixed to 1e7 for timing purposes
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"solver_factr": 1e7}
+    }),
+    ("wine_timing_1e10_model", {  # as wine_2d_95_model with solver_factr fixed to 1e10 for timing purposes
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"solver_factr": 1e10}
     })
 )
 print("  Select experiment")

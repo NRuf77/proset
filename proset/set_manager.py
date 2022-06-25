@@ -14,14 +14,17 @@ from sklearn.metrics import pairwise_distances
 import proset.shared as shared
 
 
-MERGE_TOL = 1e-8
+MERGE_TOL = 1e-6
 # two prototypes are considered identical and suitable for merging if the maximum absolute difference across all feature
 # and target values is at most equal to this value
+MAX_SAMPLES_FOR_SCORING = 10000  # score no more than this many samples at a time to avoid out-of-memory errors
 
 
 class SetManager(metaclass=ABCMeta):
     """Abstract base class for set managers.
     """
+
+    _target_type = None  # data type of target depends on subclass
 
     def __init__(self, target):
         """Initialize set manager.
@@ -44,7 +47,7 @@ class SetManager(metaclass=ABCMeta):
         """Compute baseline distribution parameters from target for supervised learning.
 
         :param target: see docstring of __init__() for details
-        :return: dict; contains information regarding the baseline information that depends on the model
+        :return: dict; contains information regarding the baseline distribution that depends on the model
         """
         return NotImplementedError(
             "Abstract base class SetManager has no default implementation for method _get_baseline_distribution()."
@@ -141,16 +144,16 @@ class SetManager(metaclass=ABCMeta):
         """Add batch of prototypes.
 
         :param batch_info: dict with the following fields:
-            - prototypes: 2D numpy float array; feature matrix of prototypes; sparse matrices or infinite/missing values
-              not supported
+            - prototypes: 2D numpy array of type specified by shared.FLOAT_TYPE; feature matrix of prototypes; sparse
+              matrices or infinite/missing values not supported
             - target: 1D numpy array; target for supervised learning; must have as many elements as prototypes has rows
-            - feature_weights: 1D numpy float array; feature_weights for the batch; must have as many elements as
-              prototypes has columns; elements must not be negative
-            - prototype_weights: 1D numpy float array; prototype weights for the batch; must have as many elements as
-              prototypes has rows; elements must not be negative
+            - feature_weights: 1D numpy array of type specified by shared.FLOAT_TYPE; feature_weights for the batch;
+              must have as many elements as prototypes has columns; elements must not be negative
+            - prototype_weights: 1D numpy array of type specified by shared.FLOAT_TYPE; prototype weights for the batch;
+              must have as many elements as prototypes has rows; elements must not be negative
             - sample_index: 1D numpy integer array; indices of prototypes in training sample; must have as many elements
               as prototypes has rows
-        :return: no return arguments; internal state updated with new batch
+        :return: no return values; internal state updated with new batch
         """
         self._meta["num_features"] = self._check_batch(batch_info=batch_info, meta=self._meta)
         self._batches.append(self._process_batch(batch_info))
@@ -169,6 +172,7 @@ class SetManager(metaclass=ABCMeta):
             raise ValueError("Parameter prototypes has {} columns but {} are expected.".format(
                 batch_info["prototypes"].shape[1], meta["num_features"]
             ))
+        shared.check_float_array(x=batch_info["prototypes"], name="prototypes")
         if len(batch_info["target"].shape) != 1:
             raise ValueError("Parameter target must be a 1D array.")
         if batch_info["target"].shape[0] != batch_info["prototypes"].shape[0]:
@@ -177,10 +181,12 @@ class SetManager(metaclass=ABCMeta):
             raise ValueError("Parameter feature_weights must be a 1D array.")
         if batch_info["feature_weights"].shape[0] != batch_info["prototypes"].shape[1]:
             raise ValueError("Parameter feature_weights must have as many elements as prototypes has columns.")
+        shared.check_float_array(x=batch_info["feature_weights"], name="feature_weights")
         if len(batch_info["prototype_weights"].shape) != 1:
             raise ValueError("Parameter prototype_weights must be a 1D array.")
         if batch_info["prototype_weights"].shape[0] != batch_info["prototypes"].shape[0]:
             raise ValueError("Parameter prototype_weights must have as many elements as prototypes has rows.")
+        shared.check_float_array(x=batch_info["prototype_weights"], name="prototype_weights")
         if len(batch_info["sample_index"].shape) != 1:
             raise ValueError("Parameter sample_index must be a 1D array.")
         if not np.issubdtype(batch_info["sample_index"].dtype, np.integer):
@@ -199,12 +205,14 @@ class SetManager(metaclass=ABCMeta):
             dict contains the information describing the batch in reduced form, taking advantage of sparseness; the
             following keys and values are included:
             - active_features: 1D numpy integer array; index vector of features with non-zero feature weights
-            - scaled_prototypes: 2D numpy float array; prototypes reduced to active prototypes and features, scaled with
-                feature weights
-            - ssq_prototypes: 1D numpy float array; row sums of scaled prototypes
+            - scaled_prototypes: 2D numpy array of type specified by shared.FLOAT_TYPE; prototypes reduced to active
+              prototypes and features, scaled with feature weights
+            - ssq_prototypes: 1D numpy array of type specified by shared.FLOAT_TYPE; row sums of scaled prototypes
             - target: 1D numpy array; target values corresponding to scaled prototypes
-            - feature_weights: 1D numpy float array; feature weights reduced to active features
-            - prototype_weights: 1D numpy float array; prototype weights reduced to active prototypes
+            - feature_weights: 1D numpy array of type specified by shared.FLOAT_TYPE; feature weights reduced to active
+              features
+            - prototype_weights: 1D numpy array of type specified by shared.FLOAT_TYPE; prototype weights reduced to
+              active prototypes
             - sample_index: 1D numpy integer array; sample indices reduced to active prototypes
         """
         if np.all(batch_info["prototype_weights"] == 0.0):
@@ -216,9 +224,10 @@ class SetManager(metaclass=ABCMeta):
         target = batch_info["target"][active_prototypes]
         prototype_weights = batch_info["prototype_weights"][active_prototypes]
         sample_index = batch_info["sample_index"][active_prototypes]
-        relation = np.nonzero(
-            pairwise_distances(X=np.hstack([scaled_prototypes, target[:, np.newaxis]]), metric="chebyshev") <= MERGE_TOL
-        )  # find all pairs of features and target that are identical within tolerance
+        relation = np.nonzero(pairwise_distances(X=np.hstack([
+            scaled_prototypes, target[:, np.newaxis].astype(**shared.FLOAT_TYPE)
+        ]), metric="chebyshev") <= MERGE_TOL)
+        # find all pairs of features and target that are identical within tolerance
         num_labels, labels = connected_components(
             csgraph=sparse.coo_matrix((np.ones_like(relation[0]), (relation[0], relation[1]))),
             directed=False,
@@ -246,14 +255,16 @@ class SetManager(metaclass=ABCMeta):
     def evaluate_unscaled(self, features, num_batches):
         """Compute unscaled predictions and scaling vector.
 
-        :param features: 2D numpy float array; feature matrix for which to compute unscaled predictions and scales
+        :param features: 2D numpy array of type specified by shared.FLOAT_TYPE; feature matrix for which to compute
+            unscaled predictions and scales
         :param num_batches: non-negative integer, 1D numpy array of non-negative and strictly increasing integers, or
             None; number of batches to use for evaluation; pass None for all batches; pass an array to evaluate for
             multiple values of num_batches at once
-        :return: list of tuples; each tuple consists of two numpy arrays; the first array is either 1D or 2D and
-            has the same first dimension as features; it represents the unscaled predictions (class probabilities or
-            regression means); the second array is the corresponding scaling vector; if an integer is passed for
-            num_batches, the list has length 1; else, the list has one element per element of num_batches
+        :return: list of tuples; each tuple consists of two numpy arrays of type specified by shared.FLOAT_TYPE; the
+            first array is either 1D or 2D and has the same first dimension as features; it represents the unscaled
+            predictions (class probabilities or regression means); the second array is the corresponding scaling vector;
+            if an integer is passed for num_batches, the list has length 1; else, the list has one element per element
+            of num_batches
         """
         num_batches = self._check_evaluate_input(
             features=features,
@@ -262,20 +273,33 @@ class SetManager(metaclass=ABCMeta):
             permit_array=True,
             meta=self._meta
         )
-        impact, target, batch_index = self._compute_impact(
-            features=features,
-            batches=self._batches,
-            num_batches=num_batches[-1] if isinstance(num_batches, np.ndarray) else num_batches,
-            # evaluate impact up the batch with the largest index requested
-            meta=self._meta
-        )
-        return self._convert_to_unscaled(
-            impact=impact,
-            target=target,
-            batch_index=batch_index,
-            num_batches=num_batches,
-            meta=self._meta
-        )
+        if not isinstance(num_batches, np.ndarray):
+            num_batches = np.array([num_batches])
+        ranges = self._get_sample_ranges(features.shape[0])
+        unscaled, scale = self._get_baseline(num_samples=features.shape[0], meta=self._meta)
+        result_unscaled = []
+        result_scale = []
+        if 0 in num_batches:
+            result_unscaled.append(unscaled)
+            result_scale.append(scale)
+        for i in range(num_batches[-1]):  # evaluate up to the largest number of batches requested
+            if self._batches[i] is not None:
+                new_unscaled = []
+                new_scale = []
+                for j in range(ranges.shape[0] - 1):
+                    range_unscaled, range_scale = self._get_batch_contribution(
+                        features=features[ranges[j]:ranges[j + 1], :],
+                        batch=self._batches[i],
+                        meta=self._meta
+                    )
+                    new_unscaled.append(range_unscaled)
+                    new_scale.append(range_scale)
+                unscaled = unscaled + shared.stack_first(new_unscaled)
+                scale = scale + np.hstack(new_scale)
+            if i + 1 in num_batches:
+                result_unscaled.append(unscaled)
+                result_scale.append(scale)
+        return [(result_unscaled[i], result_scale[i]) for i in range(len(result_unscaled))]
 
     @classmethod
     def _check_evaluate_input(cls, features, num_batches, num_batches_actual, permit_array, meta):
@@ -295,82 +319,63 @@ class SetManager(metaclass=ABCMeta):
             raise ValueError("Parameter features has {} columns but {} are expected.".format(
                 features.shape[1], meta["num_features"]
             ))
+        shared.check_float_array(x=features, name="features")
         return cls._check_num_batches(
             num_batches=num_batches, num_batches_actual=num_batches_actual, permit_array=permit_array
         )
 
     @staticmethod
-    def _compute_impact(features, batches, num_batches, meta):
-        """Compute impact of each prototype on each sample.
+    def _get_sample_ranges(num_samples):
+        """Determine ranges of samples to be scored together.
 
-        :param features: see docstring of evaluate_unscaled() for details
-        :param batches: list of dicts as generated by _process_batch()
-        :param num_batches: non-negative integer; number of batches used for computation
-        :param meta: dict; must contain key 'num_features' referencing number of features, unless batches is the empty
-            list or num_batches is 0
-        :return: three numpy arrays:
-            - 2D array of positive floats with one row per sample and one column per prototype from the batches used;
-              contains the impact of each prototype on the prediction of each sample
-            - 1D array with target values for the prototypes
-            - 1D array of non-negative integers; batch index
+        :param num_samples: positive integer; number of samples
+        :return: 1D numpy integer array; starting points of ranges in increasing order, plus a final value that is one
+            greater than the number of samples
         """
-        if len(batches) == 0 or num_batches == 0:  # default model is independent of prototypes
-            return np.zeros((features.shape[0], 0), dtype=float), np.zeros(0, dtype=float), np.zeros(0, dtype=int)
-            # dtype=float is wrong for a classifier target but that does not matter for empty matrices
-        impact = []
-        target = []
-        batch_index = []
-        for i in range(num_batches):
-            if batches[i] is not None:
-                if batches[i]["active_features"].shape[0] == 0:  # no active features means a global adjustment
-                    new_impact = np.tile(batches[i]["prototype_weights"], (features.shape[0], 1))
-                else:
-                    if batches[i]["active_features"].shape[0] == meta["num_features"]:  # no need to reduce input
-                        scaled_features = features * batches[i]["feature_weights"]
-                    else:  # reduce input to active features
-                        scaled_features = features[:, batches[i]["active_features"]] * batches[i]["feature_weights"]
-                        # broadcast scaling across rows
-                    new_impact = shared.quick_compute_similarity(
-                        scaled_reference=scaled_features,
-                        scaled_prototypes=batches[i]["scaled_prototypes"],
-                        ssq_reference=np.sum(scaled_features ** 2.0, axis=1),
-                        ssq_prototypes=batches[i]["ssq_prototypes"]
-                    ) * batches[i]["prototype_weights"]
-                impact.append(new_impact)
-                target.append(batches[i]["target"])
-                batch_index.append(i * np.ones(new_impact.shape[1], dtype=int))
-        if len(impact) == 0:  # all batches are empty
-            return np.zeros((features.shape[0], 0), dtype=float), np.zeros(0, dtype=float), np.zeros(0, dtype=int)
-        return np.hstack(impact), np.hstack(target), np.hstack(batch_index)
+        num_ranges = int(np.ceil(num_samples / MAX_SAMPLES_FOR_SCORING))
+        return np.hstack([np.arange(num_ranges) * int(np.ceil(num_samples / num_ranges)), num_samples])
+
+    @staticmethod
+    @abstractmethod
+    def _get_baseline(num_samples, meta):  # pragma: no cover
+        """Provide unscaled estimate and scaling for a model with zero batches.
+
+        :param num_samples: positive integer; number of samples
+        :param meta: dict; content depends on subclass implementation
+        :return: two numpy arrays as a single pair of return values from evaluate_unscaled()
+        """
+        raise NotImplementedError(
+            "Abstract base class SetManager has no default implementation for method _get_baseline()."
+        )
 
     @classmethod
     @abstractmethod
-    def _convert_to_unscaled(cls, impact, target, batch_index, num_batches, meta):  # pragma: no cover
-        """Convert impact and target to unscaled predictions and scaling vector.
+    def _get_batch_contribution(cls, features, batch, meta):  # pragma: no cover
+        """Compute contribution of a single batch to the prediction for one set of features.
 
-        :param impact: as first return value of _compute_impact()
-        :param target: as second return value of _compute_impact()
-        :param batch_index: as third return value of _compute_impact()
-        :param num_batches: non-negative integer or 1D numpy array of strictly increasing integers; number of batches to
-            use for evaluation; pass an array to evaluate for multiple values of num_batches at once
-        :param meta: dict; properties of the fitting problem that may depend on the subclass
-        :return: as return argument of evaluate_unscaled()
+        :param features: see docstring of evaluate_unscaled() for details
+        :param batch: as return value of _process_batch(); None not allowed
+        :param meta: dict; content depends on subclass implementation
+        :return: two numpy arrays as a single pair of return values from evaluate_unscaled()
         """
         raise NotImplementedError(
-            "Abstract base class SetManager has no default implementation for method _compute_unscaled()."
+            "Abstract base class SetManager has no default implementation for method _get_batch_contribution()."
         )
 
     def evaluate(self, features, num_batches, compute_familiarity):
         """Compute scaled predictions.
 
-        :param features: 2D numpy float array; feature matrix for which to compute scaled predictions
+        :param features: 2D numpy array of type specified by shared.FLOAT_TYPE; feature matrix for which to compute
+            scaled predictions
         :param num_batches: non-negative integer, 1D numpy array of non-negative and strictly increasing integers, or
             None; number of batches to use for evaluation; pass None for all batches; pass an array to evaluate for
             multiple values of num_batches at once
         :param compute_familiarity: boolean; whether to compute the familiarity for each sample
-        :return: list of numpy arrays; each array is either 1D or 2D with the same first dimension as features and
-            contains predictions (class probabilities or regression means); if an integer is passed for num_batches, the
-            list has length 1; else, the list has one element per element of num_batches
+        :return: one or two lists of numpy arrays of type specified by shared.FLOAT_TYPE; in the first list, each array
+            is either 1D or 2D with the same first dimension as features and contains predictions (class probabilities
+            or regression means); if an integer is passed for num_batches, the list has length 1; else, the list has one
+            element per element of num_batches; the second list is only generated if compute_familiarity = True and
+            contains 1D arrays with familiarity scores matching the predictions in the first list
         """
         unscaled = self.evaluate_unscaled(features, num_batches)
         scaled = [(pair[0].transpose() / pair[1]).transpose() for pair in unscaled]
@@ -384,9 +389,9 @@ class SetManager(metaclass=ABCMeta):
 
         :param num_batches: non-negative integer or None; number of batches to export; pass None for all batches
         :return: dict with keys:
-            - weight_matrix: 2D numpy float array; this has one row per batch and once column per feature that is active
-              in at least one batch; features are sorted in order of descending weight for the first row, using
-              subsequent rows as tie-breaker
+            - weight_matrix: 2D numpy array of type specified by shared.FLOAT_TYPE; this has one row per batch and one
+              column per feature that is active in at least one batch; features are sorted in order of descending weight
+              for the first row, using subsequent rows as tie-breaker
             - feature_index: 1D numpy integer array; index vector indicating the order of features
         """
         num_batches = self._check_num_batches(
@@ -395,12 +400,12 @@ class SetManager(metaclass=ABCMeta):
         active_features = self.get_active_features(num_batches)
         if active_features.shape[0] == 0:
             return {
-                "weight_matrix": np.zeros((num_batches, 0)),
+                "weight_matrix": np.zeros((num_batches, 0), **shared.FLOAT_TYPE),
                 "feature_index": np.zeros(0, dtype=int)
             }
         weight_matrix = []
         for i in range(num_batches):
-            new_row = np.zeros(len(active_features))
+            new_row = np.zeros(len(active_features), **shared.FLOAT_TYPE)
             if self._batches[i] is not None:
                 new_row[
                     np.searchsorted(active_features, self._batches[i]["active_features"])
@@ -416,16 +421,17 @@ class SetManager(metaclass=ABCMeta):
     def get_batches(self, features=None, num_batches=None):
         """Get batch information.
 
-        :param features: 2D numpy float array with a single row or None; if not None, per-feature similarities are
-            computed between features and each prototype
+        :param features: 2D numpy array of type specified by shared.FLOAT_TYPE with a single row or None; if not None,
+            per-feature similarities are computed between features and each prototype
         :param num_batches: non-negative integer or None; number of batches to export; pass None for all batches
         :return: list whose elements are either dicts or None; None indicates the batch in this position contains no
             prototypes; each dict has the following fields:
             - active_features: 1D numpy integer array; index vector of features with non-zero feature weights
-            - prototypes: 2D numpy float array; prototypes reduced to active features
+            - prototypes: 2D numpy array of type specified by shared.FLOAT_TYPE; prototypes reduced to active features
             - target: 1D numpy array; target values corresponding to scaled prototypes
-            - feature_weights: 1D numpy float array; feature weights reduced to active features
-            - prototype_weights: 1D numpy float array; prototype weights
+            - feature_weights: 1D numpy array of type specified by shared.FLOAT_TYPE; feature weights reduced to active
+              features
+            - prototype_weights: 1D numpy array of type specified by shared.FLOAT_TYPE; prototype weights
             - sample_index: 1D numpy integer array; sample indices for prototypes
             - similarities: 2D numpy array; per-feature similarities between the input features and each prototype; one
               row per prototype and one column per active feature; this field is not included if features is None
@@ -466,7 +472,7 @@ class SetManager(metaclass=ABCMeta):
         :param meta: dict; must have key 'num_features' but can store None value if not determined yet
         :return: two return values:
             - non-negative integer; num_batches or num_batches_actual if the former is None
-            - 1D numpy float array or None; features converted to a 1D array if not None
+            - 1D numpy array of type specified by shared.FLOAT_TYPE or None; features converted to 1D array if not None
             raises an error if a check fails
         """
         if features is None:
@@ -492,8 +498,8 @@ class SetManager(metaclass=ABCMeta):
     def _compute_feature_similarities(prototypes, features, feature_weights):
         """Compute per-feature similarities between prototypes and a single reference sample.
 
-        :param prototypes: 2D numpy float array; prototypes
-        :param features: 1D numpy float array; features for reference sample
+        :param prototypes: 2D numpy array of type specified by shared.FLOAT_TYPE; prototypes
+        :param features: 1D numpy array of type specified by shared.FLOAT_TYPE; features for reference sample
         :param feature_weights: 1D numpy array of non-negative floats; feature weights
         :return: as the value for key 'similarities' in the output of get_batches()
         """
@@ -520,21 +526,25 @@ class ClassifierSetManager(SetManager):
     """Set manager class for proset classifier
     """
 
+    _target_type = {"dtype": int}
+
     @staticmethod
     def _get_baseline_distribution(target):
         """Compute baseline distribution parameters from target for classification.
 
-        :param target: see docstring of __init__() for details
-        :return: dict; contains information regarding the baseline information that depends on the model
+        :param target: 1D numpy integer array; class labels encoded as integers from 0 to K - 1
+        :return: dict with key 'marginals' containing a 1D numpy array of type specified by shared.FLOAT_TYPE with the
+            marginal distribution of the classes
         """
         counts = shared.check_classifier_target(target)
-        return {"marginals": counts / np.sum(counts)}
+        return {"marginals": (counts / np.sum(counts)).astype(**shared.FLOAT_TYPE)}
 
     @property
     def marginals(self):
         """Get marginal probabilities.
 
-        :return: 1D numpy float array; marginal class probabilities as values in (0.0, 1.0)
+        :return: 1D numpy array of type specified by shared.FLOAT_TYPE; marginal class probabilities as values in
+            (0.0, 1.0)
         """
         # noinspection PyUnresolvedReferences
         return self._meta["marginals"].copy()
@@ -543,10 +553,11 @@ class ClassifierSetManager(SetManager):
     def _check_batch(batch_info, meta):
         """Check batch definition for consistent dimensions.
 
-        :param batch_info: see docstring of SetManager.add_batch() for details
+        :param batch_info: see docstring of SetManager._check_batch() for details
         :param meta: dict; must have key 'num_features' but can store None value if not determined yet; must have key
-            'marginals' containing a 1D numpy float array with the marginal distribution of the classes
-        :return: integer; number of features; raises a ValueError if a check fails
+            'marginals' containing a 1D numpy array of type specified by shared.FLOAT_TYPE with the marginal
+            distribution of the classes
+        :return: as return value of SetManager._check_batch()
         """
         if not np.issubdtype(batch_info["target"].dtype, np.integer):
             raise TypeError("Parameter target must have integer elements.")
@@ -554,52 +565,43 @@ class ClassifierSetManager(SetManager):
             raise ValueError("Parameter target must encode the classes as integers from 0 to K - 1.")
         return SetManager._check_batch(batch_info=batch_info, meta=meta)
 
-    @classmethod
-    def _convert_to_unscaled(cls, impact, target, batch_index, num_batches, meta):
-        """Convert impact and target to unscaled class probabilities and scaling vector.
-
-        :param impact: as first return value of SetManager._compute_impact()
-        :param target: as second return value of SetManager._compute_impact()
-        :param batch_index: as third return value of SetManager._compute_impact()
-        :param num_batches: non-negative integer or 1D numpy array of strictly increasing integers; number of batches to
-            use for evaluation; pass an array to evaluate for multiple values of num_batches at once
-        :param meta: dict; must have key 'marginals' referencing a 1D numpy float array of marginal class probabilities
-        :return: as return argument of SetManager.evaluate_unscaled()
-        """
-        if not isinstance(num_batches, np.ndarray):
-            num_batches = np.array([num_batches])
-        sort_ix = np.argsort(target)
-        # reduceat() used by _compute_update() requires prototypes with the same target value grouped together
-        impact = impact[:, sort_ix]
-        target = target[sort_ix]
-        probabilities = np.tile(meta["marginals"], (impact.shape[0], 1))
-        if num_batches.shape[0] == 1:
-            if impact.shape[1] > 0:
-                update, cols = cls._compute_update(impact, target)
-                probabilities[:, cols] += update
-            return [(probabilities, np.sum(probabilities, axis=1))]
-        batch_index = batch_index[sort_ix]
-        collect = []
-        for i in range(num_batches.shape[0]):
-            batch_from = num_batches[i - 1] if i > 0 else 0
-            use_ix = np.logical_and(batch_index >= batch_from, batch_index < num_batches[i])
-            if np.any(use_ix):
-                update, cols = cls._compute_update(impact[:, use_ix], target[use_ix])
-                probabilities[:, cols] += update
-            collect.append(probabilities.copy() if i < num_batches.shape[0] - 1 else probabilities)
-            # except for the final iteration, copy the state of probabilities while the original array gets updated in
-            # the next iteration
-        return [(p, np.sum(p, axis=1)) for p in collect]
-
     @staticmethod
-    def _compute_update(impact, target):
-        """Compute update to unscaled probabilities.
+    def _get_baseline(num_samples, meta):
+        """Provide unscaled estimate and scaling for a model with zero batches.
 
-        :param impact: as first return value of SetManager._compute_impact(); must be ordered to match target
-        :param target: as second return value of SetManager._compute_impact(); must be in ascending order
-        :return: two numpy arrays; 2D numpy array of non-negative floats containing increments to be added to unscaled
-            probabilities; 1D numpy array of non-negative integers indicating the target values corresponding to the
-            columns of the first matrix
+        :param num_samples: positive integer; number of samples
+        :param meta: dict; must have key 'marginals' referencing the marginal distribution of classes
+        :return: two numpy arrays as a single pair of return values from evaluate_unscaled(); unscaled predictions from
+            ClassifierSetManager have a 2D array in first place
         """
-        changes = shared.find_changes(target)
-        return np.add.reduceat(impact, indices=changes, axis=1), np.unique(target)
+        return np.tile(meta["marginals"], (num_samples, 1)).astype(**shared.FLOAT_TYPE), \
+            np.ones(num_samples, **shared.FLOAT_TYPE)
+
+    @classmethod
+    def _get_batch_contribution(cls, features, batch, meta):
+        """Compute contribution of a single batch to the prediction for one set of features.
+
+        :param features: see docstring of evaluate_unscaled() for details
+        :param batch: as return value of _process_batch(); None not allowed
+        :param meta: dict; must have the following keys:
+            - num_features: referencing the expected number of input features
+            - marginals: 1D numpy array of floats in [0.0, 1.0); marginal distributions of the classes
+        :return: two numpy arrays as a single pair of return values from evaluate_unscaled(); unscaled predictions from
+            ClassifierSetManager have a 2D array in first place
+        """
+        if batch["active_features"].shape[0] == meta["num_features"]:  # no need to reduce input
+            scaled_features = features * batch["feature_weights"]
+        else:  # reduce input to active features
+            scaled_features = features[:, batch["active_features"]] * batch["feature_weights"]
+        impact = shared.quick_compute_similarity(
+            scaled_reference=scaled_features,
+            scaled_prototypes=batch["scaled_prototypes"],
+            ssq_reference=np.sum(scaled_features ** 2.0, axis=1),
+            ssq_prototypes=batch["ssq_prototypes"]
+        ) * batch["prototype_weights"]
+        sort_ix = np.argsort(batch["target"])
+        # np.reduceat() requires prototypes with the same target value grouped together
+        changes = shared.find_changes(batch["target"][sort_ix])
+        contribution = np.zeros((features.shape[0], meta["marginals"].shape[0]), **shared.FLOAT_TYPE)
+        contribution[:, np.unique(batch["target"])] = np.add.reduceat(impact[:, sort_ix], indices=changes, axis=1)
+        return contribution, np.sum(contribution, axis=1)

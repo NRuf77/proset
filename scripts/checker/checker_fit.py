@@ -78,6 +78,18 @@ if __name__ == "__main__":  # need import guard in case of parallel processing
             "select_para": {
                 "lambda_v_range": 3.11543410e-05, "lambda_w_range": 4.25802022e-09, "num_batch_grid": np.array([1])
             }
+        }),
+        ("checker_timing_1e7_model", {  # as checker_2d_95_model with solver_factr fixed to 1e7 for timing purposes
+            "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+            "select_para": {"solver_factr": 1e7}
+        }),
+        ("checker_timing_1e10_model", {  # as checker_2d_95_model with solver_factr fixed to 1e10 for timing purposes
+            "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+            "select_para": {"solver_factr": 1e10}
+        }),
+        ("checker_tf_model", {  # as checker_2d_95_model but using tensorflow as compute backend
+            "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000, "use_tensorflow": True},
+            "select_para": {}
         })
     )
     print("  Select experiment")

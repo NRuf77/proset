@@ -27,7 +27,10 @@ input_files = [
     "checker_fix_100_model.gz",
     "checker_fix_300_model.gz",
     "checker_fix_1500_model.gz",
-    "checker_fix_opt_model.gz"
+    "checker_fix_opt_model.gz",
+    "checker_timing_1e7_model.gz",
+    "checker_timing_1e10_model.gz",
+    "checker_tf_model.gz"
 ]
 print("  Select input file:")
 for i, file_name in enumerate(input_files):

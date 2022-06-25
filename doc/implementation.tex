@@ -41,8 +41,8 @@ The script generates all information for kNN on iris data found in Section \ref{
 The script generates all information for XGBoost on iris data reported in Section \ref{sec_classifier_comparison}.
 \end{description}
 %
-Two additional subfolders \texttt{results} and \texttt{reports} contain only dummy files in the git repository.
-They are used by the benchmark scripts to store prepared data, fitted models, and explanatory reports.\par
+Three additional subfolders \texttt{data}, \texttt{results}, and \texttt{reports} contain only dummy files in the git repository.
+They are used by the benchmark scripts to store raw data, prepared data, fitted models, and explanatory reports.\par
 %
 Note that all scripts are set up to run from the parent directory of \texttt{scripts}.
 E.g., start data preparation from the iPython console via
@@ -137,6 +137,25 @@ Note that class \texttt{SetManager} has more public methods than listed above, b
 %
 \end{description}
 %
+\item[\texttt{proset.benchmarks:}] this submodule contains additional functions for the benchmark study:
+%
+\begin{description}
+\item[\texttt{start\_console\_log():}] invoke \texttt{proset} logging so a progress report for model fitting is printed to the console.
+%
+\item[\texttt{fit\_knn\_classifier():}] fit a kNN classifier using cross-validation to select $k$.
+%
+\item[\texttt{fit\_xgb\_classifier():}] fit an XGBoost classifier using cross-validated selection of hyperparameters as discussed in Section \ref{sec_classifier_comparison}.
+%
+\item[\texttt{print\_xgb\_classifier\_report():}] print a summary of XGBoost hyperparameter selection and quality metrics to the console.
+%
+\item[\texttt{create\_checkerboard():}] create a sample of checkerboard data, see Section \ref{sec_classifier_benchmarks}.
+%
+\item[\texttt{create\_continuous\_xor():}] create a sample of `continuous XOR' data, see Section \ref{sec_classifier_benchmarks}.
+\end{description}
+%
+\item[\texttt{proset.objective:}] this submodule implements objective functions for model fitting using either \texttt{numpy} or \texttt{tensorflow}.
+It does not expose any public elements.
+%
 \item[\texttt{proset.utility:}] this submodule contains helper functions for working with proset models:
 %
 \begin{description}
@@ -159,22 +178,6 @@ Figure \ref{fig_parameter_search} was created with this function.
 See the benchmark scripts for usage examples.
 %
 \item[\texttt{write\_report():}] save a report created by a proset model's \texttt{export()} or \texttt{explain()} functions to disk as a formatted Excel file.
-\end{description}
-%
-\item[\texttt{proset.benchmarks:}] this submodule contains additional functions for the benchmark study:
-%
-\begin{description}
-\item[\texttt{start\_console\_log():}] invoke \texttt{proset} logging so a progress report for model fitting is printed to the console.
-%
-\item[\texttt{fit\_knn\_classifier():}] fit a kNN classifier using cross-validation to select $k$.
-%
-\item[\texttt{fit\_xgb\_classifier():}] fit an XGBoost classifier using cross-validated selection of hyperparameters as discussed in Section \ref{sec_classifier_comparison}.
-%
-\item[\texttt{print\_xgb\_classifier\_report():}] print a summary of XGBoost hyperparameter selection and quality metrics to the console.
-%
-\item[\texttt{create\_checkerboard():}] create a sample of checkerboard data, see Section \ref{sec_classifier_benchmarks}.
-%
-\item[\texttt{create\_continuous\_xor():}] create a sample of `continuous XOR' data, see Section \ref{sec_classifier_benchmarks}.
 \end{description}
 \end{description}
 %
@@ -236,4 +239,8 @@ As an additional measure, the latest version of the reduced matrices is cached.
 Thus, if L-BFGS-B requests multiple evaluations of the objective or gradient for the same set of active features (not necessarily the exact same feature weights), no additional copy operations are triggered.
 \end{enumerate}
 %
+Version 0.2.0 of \texttt{proset} supports \texttt{tensorflow} as alternative backend for model fitting (only).
+This is enabled by passing parameter \texttt{use\_tensorflow=True} to the model's \texttt{\_\_init\_\_()} function.
+The \texttt{tensorflow} implementation is more compact than the one using \texttt{numpy}, since it only implements the objective function and relies on \texttt{tensorflow} to supply the gradient.
+Other measures for performance enhancement are discussed in Section \ref{sec_timing_larger_cases} together with their impact on the benchmark cases.
 \endinput

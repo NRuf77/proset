@@ -440,6 +440,11 @@ For the classifier that performs best on testing data, the threshold found durin
 \section{Benchmarks for hyperparameter selection}
 \label{sec_classifier_benchmarks}
 %
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+The results in this section were generated using version 0.1.0 of Python package \texttt{proset}.
+Different versions of \texttt{proset} or the underlying compute libraries may yield results that are qualitatively similar but not identical.
+}}\end{center}
+%
 In this section, we test variations of the fit strategy outlined above on different benchmark cases.
 We use four small data sets that come as `toy' examples with Python package \texttt{sklearn} \cite{Pedregosa_11}, plus two slightly larger artificial data sets:
 %
@@ -456,7 +461,7 @@ The data is known to be separable \cite{Aeberhard_92}.
 \item\textbf{Cancer:} this data set from the UCI Machine Learning Repository \cite{Dua_19} consists of medical analysis data from breast tissue samples.
 The 569 samples are classified as either malignant (212 samples) or benign (357 samples).
 %
-\item\textbf{Digits:} this data set from the UCI Machine Learning Repository \cite{Dua_19} consists of monochrome images of handwritten digits downsampled to an eight-by-eight grid.
+\item\textbf{Digits:} this data set from the UCI Machine Learning Repository \cite{Dua_19} consists of greyscale images of handwritten digits downsampled to an eight-by-eight grid.
 The 1,797 samples are approximately balanced among the 10 digits.
 %
 \item\textbf{Checker:} for this artificial data set, we sample two features uniformly on the unit square and assign class labels deterministically to create an eight-by-eight checkerboard.
@@ -468,8 +473,10 @@ The total number of samples is 6,400, so each square of the pattern contains app
 The class label is assigned deterministically based on the sign of the product of features: a positive (or zero) sign is class 1, a negative sign is class 0.
 This is similar to the `continuous XOR' problem found in the \texttt{mlbench} library for R \cite{Leisch_21}, except that we only distinguish two classes.
 Despite being deterministic, this problem appears to be a hard even for classifiers that model local structure.
-The total number of samples is 6,400, so each orthant of the feature space contains approximately 100 data points.
+The number of samples is 6,400, so each orthant of the feature space contains approximately 100 data points.
 \end{enumerate}
+%
+Features for all benchmark data sets are centered and scaled before fitting a proset model.\par
 %
 The first three experiments consider the impact of $\alpha_v$ and $\alpha_w$ on model behavior.
 Proset classifiers are fitted to all six data sets with fixed $M=1,000$ and $\eta=0.5$.
@@ -482,7 +489,7 @@ The first experiment uses a dominant $L_1$-penalty ($\alpha_v=\alpha_w=0.05$), t
 %
 \begin{center}
 \subfloat[\textbf{Stage 1}]{\includegraphics[height=0.4\textheight]{figures/iris_2f_dominant_l1_2d_search.pdf}}\\
-\subfloat[\textbf{Both stages}]{\includegraphics[width=0.99\textwidth]{figures/iris_2f_dominant_l1_1d_search.pdf}}
+\subfloat[\textbf{Both stages}]{\includegraphics[width=0.99\textwidth, trim={0.5cm 0.5cm 0.5cm 0.5cm}, clip]{figures/iris_2f_dominant_l1_1d_search.pdf}}
 \end{center}
 \end{figure}
 %
@@ -908,6 +915,11 @@ Clearly, there is an advantage to using large batches as long as the sample size
 \section{Comparison with other classifiers}
 \label{sec_classifier_comparison}
 %
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+The results in this section were generated using version 0.1.0 of Python package \texttt{proset}.
+Different versions of \texttt{proset} or the underlying compute libraries may yield results that are qualitatively similar but not identical.
+}}\end{center}
+%
 In this section, we compare the proset classifier to the $k$-nearest neighbor (kNN) and XGBoost methods.
 The former is conceptually similar to proset, as it scores new points based on their proximity to training samples.
 However, there are at least three major differences between proset and kNN:
@@ -946,6 +958,7 @@ The decision trees have not been validated in that part of the feature space.
 \end{enumerate}
 %
 To fit kNN and XGBoost models, we follow the same general strategy as for proset.
+Features are centered and scaled for kNN but not for XGBoost, as decision trees only rely on ordering.
 We determine optimal hyperparameters using cross-validation and then choose an equivalent set of parameters that is less likely to overfit via the `1 SE rule' (see algorithm \ref{alg_hyperparameters}).
 This is easy to implement for kNN, since the sole hyperparameter is the number of neighbors $k$.
 Note that we choose the equivalent solution with the \textit{largest} $k$ to achieve a high degree of smoothing.\par
@@ -1344,5 +1357,383 @@ Neither kNN nor XGBoost are able to find any structure and return constant estim
 %
 Overall, we believe that these results show that proset is a worthwhile addition to the supervised learning toolbox.
 As intended, it performs feature selection as an integral part of model fitting and is able to identify a nonlinear relationship between the features and target.
+%
+\section{Timing and larger benchmark cases}
+\label{sec_timing_larger_cases}
+%
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+Except where noted, the results in this section were generated using version 0.2.0 of Python package \texttt{proset}.
+Different versions of \texttt{proset} or the underlying compute libraries may yield results that are qualitatively similar but not identical.
+}}\end{center}
+%
+To fit a proset classifier, we need to solve a sequence of optimization problems with several hundreds or thousands of variables.
+Extending this to larger data sets than the initial benchmark cases requires efficient code to save memory and compute time.
+For this purpose, version 0.2.0 of Python package \texttt{proset} implements several measures to improve performance:
+%
+\begin{enumerate}
+\item All floating point arrays are stored with 32 bit precision and Fortran-contiguous layout instead of the \texttt{numpy} \cite{Harris_20} default of 64 bit C-contiguous arrays.
+Inner products are computed using a low-level interface to the linear algebra kernel exposed through \texttt{scipy} \cite{Virtanen_20}.
+%
+\item The tolerance for the convergence check of the L-BFGS-B solver is no longer set to the default value but can be adjusted by the experimenter.
+See below for a discussion.
+%
+\item Model fitting can use \texttt{tensorflow} \cite{Abadi_15} as alternative to \texttt{numpy}, which enables GPU usage.
+Scoring still employs \texttt{numpy} exclusively.
+The implementation based on \texttt{tensorflow} does not rely on stochastic gradient descent as is usual for deep learning but computes the objective function and gradient for an entire batch.
+This permits L-BFGS-B to work in the same way as for the \texttt{numpy} version of the code.
+%
+\item Memory usage for scoring is reduced.
+The original code creates a matrix with one row per sample to be scored and one column per prototype across all batches.
+Version 0.2.0 limits the number of samples scored at a time and aggregates prototype contributions per batch.
+While this requires nested for-loops, the number of iterations is small and the computational overhead negligible.
+%
+\item Memory usage for model fitting can be controlled by randomly splitting the training data into a number of `chunks' of equal size.
+Each chunk is added as a separate batch to the model.
+If the specified number of batches exceeds the number of chunks, additional random splits are generated.
+This is essentially macro-batch stochastic gradient descent, but we use the term `chunk' as `batch' already has a specific meaning for proset.
+\end{enumerate}
+%
+To check for convergence of L-BFGS-B, version 0.1.0 of \texttt{proset} uses the recommended default settings.
+Processing a single batch often requires several hundred function and gradient evaluations.
+If we study individual iterations, it appears that the feature weights $v_c$ converge more quickly than the prototype weights $w_{c,j}$.
+In particular, if a data set admits a feature-sparse solution, the active features are found quickly.
+After that point, the algorithm spends considerable time on reducing the number of prototypes, which has only a small impact on the objective function.
+This is not surprising, since feature weights determine the global behavior of the model, while prototype weights only affect predictions in a neighborhood of their prototype.
+Thus, we can save compute time by increasing the tolerance for convergence in terms of the objective function value.
+The resulting solution can have additional prototypes over a more `accurate' one, but the increase in the loss functions is likely to be negligible.\par
+%
+The convergence check for L-BFGS-B is controlled by a parameter called $\text{factr}$.
+Let $f_i,f_{i+1}\in\R$ be the objective function value at iterations $i$ and $i+1$ respectively, and let $\epsilon>0$ be the machine precision.
+The algorithm stops at iteration $n+1$ if the following condition is satisfied:
+%
+\begin{equation}
+\frac{|f_{i}-f_{i+1}|}{\max(|f_{i}|,|f_{i+1}|,1)}\leq\text{factr}\times\epsilon\label{eq_l_bfgs_b_stop}
+\end{equation}
+%
+The default value is $\text{factr}=10^7$, while $\text{factr}=10^{12}$ is said to produce a solution of low accuracy.
+In the following, we consider a value of $\text{factr}=10^{10}$ as an alternative to the default.
+Note that L-BFGS-B also stops if the gradient has a small norm or an upper bound on the number of iterations is reached, but these criteria do not allow us to exploit the observed behavior.\par
+%
+Our first experiment [E13] for evaluating the changes is to repeat the model fit for the iris 2f, wine, cancer, digits, and checker data of Section \ref{sec_classifier_benchmarks} with different settings.
+Model hyperparameters are those from experiment [E3], i.e., $\alpha_v=\alpha_w=0.95$ with cross-validated search for $\lambda_v$ and $\lambda_w$ in stage 1 and the number of batches in stage 2.
+The goal is to show that measures 1.\ and 2.\ reduce computation time and measure 5.\ does not unduly increase it.
+As the data sets are fairly small, we only include timings for \texttt{tensorflow} with GPU support for the digits and checker cases.
+Likewise, training data is never broken up into chunks as memory requirements are modest.
+Table \ref{tab_faster_timing} shows timing results as follows:
+%
+\begin{description}
+\item[Data set:] the name of the benchmark data set.
+%
+\item[Version:] \texttt{proset} package version, either `0.1.0', `0.2.0'.
+Training with tensorflow is indicated by `\texttt{tf}'.
+Results for XGBoost are also shown for comparison under `\texttt{xgb}'.
+While the cross-validation strategy for this algorithm is different, we consider that it expends similar effort to find suitable hyperparameters.
+As a kNN classifier has totally different fit strategy -- it stores the entire training data in a format optimized for neighborhood search -- no results are shown for this algorithm.
+%
+\item[Precision:] 32 bit or 64 bit for float arrays.
+%
+\item[Tolerance:] the value of parameter $\text{factr}$.
+Settings are $10^{7}$, $10^{10}$, and `mixed', which is $10^{10}$ for cross-validation and $10^{7}$ for the final model fit.
+The latter is a safeguard in case increasing tolerance degrades model quality slightly but not beyond the point where cross-validation can find good hyperparameters.
+%
+\item[Duration, Absolute:] the time in seconds for the entire cross-validation run.
+This is always the middle value from a set of three trials.
+%
+\item[Duration, Relative:] the time as a percentage of the duration for package version 0.1.0.
+\end{description}
+%
+Computations using \texttt{numpy} only were made on a PC with four Intel(R) Core(TM) i5-6500 CPU @ 3.20GHz and 8 GB RAM.
+The code was executed under Python 3.8 with \texttt{numpy} 1.22.3 using the OpenBLAS linear algebra package \cite{Wang_13}.
+Training with \texttt{tensorflow} was tested on Kaggle notebooks\footnote{Available at \url{www.kaggle.com}.} with two Intel(R) Xeon(R) CPU @ 2.00GHz and 13 GB RAM, as well as a Tesla P100 GPU with 16 GB VRAM.
+This used Python 3.7\footnote{Python package \texttt{proset} is developed and tested on Python 3.8 but can be installed and executed on Python 3.7 if disabling version and dependency checks, provided dependencies are installed separately.} with \texttt{numpy} 1.21.6 and OpenBLAS.\par
+%
+\begin{table}
+\caption{[E13] Faster computations: timing comparison}
+\label{tab_faster_timing}
+%
+\begin{center}
+\small
+\begin{tabular}{|lcccrr|}
+\hline
+&&&&\multicolumn{2}{c|}{\hrulefill\ \textbf{Runtime} \hrulefill}\\
+\textbf{Data set}&\textbf{Version}&\textbf{Precision}&\textbf{Tolerance}&\textbf{Absolute}&\textbf{Relative}\\
+\textbf{Iris 2f}&0.1.0&64 bit&$10^7$&20 s&100 \%\\
+&0.2.0&32 bit&$10^7$&22 s&110 \%\\
+&0.2.0&32 bit&$10^{10}$&8 s&40 \%\\
+&0.2.0&32 bit&mixed&8 s&40 \%\\
+&\texttt{xgb}&32 bit&n/a&32 s&160 \%\\
+&&&&&\\
+\textbf{Wine}&0.1.0&64 bit&$10^7$&21 s&100 \%\\
+&0.2.0&32 bit&$10^7$&22 s&105 \%\\
+&0.2.0&32 bit&$10^{10}$&8 s&38 \%\\
+&0.2.0&32 bit&mixed&8 s&38 \%\\
+&\texttt{xgb}&32 bit&n/a&32 s&152 \%\\
+&&&&&\\
+\textbf{Cancer}&0.1.0&64 bit&$10^7$&100 s&100 \%\\
+&0.2.0&32 bit&$10^7$&88 s&88 \%\\
+&0.2.0&32 bit&$10^{10}$&29 s&29 \%\\
+&0.2.0&32 bit&mixed&29 s&29 \%\\
+&\texttt{xgb}&32 bit&n/a&24 s&24 \%\\
+&&&&&\\
+\textbf{Digits}&0.1.0&64 bit&$10^7$&1,626 s&100 \%\\
+&0.2.0&32 bit&$10^7$&682 s&42 \%\\
+&0.2.0&32 bit&$10^{10}$&177 s&11 \%\\
+&0.2.0&32 bit&mixed&200 s&12 \%\\
+&0.2.0 + \texttt{tf}&32 bit&mixed&306 s&19 \%\\
+&\texttt{xgb}&32 bit&n/a&281 s&17 \%\\
+&&&&&\\
+\textbf{Checker}&0.1.0&64 bit&$10^7$&9,151 s&100 \%\\
+&0.2.0&32 bit&$10^7$&5,117 s&56 \%\\
+&0.2.0&32 bit&$10^{10}$&3,899 s&43 \%\\
+&0.2.0&32 bit&mixed&3,849 s&42 \%\\
+&0.2.0 + \texttt{tf}&32 bit&mixed&452 s&5 \%\\
+&\texttt{xgb}&32 bit&n/a&171 s&2 \%\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+Results in table \ref{tab_faster_timing} show that reducing precision has a negligible effect on the two smallest cases iris 2f and wine.
+In fact, computations appear to be slightly slower, possibly because the linear algebra kernel is optimized for 64 bit.
+For the larger cancer, digits, and checker data sets, computation speed improves visibly.
+As reducing precision also halves the memory requirement, the measure is clearly sensible.\par
+%
+Increasing the tolerance for the convergence check is beneficial in all cases.
+As most of the compute time is spent on cross-validation, the `mixed' solutions perform equally well compared to the trials where the final model is also fitted with $\text{factr}=10^{10}$.\par
+%
+For the digits data, using \texttt{tensorflow} is slower than the optimized \texttt{numpy} implementation.
+Apparently, GPU usage incurs an overhead that is not balanced by faster computations for the small number of samples.
+This is different for the checker case, where \texttt{tensorflow} leads to a considerable improvement.
+The granular structure of the checker pattern creates a difficult optimization problem for proset that requires many iterations to solve.
+Conversely, as the target can be replicated exactly by a decision tree, the task is especially easy for XGBoost.\par
+%
+Even without GPU support, the measures are able to reduce compute time to less than half compared to version 0.1.0 in all cases.
+It remains to be seen whether increasing the tolerance has a negative impact on model quality.
+Table \ref{tab_faster_performance} shows the model structure and log-loss achieved for the trials.
+The first five columns contain the same information as for the timing comparison, the remaining fields are:
+%
+\begin{description}
+\item[Features:] the number of features in the final model.
+%
+\item[Proto.:] the number of prototypes in the final model.
+%
+\item[Log-loss:] the log-loss achieved by the final model.
+%
+\item[Threshold] the upper bound on log-loss established in the second stage of cross-validation for the `1 SE rule'.
+Refer to Section \ref{sec_classifier_fit} for details.
+\end{description}
+%
+\begin{table}
+\caption{[E13] Faster computations: model performance}
+\label{tab_faster_performance}
+%
+\begin{center}
+\small
+\begin{tabular}{|lcccrrrr|}
+\hline
+\textbf{Data set}&\textbf{Version}&\textbf{Precision}&\textbf{Tolerance}&\textbf{Features}&\textbf{Proto.}&\textbf{Log-loss}&\textbf{Threshold}\\
+\textbf{Iris 2f}&0.1.0&64 bit&$10^7$&2&50&0.45&0.57\\
+&0.2.0&32 bit&$10^7$&2&50&0.43&0.55\\
+&0.2.0&32 bit&$10^{10}$&2&55&0.44&0.58\\
+&0.2.0&32 bit&mixed&2&50&0.43&0.55\\
+&\texttt{xgb}&32 bit&n/a&2&n/a&0.63&0.62\\
+&&&&&&&\\
+\textbf{Wine}&0.1.0&64 bit&$10^7$&7&52&0.14&0.16\\
+&0.2.0&32 bit&$10^7$&8&51&0.14&0.16\\
+&0.2.0&32 bit&$10^{10}$&5&46&0.19&0.17\\
+&0.2.0&32 bit&mixed&5&45&0.19&0.17\\
+&\texttt{xgb}&32 bit&n/a&13&n/a&0.11&0.11\\
+&&&&&&&\\
+\textbf{Cancer}&0.1.0&64 bit&$10^7$&4&54&0.13&0.15\\
+&0.2.0&32 bit&$10^7$&4&52&0.13&0.15\\
+&0.2.0&32 bit&$10^{10}$&4&84&0.13&0.15\\
+&0.2.0&32 bit&mixed&4&52&0.13&0.15\\
+&\texttt{xgb}&32 bit&n/a&29&n/a&0.12&0.14\\
+&&&&&&&\\
+\textbf{Digits}&0.1.0&64 bit&$10^7$&20&493&0.16&0.19\\
+&0.2.0&32 bit&$10^7$&20&487&0.16&0.18\\
+&0.2.0&32 bit&$10^{10}$&30&861&0.18&0.20\\
+&0.2.0&32 bit&mixed&29&605&0.16&0.20\\
+&0.2.0 + \texttt{tf}&32 bit&mixed&29&613&0.17&0.19\\
+&\texttt{xgb}&32 bit&n/a&53&n/a&0.11&0.14\\
+&&&&&&&\\
+\textbf{Checker}&0.1.0&64 bit&$10^7$&2&328&0.18&0.20\\
+&0.2.0&32 bit&$10^7$&2&316&0.18&0.20\\
+&0.2.0&32 bit&$10^{10}$&2&357&0.18&0.20\\
+&0.2.0&32 bit&mixed&2&316&0.18&0.20\\
+&0.2.0 + \texttt{tf}&32 bit&mixed&2&315&0.18&0.20\\
+&\texttt{xgb}&32 bit&n/a&2&n/a&0.06&0.09\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+Model performance behaves differently for each data set:
+%
+\begin{description}
+\item[Iris 2f:] all proset models are equivalent in terms of log-loss.
+The selected hyperparameters are $\lambda_v=1.1\times10^{-2}$ and $\lambda_w=1.0\times10^{-5}$ and either 2 batches (version 0.1.0 and version 0.2.0 with tolerance 10$^{10}$) or 3 batches (version 0.2.0 with tolerance 10$^7$ and mixed).
+As expected, the final model fitted with increased tolerance has slightly more prototypes.
+%
+\item[Wine:] the wine data is the only case that shows strictly worse performance when relaxing the tolerance.
+This is due to different hyperparameters getting selected.
+The models fitted with $\text{factr}=10^7$ use $\lambda_v=1.1\times10^{-2}$, $\lambda_w=1.8\times10^{-5}$, and 2 batches.
+Those fitted with $\text{factr}=10^{10}$ use $\lambda_v=3.5\times10^{-3}$, $\lambda_w=3.1\times10^{-5}$, and a single batch.
+Note that for the latter models, the final log-loss of 0.19 is worse than the threshold of 0.17 found in stage 2.
+This indicates that the small size of the data set already causes a large variance in results, so the choice of tolerance may not be at fault.
+%
+\item[Cancer:] all proset models are equivalent in terms of log-loss.
+The hyperparameters are also the same in each case ($\lambda_v=1.1\times10^{-2}$, $\lambda_w=1.8\times10^{-5}$, 1 batch).
+The only difference is that the number of prototypes is smaller if the final model is fitted with $\text{factr}=10^7$, which is exactly the expected behavior.
+%
+\item[Digits:] the proset models are equivalent in terms of the threshold, but final models fitted with $\text{factr}=10^7$ achieve a slightly lower log-loss.
+The `mixed' approach yields the same model quality as using $\text{factr}=10^7$ throughout, although the hyperparameters are in fact different.
+Cross-validation with $\text{factr}=10^7$ selects $\lambda_v=9.5\times10^{-4}$, $\lambda_w=5.6\times10^{-9}$, and 1 batch.
+For $\text{factr}=10^{10}$, the values are $\lambda_v=5.5\times10^{-3}$, $\lambda_w=8.3\times10^{-8}$, and 2 batches.
+%
+\item[Checker:] all proset models are equivalent in terms of log-loss.
+They also use the same hyperparameters $\lambda_v=2.9\times10^{-4}$, $\lambda_w=6.9\times10^{-8}$, and 1 batch.
+The only difference is that fitting a final model with relaxed tolerance retains slightly more prototypes.
+\end{description}
+%
+Based on these trials, the `mixed' approach appears to be a good strategy for saving compute time without decreasing model performance.
+The software was extended accordingly: Python package \texttt{proset} specifies $\text{factr}=10^7$ as default for fitting a single model, but the convenience function for cross-validated selection of hyperparameters uses the `mixed' settings.\par
+%
+The second experiment [E14] for evaluating the changes uses \texttt{tensorflow} to fit models on two data sets that are considerably larger:
+%
+\begin{enumerate}
+\item\textbf{MNIST:} greyscale images showing handwritten digits with a 28-by-28 resolution comprising
+60,000 training and 10,000 test samples.
+The data was collected from two different groups of people, Census Bureau employees and high-school students.
+Digits from the former group (the second half of the test data) are known to be easier to classify.\par
+%
+The MNIST digits are well-studied case in machine-learning research.
+Both the data and an extensive overview of related publications with achievable error rates is hosted online by Yann LeCun \cite{LeCun_98}.
+%
+\item\textbf{CIFAR-10:} RGB images of 10 classes of objects downsampled to a 32-by-32 resolution with 50,000 training and 10,000 test samples.
+This is another popular test case for machine learning hosted online by Alex Krizhevsky \cite{Krizhevsky_09}.\par
+%
+Proset is not designed to compete with deep learning methods that handle features with low information content (e.g., pixels in images).
+It may still be suitable for transfer learning, where a pre-trained deep learning model converts raw data to higher-order features as input for a task-specific classifier.
+Thus, we process the CIFAR-10 data through a ResNet50 \cite{He_15} model trained on the ImageNet \cite{Russakovsky_15} data set before feeding it to proset.
+This results in a feature vector of length 2,048.
+\end{enumerate}
+%
+All models use the following hyperparameters, which reflect lessons learned from previous experiments:
+%
+\begin{itemize}
+\item $L_2$-penalty is dominant with $\alpha_v=\alpha_w=0.95$ (cp.\ [E3]).
+%
+\item Vary $\lambda_v$ on a grid with 11 points logarithmically spaced between $10^{-6}$ and $10^{-1}$ but fix $\lambda_w=10^{-8}$ (cp.\ [E5]).
+%
+\item Draw 10,000 candidates for prototypes per batch to account for the more complex structure of the data and larger sample size.
+%
+\item Split the training data into two chunks of equal size to preserve GPU memory.
+See below for a discussion why this is necessary.
+%
+\item Test adding up to 20 batches to a model.
+This is done since splitting the data into chunks means each batch contains only half of the training data.
+\end{itemize}
+%
+Regarding memory usage, the bottleneck is not caused by the greater number of features but by the number of candidates.
+The largest matrices that need to fit into GPU RAM have as many elements as the number of candidates for prototypes times the number of reference points.
+For example, if we have 50,000 samples and choose 10,000 candidates, the algorithm creates several matrices with $4\times10^8$ elements (1.49 GB of 32 bit floats).
+By splitting the training data into two chunks of size 25,000, we reduce the matrix size to $1.5\times10^8$ (0.56 GB).\par
+%
+All previous benchmarks use centering and scaling of the features as the only preprocessing step.
+For MNIST and CIFAR-10, we also test the impact of applying principal component analysis (PCA).
+This reduces compute time through dimension reduction and can potentially lead to better solutions as individual features represent more information.
+As it depends on the initial scale of the features whether they need to be normalized before applying PCA, we try both approaches.
+The principal components are always normalized to unit variance as required by proset.
+For dimension reduction, we retain the components with the largest eigenvalues explaining 99 \% of the variance.
+%
+\begin{remark}
+We do not consider problem-specific enhancements like transforms for optical character recognition applied to the MNIST data.
+The goal of this experiment is to determine whether the performance enhancements allow the algorithm to process problems of the given size, not to find the absolutely best models for the benchmark data.
+\end{remark}
+%
+Table \ref{tab_e14} shows the results of six experiments in a similar format as in Section \ref{sec_classifier_benchmarks}.
+Some additional information is included:
+%
+\begin{description}
+\item[Preprocessing:] either centering and scaling (S+C), PCA (features are centered but not scaled before applying PCA), or both (features are centered and scaled before applying PCA).
+%
+\item[Features:] for experiments using PCA, this is the dimension of the reduced input space.
+%
+\item[Sparseness:] the number of active features divided by the number of input features.
+%
+\item[Runtime:] the duration of the full cross-validation run.
+This is based on a single trial and rounded to the closest 15 minutes.
+\end{description}
+%
+\begin{table}
+\caption{[E14] Larger benchmark cases (fix $\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.95$)}
+\label{tab_e14}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{MNIST}&\textbf{MNIST}&\textbf{MNIST}&\textbf{CIFAR-10}&\textbf{CIFAR-10}&\textbf{CIFAR-10}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&10&10&10&10&10&10\\
+Preprocessing&C+S&PCA&both&C+S&PCA&both\\
+Features&784&331&543&2,048&1,514&1,797\\
+Samples&70,000&70,000&70,000&60,000&60,000&60,000\\
+Train samples&60,000&60,000&60,000&50,000&50,000&50,000\\
+Test samples&10,000&10,000&10,000&10,000&10,000&10,000\\
+\textbf{Candidates}&10,000&10,000&10,000&10,000&10,000&10,000\\
+\multicolumn{7}{|l|}{\textbf{Stage 1}}\\
+Optimal $\lambda_v$&$3.2\times10^{-6}$&$1.0\times10^{-4}$&$1.0\times10^{-6}$&$1.0\times10^{-3}$&$1.0\times10^{-2}$&$3.2\times10^{-4}$\\
+Selected $\lambda_v$&$1.0\times10^{-2}$&$3.2\times10^{-3}$&$3.2\times10^{-3}$&$3.2\times10^{-3}$&$1.0\times10^{-2}$&$1.0\times10^{-2}$\\
+Optimal log-loss&0.38&0.27&0.39&1.33&1.41&1.45\\
+Threshold&0.39&0.28&0.40&1.34&1.42&1.47\\
+Selected log-loss&0.39&0.28&0.39&1.33&1.41&1.46\\
+\multicolumn{7}{|l|}{\textbf{Stage 2}}\\
+Optimal batches&3&2&5&8&4&2\\
+Selected batches&3&2&3&5&2&2\\
+Optimal log-loss&0.33&0.26&0.38&1.27&1.38&1.43\\
+Threshold&0.34&0.26&0.39&1.28&1.39&1.44\\
+Selected log-loss&0.33&0.26&0.38&1.28&1.39&1.43\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&104&25&16&195&18&14\\
+Sparseness&0.13&0.08&0.03&0.10&0.01&0.01\\
+Prototypes&12,877&12,198&5,553&23,290&7,881&6,925\\
+Log-loss&0.31&0.23&0.33&1.25&1.36&1.38\\
+ROC-AUC&1.00&1.00&0.99&0.91&0.90&0.89\\
+Balanced acc.&0.94&0.95&0.91&0.56&0.52&0.52\\
+\textbf{Runtime}&4:00 h&2:30 h&3:00 h&3:00 h&2:45 h&3:30 h\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+For all trials, selected values for $\lambda_v$ are similar to those for the smaller benchmark cases and close to the value $10^{-3}$ chosen as default.
+Testing up to 20 batches during cross-validations turns out to be unnecessary as both the optimal and selected number stay below 10.
+Based on the previous observation regarding the number of candidates, it would probably be better to fit a larger first batch with more candidates, but this is not possible given available GPU RAM.
+Apart from these observations, there are considerable differences between the data sets:
+%
+\begin{enumerate}
+\item\textbf{MNIST:} if we use the threshold on log-loss from the second stage to determine whether models are equivalent, the model fitted after applying PCA to unscaled features strictly outperforms the other two.
+PCA for scaled features performs worst although the resulting log-loss is still equivalent to the model that uses only centering and scaling.
+As the greyscale values already have a common scale, converting them to unit variance before PCA apparently degrades performance by magnifying pixel noise.\par
+%
+The balanced accuracy of 95 \% is comparable to the 5 \% error rate on the test set reported in \cite{LeCun_98} for the kNN algorithm with Euclidean distance.
+Note that the latter score does not balance the classes, but the test set is close enough to being balanced so the difference is negligible.
+Considerable better performance up to 0.7 \% test error rate is reported in the cited publication for convolutional neural networks (CNN).
+An even lower test error rate of 0.23 \% is reported in \cite{Ciresan_12} also for CNNs.
+%
+\item\textbf{CIFAR-10:} using only centering and scaling for the features strictly outperforms PCA.
+This may be because the features have lower bound of zero, which indicates the effective absence of a particular property.
+The linear combination of multiple features generated by PCA can obscure this information.\par
+%
+The best proset model is still not very good with a balanced accuracy of 56 \%.
+The technical report \cite{Krizhevsky_09} introducing the CIFAR-10 data shows around 60 \% test accuracy for logistic regression applied to features generated from a RBM (Restricted Boltzmann Machine) model.
+A CNN using the ResNet50 architecture can achieve test error rates below 7 \% \cite{He_15}.
+\end{enumerate}
+%
+In conclusion, [E14] shows that the performance enhancements allow us to fit proset models to larger data sets.
+However, we find no particular aptitude for handling what is commonly called `unstructured data' even after preprocessing to obtain more informative features.
 %
 \endinput

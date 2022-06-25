@@ -23,7 +23,11 @@ input_files = [
     "digits_2d_95_model.gz",
     "digits_1d_model.gz",
     "digits_fix_model.gz",
-    "digits_fix_opt_model.gz"
+    "digits_fix_opt_model.gz",
+    "digits_timing_1e7_model.gz",
+    "digits_timing_1e10_model.gz",
+    "digits_chunked_model.gz",
+    "digits_tf_model"
 ]
 print("  Select input file:")
 for i, file_name in enumerate(input_files):

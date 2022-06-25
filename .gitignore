@@ -7,12 +7,14 @@ doc/*.pdf
 doc/*.gz
 proset/__pycache__/*
 proset/benchmarks/__pycache__/*
+proset/objectives/__pycache__/*
 proset/utility/__pycache__/*
 proset/utility/plots/__pycache__/*
 proset.egg-info/*
 test/.pytest_cache/*
 test/__pycache__/*
-scripts/data/*.csv
+scripts/data/*.gz
+scripts/data/*.h5
 scripts/reports/*.xlsx
 scripts/reports/~*.xlsx
 scripts/results/*.gz

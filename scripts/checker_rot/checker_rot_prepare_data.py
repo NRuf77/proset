@@ -12,6 +12,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 from proset.benchmarks import create_checkerboard
+from proset.shared import FLOAT_TYPE
 
 
 print("* Apply user settings")
@@ -30,8 +31,8 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_
 
 print("* Save data")
 data = {
-    "X_train": X_train,
-    "X_test": X_test,
+    "X_train": X_train.astype(**FLOAT_TYPE),  # convert after split to retain F-contiguity
+    "X_test": X_test.astype(**FLOAT_TYPE),
     "y_train": y_train,
     "y_test": y_test,
     "feature_names": ("F1", "F2")

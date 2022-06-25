@@ -24,7 +24,9 @@ input_files = [
     "iris_2f_2d_95_model.gz",
     "iris_2f_1d_model.gz",
     "iris_2f_fix_model.gz",
-    "iris_2f_fix_opt_model.gz"
+    "iris_2f_fix_opt_model.gz",
+    "iris_2f_timing_1e7_model.gz",
+    "iris_2f_timing_1e10_model.gz"
 ]
 print("  Select input file:")
 for i, file_name in enumerate(input_files):

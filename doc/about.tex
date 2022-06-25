@@ -182,10 +182,10 @@ Consider a target distribution that can be replicated exactly by proset, i.e., i
 In this situation, the bandwidth does no longer have to vanish asymptotically with $n$ to yield a small bias.
 We have established no theoretical results, but it would be interesting to study the convergence behavior for distributions that can be reproduced or at least closely approximated by proset.\par
 %
-The case with the largest dimension in the benchmark study has a 64 features.
-Proset selects around 30 of these to build a model with reasonable performance, although XGBoost achieves a better log-loss.
-This number of features is not particularly large for a classification problem.
-However, it appears to be quite large compared to problems that are typically considered feasible for local kernel methods.
+The case with the largest dimension in the benchmark study has 2,048 features.
+This is a transfer learning problem where the best results are obtained using deep neural networks.
+Proset builds a model using 195 features that is worse than reference cases from literature but also not completely useless (56 \% balanced accuracy on 10 classes).
+While this particular case may be overreaching, it is also considerably larger than problems that are typically considered feasible for local kernel methods.
 For comparison, we found published examples with 8 features (local linear regression: Ormoneit and Hastie \cite{Ormoneit_99}),
 7 to 17 features depending on the encoding of categorical variables (nonparametric conditional distribution: Bontemps, Racine, and Simoni \cite{Bontemps_09}),
 or 24 variables, of which any one can serve as target (the largest sample data set for R package \texttt{np}: Hayfield and Racine \cite{Hayfield_08}).
@@ -193,13 +193,19 @@ or 24 variables, of which any one can serve as target (the largest sample data s
 \section{Release history}
 \label{sec_release_history}
 %
-These versions of the \texttt{proset} Python package have been released:
+These versions of Python package \texttt{proset} have been released:
 %
 \begin{description}
 \item[0.1.0:] implementation of proset classifier using algorithm L-BFGS-B \cite{Byrd_95} for parameter estimation;
 helper functions for model fitting and plotting;
 benchmark code for hyperparameter selection, comparison to other classifiers, and demonstration of explanatory features;
 first version of technical report.
+%
+\item[0.2.0:] measures for faster computation: reduce float arrays to 32-bit precision, make solver tolerance configurable,
+enable \texttt{tensorflow} \cite{Abadi_15} as alternative backend for model fitting;
+reduce memory consumption for scoring;
+new options for \texttt{select\_hyperparameters()}: \texttt{chunks} (macro-batching to reduce memory consumption for training), \texttt{cv\_groups} (group related samples during cross-validation);
+add benchmark cases with greater sample size and feature dimension.
 \end{description}
 %
 \endinput

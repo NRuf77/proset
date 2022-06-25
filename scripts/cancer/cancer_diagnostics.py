@@ -23,7 +23,9 @@ input_files = [
     "cancer_2d_95_model.gz",
     "cancer_1d_model.gz",
     "cancer_fix_model.gz",
-    "cancer_fix_opt_model.gz"
+    "cancer_fix_opt_model.gz",
+    "cancer_timing_1e7_model.gz",
+    "cancer_timing_1e10_model.gz"
 ]
 print("  Select input file:")
 for i, file_name in enumerate(input_files):

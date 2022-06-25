@@ -56,8 +56,7 @@ class TestShared(TestCase):
         result = shared.find_changes(np.array([0, 0, 1, 1, 1, 2]))
         np.testing.assert_allclose(result, np.array([0, 2, 5]))
 
-    @staticmethod
-    def test_quick_compute_similarity_1():
+    def test_quick_compute_similarity_1(self):
         scaled_reference = REFERENCE * FEATURE_WEIGHTS
         scaled_prototypes = PROTOTYPES * FEATURE_WEIGHTS
         similarity = shared.quick_compute_similarity(
@@ -66,13 +65,15 @@ class TestShared(TestCase):
             ssq_reference=np.sum(scaled_reference ** 2.0, axis=1),
             ssq_prototypes=np.sum(scaled_prototypes ** 2.0, axis=1)
         )
+        self.assertEqual(similarity.dtype, np.float32)
+        self.assertTrue(similarity.flags["F_CONTIGUOUS"])
         reference_similarity = np.zeros((REFERENCE.shape[0], PROTOTYPES.shape[0]), dtype=float)
         for i in range(REFERENCE.shape[0]):
             for j in range(PROTOTYPES.shape[0]):
                 reference_similarity[i, j] = np.exp(
                     -0.5 * np.sum(((REFERENCE[i] - PROTOTYPES[j]) * FEATURE_WEIGHTS) ** 2.0)
                 )
-        np.testing.assert_allclose(similarity, reference_similarity)
+        np.testing.assert_allclose(similarity, reference_similarity, atol=1e-6)
 
     def test_check_feature_names_fail_1(self):
         message = ""
@@ -213,13 +214,60 @@ class TestShared(TestCase):
         scale_in = np.array([0.5, 2.0])
         offset_in = np.array([-1.0, 1.0])
         scale_out, offset_out = shared.check_scale_offset(num_features=2, scale=scale_in, offset=offset_in)
+        shared.check_float_array(x=scale_out, name="scale_out")
         np.testing.assert_array_equal(scale_out, scale_in)
-        np.testing.assert_array_equal(offset_out, offset_in)
         self.assertFalse(scale_out is scale_in)  # ensure result is a copy and not a reference to the original input
+        shared.check_float_array(x=offset_out, name="offset_out")
+        np.testing.assert_array_equal(offset_out, offset_in)
         self.assertFalse(offset_out is offset_in)
 
     @staticmethod
     def test_check_scale_offset_2():
         scale_out, offset_out = shared.check_scale_offset(num_features=2, scale=None, offset=None)
-        np.testing.assert_array_equal(scale_out, np.ones(2, dtype=float))
-        np.testing.assert_array_equal(offset_out, np.zeros(2, dtype=float))
+        shared.check_float_array(x=scale_out, name="scale_out")
+        np.testing.assert_array_equal(scale_out, np.ones(2, **shared.FLOAT_TYPE))
+        shared.check_float_array(x=offset_out, name="offset_out")
+        np.testing.assert_array_equal(offset_out, np.zeros(2, **shared.FLOAT_TYPE))
+
+    def test_check_float_array_fail_1(self):
+        message = ""
+        try:
+            shared.check_float_array(x=np.zeros((2, 2), dtype=np.float64, order="F"), name="x")
+            # array properties for triggering the check are hard-coded, change them if you update shared.FLOAT_TYPE
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter x must be an array of type float32.")
+
+    def test_check_float_array_fail_2(self):
+        message = ""
+        try:
+            shared.check_float_array(x=np.zeros((2, 2), dtype=np.float32, order="C"), name="x")
+            # array properties for triggering the check are hard-coded, change them if you update shared.FLOAT_TYPE
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter x must be a Fortran-contiguous array.")
+
+    def test_check_float_array_fail_3(self):
+        message = ""
+        try:
+            shared.check_float_array(
+                x=np.zeros((2, 2), dtype=np.float32, order="F"), name="x", spec={"dtype": np.float32, "order": "C"}
+                # array properties for triggering the check are hard-coded, change them if you update shared.FLOAT_TYPE
+            )
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter x must be a C-contiguous array.")
+
+    @staticmethod
+    def test_check_float_array_1():
+        shared.check_float_array(x=np.zeros((2, 2), **shared.FLOAT_TYPE), name="x")
+
+    @staticmethod
+    def test_stack_first_1():
+        result = shared.stack_first([np.array([1, 2, 3]), np.array([4, 5, 6])])
+        np.testing.assert_array_equal(result, np.array([1, 2, 3, 4, 5, 6]))
+
+    @staticmethod
+    def test_stack_first_2():
+        result = shared.stack_first([np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]])])
+        np.testing.assert_array_equal(result, np.array([[1, 2], [3, 4], [5, 6], [7, 8]]))

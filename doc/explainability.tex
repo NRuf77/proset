@@ -23,7 +23,7 @@ Two interesting findings are that (a) any pair of features allows us to distingu
 \label{fig_scatter_plots_cancer}
 %
 \begin{center}
-\includegraphics[width=0.95\textheight, angle=90]{figures/cancer_scatter_plot_testing_data.pdf}
+\includegraphics[width=0.9\textheight, angle=90, trim={1.5cm 1.5cm 1.5cm 0.5cm}, clip]{figures/cancer_scatter_plot_testing_data.pdf}
 \end{center}
 \end{figure}
 %
@@ -95,7 +95,7 @@ Two are close to the boundary between the classes, while the last is a `malignan
 One problem faced by all machine learning is that their behavior becomes arbitrary for samples that are far removed from the original training data.
 The way a model extrapolates outside its `area of competence' depends entirely on the specific algorithm and does not reflect any empirical evidence.
 This is illustrated in Figure \ref{fig_area_of_competence} for the rotated checkerboard example.
-The plots show the probability surfaces for each of the three classifiers studied in Chapter \ref{ch_classifier}, i.e., the color scale represents the estimated probability for class 1 from green (0.0) to red (1.0).
+The plots show the probability surfaces for each of the three classifiers studied in Section \ref{sec_classifier_comparison}, i.e., the color scale represents the estimated probability for class 1 from green (0.0) to red (1.0).
 While kNN and XGBoost create idiosyncratic patterns in regions of the feature space with no training data, proset reverts to the marginal distribution.
 The proset estimate is no more correct than that of the other two algorithms, but we consider it the most `honest' in the absence of information.
 For balanced training data as in the example, proset does not assign a high probability to an arbitrary class as may happen with kNN or XGBoost.
@@ -121,7 +121,51 @@ Using quantiles of familiarity as indicated above, we can measure proximity to t
 This is a powerful tool for monitoring a machine learning model in production and to detect data drift.
 However, there is a trade-off between feature selection and the usefulness of familiarity.
 Consider the case where proset does not select a feature because of insufficient variation in the training data.
-A new sample that has a markedly different value in that one feature is still assigned a high familiarity score if the features actually used by the model lie in the expected range.
+A new sample that has a markedly different value in that one feature is still assigned a high familiarity score if the features actually used by the model lie in the expected range.\par
+%
+\begin{figure}
+\caption{Familiariy of `easy' and `hard' test samples for MNIST}
+\label{fig_mnist_familiarity}
+%
+\begin{center}
+\includegraphics[width=0.49\textwidth]{figures/mnist_familiarity.pdf}
+\end{center}
+\end{figure}
+%
+\begin{table}
+\caption{Difficulty and familiarity for MNIST data}
+\label{tab_mnist_familiarity}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&&\multicolumn{2}{c}{\textbf{Difficulty}}&\multicolumn{2}{c|}{\textbf{Familiarity}}\\
+\textbf{Metric}&\textbf{Overall}&\textbf{Easy}&\textbf{Hard}&\textbf{High}&\textbf{Low}\\
+Log-loss$^*$&0.23&0.17&0.28&0.10&0.35\\
+ROC-AUC&1.00&1.00&1.00&1.00&0.99\\
+Balanced accuracy&0.95&0.97&0.94&0.98&0.91\\
+\multicolumn{6}{|l|}{$^*$ The equivalence threshold for the overall fit is 0.26, so the}\\
+\multicolumn{6}{|l|}{\phantom{$^*$} `hard' or `unfamiliar' cases are strictly worse by our standard.}\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+As further example, we look a MNIST data, where we know that test samples submitted by high-school students are harder to classify than those by Census Bureau employees.
+It is interesting to consider whether this can be detected using the familiarity score.
+While the training data is sampled from both groups, we might expect that regularly formed digits generalize better and are preferred as prototypes.
+In turn, other regular digits would appear more familiar.
+Figure \ref{fig_mnist_familiarity} shows the familiarity distribution for each group as a kernel density plot.
+Results are based on the best proset model fitted to MNIST data (PCA features with no prior scaling, cp.\ Section \ref{sec_timing_larger_cases}).
+Note that the plots shows `raw' values instead of quantiles and excludes the right tails to focus on the modes of the distribution.
+The expected effect is visible -- there are more `hard' cases with a familiarity below 60 - but it is not very pronounced.\par
+%
+Another interesting question is whether the model performs better on `familiar' cases.
+Table \ref{tab_mnist_familiarity} shows metrics for the entire test data set, the `easy' and hard' cases, as well as the top and bottom half of samples ranked by familiarity.
+The effect of splitting based on familiarity is greater than splitting the two groups of writers.
+This suggests that familiarity could be used to gauge predictions in a process where some cases are submitted for human review.
+While not suitable for optical character recognition, the approach could benefit other applications.
 %
 \section{Explaining individual estimates}
 \label{sec_individual_explanations}
@@ -134,7 +178,7 @@ A new sample that has a markedly different value in that one feature is still as
 \label{fig_explanation_report}
 %
 \begin{center}
-\includegraphics[width=0.99\textwidth]{figures/cancer_2d_95_model_explain.pdf}
+\includegraphics[width=0.95\textwidth, trim={1.5cm 2.0cm 1.5cm 1.5cm}, clip]{figures/cancer_2d_95_model_explain.pdf}
 \end{center}
 \end{figure}
 %
@@ -225,7 +269,36 @@ The purpose of the dominant set is to serve as a guideline which prototypes need
 %
 The impact of prototypes on a particular estimate can also be visualized in the `batch 1 map'.
 Figure \ref{fig_batch_1_map_impact} does this for the case from the example report.
-The size of each circle is proportional to the impact of the prototype, numbers refer to the sample index.
+The size of each circle is proportional to the impact of the prototype, numbers refer to the sample index.\par
+%
+\begin{figure}
+\caption{Explanation using prototypes for CIFAR-10 data}
+\label{fig_prototypes_cifar-10}
+%
+\begin{center}
+\includegraphics[width=0.9\textheight, angle=90, trim={1.5cm 1.5cm 1.5cm 0.5cm}, clip]{figures/cifar-10_model_explain.pdf}
+\end{center}
+\end{figure}
+%
+While it is daunting to look at individual features for the CIFAR-10 data, we can still explain a prediction in terms of images selected for prototypes.
+Proset does not perform well on this data set (cp.\ Section \ref{sec_timing_larger_cases}), but it provides a good illustrative example.
+Figure \ref{fig_prototypes_cifar-10} shows the two test images of cats achieving the highest and lowest predicted probability for the true class.
+The `reasoning' behind the predictions is explained by including for each case the images corresponding to the five prototypes with the most impact.\par
+%
+The first image is classified as a cat with an estimated probability of 89 \%.
+It shows a close-up of the cat's face with no distracting background.
+The five prototype images all show cat faces from different angles.
+Note that the first and fifth prototype represent the same image in different batches, so the relevant features are likely to differ as well.
+The first four prototypes form the dominant set of this prediction.
+Together, they contribute 54 percentage points to the estimated probability and determine the majority class.\par
+%
+The second image is classified as an automobile with a probability of 58 \%, with an estimate of only 1 \% for a cat.
+In this case, the animal is shown from farther away and its face is not clearly visible.
+Even worse, the background seems to be more distinctive than the main object.
+The cat rests on a piece of red furniture with a horizontal groove whose feature representation apparently resembles a red car or truck.
+As a consequence, the most similar prototypes all belong to these two classes.
+The first prototype contributes 27 percentage points to the estimated for class automobile.
+All others have a small contribution each, but there are many more before the first cat appears in the ranked list.
 %
 \subsection{Combining SHAP values and geometric analysis}
 \label{sec_shap_values}
@@ -255,7 +328,7 @@ The purpose of the latter is to optimize the expected value of a problem-specifi
 Any algorithm that conflates the two stages implicitly applies an arbitrary decision rule that is likely to yield sub-optimal results.
 As an example, consider a credit scoring algorithm that estimates the default probability for loans.
 It is doubtful that the lending company wants to grant loans to all applicants with default probability less than 50 \%.
-A more thorough discussion of this issue can be found, e.g., in a blog article by Harrell \cite{Harrell_20}.\par
+A thorough discussion of this issue can be found, e.g., in a blog article by Frank Harrell \cite{Harrell_20}.\par
 %
 For the above reason, we want to find a suitable reference point for explaining the estimated probabilities themselves regardless of any decision rule that could be applied later.
 We expect such a point to have the following three properties:
@@ -375,14 +448,12 @@ Figure \ref{fig_scatter_important} shows the bivariate scatter plots for both pa
 As an alternative, we can study the probability surface resulting for the most important features if the other features are fixed at their values for the misclassified case.
 This is shown in Figure \ref{fig_probability_important}.\par
 %
-\clearpage
-%
 \begin{figure}
 \caption{`Batch 1 map' for digits data showing test samples}
 \label{fig_batch_1_map_test_digits}
 %
 \begin{center}
-\includegraphics[width=0.95\textheight, angle=90]{figures/digits_batch_1_map.pdf}
+\includegraphics[width=0.9\textheight, angle=90, trim={1.5cm 1.5cm 1.5cm 0.5cm}, clip]{figures/digits_batch_1_map.pdf}
 \end{center}
 \end{figure}
 %
@@ -391,7 +462,7 @@ This is shown in Figure \ref{fig_probability_important}.\par
 \label{fig_impact_shap}
 %
 \begin{center}
-\includegraphics[width=0.95\textheight, angle=90]{figures/digits_8_vs_1_explanation.pdf}
+\includegraphics[width=0.9\textheight, angle=90, trim={1.5cm 1.5cm 1.5cm 0.5cm}, clip]{figures/digits_8_vs_1_explanation.pdf}
 \end{center}
 \end{figure}
 %

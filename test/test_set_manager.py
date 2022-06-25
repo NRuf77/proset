@@ -9,12 +9,13 @@ from unittest import TestCase
 import numpy as np
 
 from proset.set_manager import ClassifierSetManager
+import proset.shared as shared
 
 
 # define common objects for testing
 TARGET = np.array([0, 1, 0, 2, 1, 2])
 _, MARGINALS = np.unique(TARGET, return_counts=True)
-MARGINALS = MARGINALS / np.sum(MARGINALS)
+MARGINALS = (MARGINALS / np.sum(MARGINALS)).astype(**shared.FLOAT_TYPE)
 PROTOTYPES = np.array([
     [1.0, 0.0, 0.0, 2.7],
     [1.0, 0.0, 0.0, 1.8],
@@ -22,15 +23,15 @@ PROTOTYPES = np.array([
     [0.0, 1.0, 0.0, -1.9],
     [0.0, 0.0, 1.0, 12.0],
     [0.0, 0.0, 1.0, 8.0]
-])
-FEATURE_WEIGHTS = np.array([0.5, 0.0, 1.5, 0.1])
-PROTOTYPE_WEIGHTS = np.array([1.0, 2.0, 0.0, 2.0, 1.0, 0.5])
+], **shared.FLOAT_TYPE)
+FEATURE_WEIGHTS = np.array([0.5, 0.0, 1.5, 0.1], **shared.FLOAT_TYPE)
+PROTOTYPE_WEIGHTS = np.array([1.0, 2.0, 0.0, 2.0, 1.0, 0.5], **shared.FLOAT_TYPE)
 SAMPLE_INDEX = np.array([4, 7, 11, 15, 27, 40])
 REFERENCE = np.array([
     [1.0, 0.0, 0.0, 3.0],
     [0.0, 1.0, 0.0, -2.0],
     [0.0, 0.0, 1.0, 9.5]
-])
+], **shared.FLOAT_TYPE)
 BATCH_INFO = {
     "prototypes": PROTOTYPES,
     "target": TARGET,
@@ -41,7 +42,7 @@ BATCH_INFO = {
 BATCH_INFO_NO_FEATURES = {
     "prototypes": PROTOTYPES,
     "target": TARGET,
-    "feature_weights": np.zeros_like(FEATURE_WEIGHTS),
+    "feature_weights": np.zeros_like(FEATURE_WEIGHTS, **shared.FLOAT_TYPE),
     "prototype_weights": PROTOTYPE_WEIGHTS,
     "sample_index": SAMPLE_INDEX
 }
@@ -49,7 +50,14 @@ BATCH_INFO_NO_PROTOTYPES = {
     "prototypes": PROTOTYPES,
     "target": TARGET,
     "feature_weights": FEATURE_WEIGHTS,
-    "prototype_weights": np.zeros_like(PROTOTYPE_WEIGHTS),
+    "prototype_weights": np.zeros_like(PROTOTYPE_WEIGHTS, **shared.FLOAT_TYPE),
+    "sample_index": SAMPLE_INDEX
+}
+BATCH_INFO_ALL_FEATURES = {
+    "prototypes": PROTOTYPES,
+    "target": TARGET,
+    "feature_weights": np.ones_like(FEATURE_WEIGHTS, **shared.FLOAT_TYPE),
+    "prototype_weights": PROTOTYPE_WEIGHTS,
     "sample_index": SAMPLE_INDEX
 }
 
@@ -73,8 +81,10 @@ class TestClassifierSetManager(TestCase):
 
     def test_init_1(self):
         manager = ClassifierSetManager(target=TARGET)
+        self.assertEqual(manager._target_type, {"dtype": int})
         self.assertEqual(manager.num_batches, 0)
         self.assertEqual(manager.num_features, None)
+        shared.check_float_array(x=manager.marginals, name="manager.marginals")
         np.testing.assert_allclose(manager.marginals, MARGINALS)
         self.assertEqual(manager.get_active_features().shape[0], 0)
         self.assertEqual(manager.get_num_prototypes(), 0)
@@ -263,7 +273,7 @@ class TestClassifierSetManager(TestCase):
             "prototypes": PROTOTYPES,
             "target": TARGET,
             "feature_weights": FEATURE_WEIGHTS,
-            "prototype_weights": np.zeros_like(PROTOTYPE_WEIGHTS),
+            "prototype_weights": np.zeros_like(PROTOTYPE_WEIGHTS, **shared.FLOAT_TYPE),
             "sample_index": SAMPLE_INDEX
         })  # a batch with all prototype weights equal to 0.0 still counts, although the content is None
         message = ""
@@ -284,6 +294,21 @@ class TestClassifierSetManager(TestCase):
     def test_add_batch_fail_6(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
+        try:  # trigger one check from shared.check_float_array() to ensure it is called
+            manager.add_batch({
+                "prototypes": PROTOTYPES.astype(np.float64),
+                "target": TARGET,
+                "feature_weights": FEATURE_WEIGHTS,
+                "prototype_weights": PROTOTYPE_WEIGHTS,
+                "sample_index": SAMPLE_INDEX
+            })
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter prototypes must be an array of type float32.")
+
+    def test_add_batch_fail_7(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
         try:
             manager.add_batch({
                 "prototypes": PROTOTYPES,
@@ -296,7 +321,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter target must be a 1D array.")
 
-    def test_add_batch_fail_7(self):
+    def test_add_batch_fail_8(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
@@ -311,7 +336,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter target must have as many elements as prototypes has rows.")
 
-    def test_add_batch_fail_8(self):
+    def test_add_batch_fail_9(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
@@ -326,7 +351,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter feature_weights must be a 1D array.")
 
-    def test_add_batch_fail_9(self):
+    def test_add_batch_fail_10(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
@@ -341,7 +366,22 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter feature_weights must have as many elements as prototypes has columns.")
 
-    def test_add_batch_fail_10(self):
+    def test_add_batch_fail_11(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
+        try:  # trigger one check from shared.check_float_array() to ensure it is called
+            manager.add_batch({
+                "prototypes": PROTOTYPES,
+                "target": TARGET,
+                "feature_weights": FEATURE_WEIGHTS.astype(np.float64),
+                "prototype_weights": PROTOTYPE_WEIGHTS,
+                "sample_index": SAMPLE_INDEX
+            })
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter feature_weights must be an array of type float32.")
+
+    def test_add_batch_fail_12(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
@@ -356,7 +396,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter prototype_weights must be a 1D array.")
 
-    def test_add_batch_fail_11(self):
+    def test_add_batch_fail_13(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
@@ -371,7 +411,22 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter prototype_weights must have as many elements as prototypes has rows.")
 
-    def test_add_batch_fail_12(self):
+    def test_add_batch_fail_14(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
+        try:  # trigger one check from shared.check_float_array() to ensure it is called
+            manager.add_batch({
+                "prototypes": PROTOTYPES,
+                "target": TARGET,
+                "feature_weights": FEATURE_WEIGHTS,
+                "prototype_weights": PROTOTYPE_WEIGHTS.astype(np.float64),
+                "sample_index": SAMPLE_INDEX
+            })
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter prototype_weights must be an array of type float32.")
+
+    def test_add_batch_fail_15(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
@@ -386,7 +441,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter sample_index must be a 1D array.")
 
-    def test_add_batch_fail_13(self):
+    def test_add_batch_fail_16(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
@@ -401,7 +456,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter sample_index must be an integer array.")
 
-    def test_add_batch_fail_14(self):
+    def test_add_batch_fail_17(self):
         manager = ClassifierSetManager(target=TARGET)
         message = ""
         try:
@@ -457,15 +512,19 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(result["active_features"], np.zeros(0))
         unique_target = np.unique(TARGET)
         # global correction is consolidated to have only one prototype per distinct target value
-        unique_weights = np.zeros_like(unique_target, dtype=float)
+        unique_weights = np.zeros_like(unique_target, **shared.FLOAT_TYPE)
         unique_index = np.zeros_like(unique_target)
         for i, value in enumerate(unique_target):
             unique_weights[i] = np.sum(PROTOTYPE_WEIGHTS[TARGET == value])
             unique_index[i] = np.min(SAMPLE_INDEX[TARGET == value])
+        shared.check_float_array(x=result["scaled_prototypes"], name="result['scaled_prototypes']")
         np.testing.assert_allclose(result["scaled_prototypes"], np.zeros((unique_target.shape[0], 0)))
+        shared.check_float_array(x=result["ssq_prototypes"], name="result['ssq_prototypes']")
         np.testing.assert_allclose(result["ssq_prototypes"], np.zeros(unique_target.shape[0]))
         np.testing.assert_allclose(result["target"], unique_target)
+        shared.check_float_array(x=result["feature_weights"], name="result['feature_weights']")
         np.testing.assert_allclose(result["feature_weights"], np.zeros(0))
+        shared.check_float_array(x=result["prototype_weights"], name="result['prototype_weights']")
         np.testing.assert_allclose(result["prototype_weights"], unique_weights)
         np.testing.assert_allclose(result["sample_index"], unique_index)
 
@@ -475,31 +534,39 @@ class TestClassifierSetManager(TestCase):
         active_features = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
         np.testing.assert_allclose(result["active_features"], active_features)
         active_prototypes = np.nonzero(PROTOTYPE_WEIGHTS > 0.0)[0]
+        shared.check_float_array(x=result["scaled_prototypes"], name="result['scaled_prototypes']")
         scaled_prototypes = PROTOTYPES[:, active_features][active_prototypes, :] * FEATURE_WEIGHTS[active_features]
         np.testing.assert_allclose(result["scaled_prototypes"], scaled_prototypes)
+        shared.check_float_array(x=result["ssq_prototypes"], name="result['ssq_prototypes']")
         np.testing.assert_allclose(result["ssq_prototypes"], np.sum(scaled_prototypes ** 2.0, axis=1))
         np.testing.assert_allclose(result["target"], TARGET[active_prototypes])
+        shared.check_float_array(x=result["feature_weights"], name="result['feature_weights']")
         np.testing.assert_allclose(result["feature_weights"], FEATURE_WEIGHTS[active_features])
+        shared.check_float_array(x=result["prototype_weights"], name="result['prototype_weights']")
         np.testing.assert_allclose(result["prototype_weights"], PROTOTYPE_WEIGHTS[active_prototypes])
         np.testing.assert_allclose(result["sample_index"], SAMPLE_INDEX[active_prototypes])
 
     def test_process_batch_4(self):
         result = ClassifierSetManager._process_batch({
-            "prototypes": np.ones((TARGET.shape[0], 1), dtype=float),
+            "prototypes": np.ones((TARGET.shape[0], 1), **shared.FLOAT_TYPE),
             # prototype values are redundant so should be merged by _process_batch()
             "target": TARGET,
-            "feature_weights": np.ones(1),
+            "feature_weights": np.ones(1, **shared.FLOAT_TYPE),
             "prototype_weights": PROTOTYPE_WEIGHTS,
             "sample_index": SAMPLE_INDEX
         })
         self.assertEqual(len(result), 7)
         np.testing.assert_allclose(result["active_features"], np.array([0]))
+        shared.check_float_array(x=result["scaled_prototypes"], name="result['scaled_prototypes']")
         np.testing.assert_allclose(result["scaled_prototypes"], np.ones((3, 1)))
+        shared.check_float_array(x=result["ssq_prototypes"], name="result['scaled_prototypes']")
         np.testing.assert_allclose(result["ssq_prototypes"], np.ones(3))
         reduced_target = np.unique(TARGET)
         np.testing.assert_allclose(result["target"], reduced_target)
+        shared.check_float_array(x=result["feature_weights"], name="result['feature_weights']")
         np.testing.assert_allclose(result["feature_weights"], np.ones(1))
         merged_weights = np.array([np.sum(PROTOTYPE_WEIGHTS[TARGET == i]) for i in reduced_target])
+        shared.check_float_array(x=result["prototype_weights"], name="result['prototype_weights']")
         np.testing.assert_allclose(result["prototype_weights"], merged_weights)
         reduced_index = np.array([np.min(SAMPLE_INDEX[TARGET == i]) for i in reduced_target])
         np.testing.assert_allclose(result["sample_index"], reduced_index)
@@ -518,17 +585,25 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         message = ""
         try:
-            manager.evaluate_unscaled(features=np.zeros((3, 3)), num_batches=None)
+            manager.evaluate_unscaled(features=np.zeros((3, 3), **shared.FLOAT_TYPE), num_batches=None)
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter features has 3 columns but {} are expected.".format(PROTOTYPES.shape[1]))
 
     def test_evaluate_unscaled_fail_3(self):
         manager = ClassifierSetManager(target=TARGET)
+        manager.add_batch(BATCH_INFO)
         message = ""
-        try:
-            # test only one exception from _check_num_batches() to ensure it is called; other exceptions tested by the
-            # unit tests for _check_num_batches()
+        try:  # trigger one check from shared.check_float_array() to ensure it is called
+            manager.evaluate_unscaled(features=REFERENCE.astype(np.float64), num_batches=None)
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter features must be an array of type float32.")
+
+    def test_evaluate_unscaled_fail_4(self):
+        manager = ClassifierSetManager(target=TARGET)
+        message = ""
+        try:  # trigger one check from _check_num_batches() to ensure it is called
             manager.evaluate_unscaled(features=REFERENCE, num_batches=np.array([-1]))
         except ValueError as ex:
             message = ex.args[0]
@@ -539,8 +614,10 @@ class TestClassifierSetManager(TestCase):
         unscaled = manager.evaluate_unscaled(features=REFERENCE, num_batches=None)
         # no batches means marginal distribution is returned
         self.assertEqual(len(unscaled), 1)
+        shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
         ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(unscaled[0][0], ref_unscaled)
+        shared.check_float_array(x=unscaled[0][1], name="unscaled[0][1]")
         np.testing.assert_allclose(unscaled[0][1], np.ones(ref_unscaled.shape[0]))
 
     def test_evaluate_unscaled_2(self):
@@ -548,8 +625,10 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)  # batch with no prototypes has no impact on the model
         unscaled = manager.evaluate_unscaled(features=REFERENCE, num_batches=0)
         self.assertEqual(len(unscaled), 1)
+        shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
         ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(unscaled[0][0], ref_unscaled)
+        shared.check_float_array(x=unscaled[0][1], name="unscaled[0][1]")
         np.testing.assert_allclose(unscaled[0][1], np.ones(ref_unscaled.shape[0]))
 
     def test_evaluate_unscaled_3(self):
@@ -557,8 +636,10 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=np.array([0]))  # evaluate marginals only
         self.assertEqual(len(unscaled), 1)
+        shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
         ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(unscaled[0][0], ref_unscaled)
+        shared.check_float_array(x=unscaled[0][1], name="unscaled[0][1]")
         np.testing.assert_allclose(unscaled[0][1], np.ones(ref_unscaled.shape[0]))
 
     def test_evaluate_unscaled_4(self):
@@ -566,19 +647,17 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=None)
         self.assertEqual(len(unscaled), 1)
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, _ = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=1,
-            meta={"num_features": PROTOTYPES.shape[1]}
+        shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
+        meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
+            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
         )
-        ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        for i in range(3):
-            keep = target == i
-            ref_unscaled[:, i] += np.sum(impact[:, keep], axis=1)
+        ref_unscaled += base_unscaled
+        ref_scale += base_scale
         np.testing.assert_allclose(unscaled[0][0], ref_unscaled)
-        np.testing.assert_allclose(unscaled[0][1], np.sum(ref_unscaled, axis=1))
+        shared.check_float_array(x=unscaled[0][1], name="unscaled[0][1]")
+        np.testing.assert_allclose(unscaled[0][1], ref_scale)
 
     def test_evaluate_unscaled_5(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -586,241 +665,111 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=np.array([0, 2]))
         self.assertEqual(len(unscaled), 2)
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, _ = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch, batch],
-            num_batches=2,
-            meta={"num_features": PROTOTYPES.shape[1]}
+        shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
+        meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
+            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
         )
-        ref_batch_0 = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        ref_batch_2 = ref_batch_0.copy()
-        for i in range(3):
-            keep = target == i
-            ref_batch_2[:, i] += np.sum(impact[:, keep], axis=1)
-        np.testing.assert_allclose(unscaled[0][0], ref_batch_0)
-        np.testing.assert_allclose(unscaled[0][1], np.ones(ref_batch_0.shape[0]))
-        np.testing.assert_allclose(unscaled[1][0], ref_batch_2)
-        np.testing.assert_allclose(unscaled[1][1], np.sum(ref_batch_2, axis=1))
+        ref_unscaled = base_unscaled + 2.0 * ref_unscaled
+        ref_scale = base_scale + 2.0 * ref_scale
+        np.testing.assert_allclose(unscaled[0][0], base_unscaled)
+        shared.check_float_array(x=unscaled[0][1], name="unscaled[0][1]")
+        np.testing.assert_allclose(unscaled[0][1], base_scale)
+        shared.check_float_array(x=unscaled[1][0], name="unscaled[1][0]")
+        np.testing.assert_allclose(unscaled[1][0], ref_unscaled, atol=1e-6)
+        shared.check_float_array(x=unscaled[1][1], name="unscaled[1][1]")
+        np.testing.assert_allclose(unscaled[1][1], ref_scale, atol=1e-6)
 
     # method _check_evaluate_input() already tested by the above
 
     @staticmethod
-    def test_compute_impact_1():
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[],
-            num_batches=0,
-            meta={}
-        )  # check default values for set manager with no data
-        np.testing.assert_allclose(impact, np.zeros((REFERENCE.shape[0], 0)))
-        np.testing.assert_allclose(target, np.zeros(0))
-        np.testing.assert_allclose(batch_index, np.zeros(0))
+    def test_get_sample_ranges_1():
+        result = ClassifierSetManager._get_sample_ranges(5000)
+        np.testing.assert_array_equal(result, np.array([0, 5000]))
 
     @staticmethod
-    def test_compute_impact_2():
+    def test_get_sample_ranges_2():
+        result = ClassifierSetManager._get_sample_ranges(10001)
+        np.testing.assert_array_equal(result, np.array([0, 5001, 10001]))
+
+    @staticmethod
+    def test_get_baseline_1():
+        unscaled, scale = ClassifierSetManager._get_baseline(num_samples=10, meta={"marginals": MARGINALS})
+        shared.check_float_array(x=unscaled, name="unscaled")
+        np.testing.assert_array_equal(unscaled, np.vstack([MARGINALS] * 10))
+        shared.check_float_array(x=scale, name="scale")
+        np.testing.assert_array_equal(scale, np.ones(10, **shared.FLOAT_TYPE))
+
+    @staticmethod
+    def test_get_batch_contribution_1():
+        batch = ClassifierSetManager._process_batch(BATCH_INFO)
+        unscaled, scale = ClassifierSetManager._get_batch_contribution(
+            features=REFERENCE, batch=batch, meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+        )
+        shared.check_float_array(x=unscaled, name="unscaled")
+        scaled_reference = REFERENCE[:, batch["active_features"]] * batch["feature_weights"]
+        impact = shared.quick_compute_similarity(
+            scaled_reference=scaled_reference,
+            scaled_prototypes=batch["scaled_prototypes"],
+            ssq_reference=np.sum(scaled_reference ** 2.0, axis=1),
+            ssq_prototypes=batch["ssq_prototypes"]
+        ) * batch["prototype_weights"]
+        reference = np.zeros((REFERENCE.shape[0], MARGINALS.shape[0]), **shared.FLOAT_TYPE)
+        for i, label in enumerate(batch["target"]):
+            reference[:, label] += impact[:, i]
+        np.testing.assert_allclose(unscaled, reference)
+        shared.check_float_array(x=scale, name="scale")
+        np.testing.assert_allclose(scale, np.sum(reference, axis=1))
+
+    @staticmethod
+    def test_get_batch_contribution_2():
         batch = ClassifierSetManager._process_batch(BATCH_INFO_NO_FEATURES)
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=1,
-            meta={"num_features": PROTOTYPES.shape[1]}
-        )  # batch with no feature weights define a global correction
-        unique_targets = np.unique(TARGET)
-        # global correction is consolidated to have only one prototype per distinct target value
-        combined_weights = np.zeros_like(unique_targets, dtype=float)
-        for i, value in enumerate(unique_targets):
-            combined_weights[i] = np.sum(PROTOTYPE_WEIGHTS[TARGET == value])
-        np.testing.assert_allclose(impact, np.tile(combined_weights, (REFERENCE.shape[0], 1)))
-        np.testing.assert_allclose(target, unique_targets)
-        np.testing.assert_allclose(batch_index, np.zeros(unique_targets.shape[0], dtype=int))
+        unscaled, scale = ClassifierSetManager._get_batch_contribution(
+            features=REFERENCE, batch=batch, meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+        )
+        shared.check_float_array(x=unscaled, name="unscaled")
+        scaled_reference = REFERENCE[:, batch["active_features"]] * batch["feature_weights"]
+        impact = shared.quick_compute_similarity(
+            scaled_reference=scaled_reference,
+            scaled_prototypes=batch["scaled_prototypes"],
+            ssq_reference=np.sum(scaled_reference ** 2.0, axis=1),
+            ssq_prototypes=batch["ssq_prototypes"]
+        ) * batch["prototype_weights"]
+        reference = np.zeros((REFERENCE.shape[0], MARGINALS.shape[0]), **shared.FLOAT_TYPE)
+        for i, label in enumerate(batch["target"]):
+            reference[:, label] += impact[:, i]
+        np.testing.assert_allclose(unscaled, reference)
+        shared.check_float_array(x=scale, name="scale")
+        np.testing.assert_allclose(scale, np.sum(reference, axis=1))
 
     @staticmethod
-    def test_compute_impact_3():
-        batch = ClassifierSetManager._process_batch(BATCH_INFO_NO_PROTOTYPES)
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=1,
-            meta={}
-        )  # batch with no prototypes has no impact on the model
-        np.testing.assert_allclose(impact, np.zeros((REFERENCE.shape[0], 0)))
-        np.testing.assert_allclose(target, np.zeros(0))
-        np.testing.assert_allclose(batch_index, np.zeros(0))
-
-    @staticmethod
-    def test_compute_impact_4():
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=0,
-            meta={}
-        )  # check default values for set manager with data if num_batches is set to 0
-        np.testing.assert_allclose(impact, np.zeros((REFERENCE.shape[0], 0)))
-        np.testing.assert_allclose(target, np.zeros(0))
-        np.testing.assert_allclose(batch_index, np.zeros(0))
-
-    @staticmethod
-    def test_compute_impact_5():
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=1,
-            meta={"num_features": PROTOTYPES.shape[1]}
+    def test_get_batch_contribution_3():
+        batch = ClassifierSetManager._process_batch(BATCH_INFO_ALL_FEATURES)
+        unscaled, scale = ClassifierSetManager._get_batch_contribution(
+            features=REFERENCE, batch=batch, meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
         )
-        active_prototypes = np.nonzero(PROTOTYPE_WEIGHTS > 0.0)[0]
-        active_features = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
-        ref_impact = np.zeros((REFERENCE.shape[0], len(active_prototypes)))
-        for i in range(REFERENCE.shape[0]):
-            for j, prototype in enumerate(active_prototypes):
-                ref_impact[i, j] = np.exp(
-                    -0.5 * np.sum(((REFERENCE[i, active_features] - PROTOTYPES[prototype, active_features])
-                                   * FEATURE_WEIGHTS[active_features]) ** 2.0)
-                )
-        ref_impact = ref_impact * PROTOTYPE_WEIGHTS[active_prototypes]
-        np.testing.assert_allclose(impact, ref_impact)
-        np.testing.assert_allclose(target, TARGET[active_prototypes])
-        np.testing.assert_allclose(batch_index, np.zeros(active_prototypes.shape[0], dtype=int))
-
-    @staticmethod
-    def test_compute_impact_6():
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch, batch],
-            num_batches=2,
-            meta={"num_features": PROTOTYPES.shape[1]}
-        )
-        active_prototypes = np.nonzero(PROTOTYPE_WEIGHTS > 0.0)[0]
-        active_features = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
-        ref_impact = np.zeros((REFERENCE.shape[0], len(active_prototypes)))
-        for i in range(REFERENCE.shape[0]):
-            for j, prototype in enumerate(active_prototypes):
-                ref_impact[i, j] = np.exp(
-                    -0.5 * np.sum(
-                        ((REFERENCE[i, active_features] - PROTOTYPES[prototype, active_features])
-                         * FEATURE_WEIGHTS[active_features]) ** 2.0)
-                )
-        ref_impact = ref_impact * PROTOTYPE_WEIGHTS[active_prototypes]
-        np.testing.assert_allclose(impact, np.hstack([ref_impact, ref_impact]))
-        np.testing.assert_allclose(target, np.hstack([TARGET[active_prototypes], TARGET[active_prototypes]]))
-        np.testing.assert_allclose(batch_index, np.hstack([
-            np.zeros(active_prototypes.shape[0], dtype=int), np.ones(active_prototypes.shape[0], dtype=int)
-        ]))
-
-    def test_convert_to_unscaled_1(self):
-        unscaled = ClassifierSetManager._convert_to_unscaled(
-            impact=np.zeros((REFERENCE.shape[0], 0)),
-            target=np.zeros(0, dtype=int),
-            batch_index=np.zeros(0, dtype=int),
-            num_batches=0,
-            meta={"marginals": MARGINALS}
-        )  # check handling of defaults for no data or no batches being evaluated
-        self.assertEqual(len(unscaled), 1)
-        ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        np.testing.assert_allclose(unscaled[0][0], ref_unscaled)
-        np.testing.assert_allclose(unscaled[0][1], np.ones(ref_unscaled.shape[0]))
-
-    def test_convert_to_unscaled_2(self):
-        unscaled = ClassifierSetManager._convert_to_unscaled(
-            impact=np.zeros((REFERENCE.shape[0], 0)),
-            target=np.zeros(0, dtype=int),
-            batch_index=np.zeros(0, dtype=int),
-            num_batches=np.array([0]),
-            meta={"marginals": MARGINALS}
-        )  # as above, passing number of batches as array
-        self.assertEqual(len(unscaled), 1)
-        ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        np.testing.assert_allclose(unscaled[0][0], ref_unscaled)
-        np.testing.assert_allclose(unscaled[0][1], np.ones(ref_unscaled.shape[0]))
-
-    def test_convert_to_unscaled_3(self):
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=1,
-            meta={"num_features": PROTOTYPES.shape[1]}
-        )
-        unscaled = ClassifierSetManager._convert_to_unscaled(
-            impact=impact,
-            target=target,
-            batch_index=batch_index,
-            num_batches=1,
-            meta={"num_features": PROTOTYPES.shape[1], "marginals": MARGINALS}
-        )
-        self.assertEqual(len(unscaled), 1)
-        ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        for i in range(3):
-            keep = target == i
-            ref_unscaled[:, i] += np.sum(impact[:, keep], axis=1)
-        np.testing.assert_allclose(unscaled[0][0], ref_unscaled)
-        np.testing.assert_allclose(unscaled[0][1], np.sum(ref_unscaled, axis=1))
-
-    def test_convert_to_unscaled_4(self):
-        batch = ClassifierSetManager._process_batch({
-            "prototypes": PROTOTYPES,
-            "target": np.array([0, 2, 0, 2, 0, 2]),
-            "feature_weights": FEATURE_WEIGHTS,
-            "prototype_weights": PROTOTYPE_WEIGHTS,
-            "sample_index": SAMPLE_INDEX
-        })  # test the special case where not all classes are present in a batch
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=1,
-            meta={"num_features": PROTOTYPES.shape[1]}
-        )
-        unscaled = ClassifierSetManager._convert_to_unscaled(
-            impact=impact,
-            target=target,
-            batch_index=batch_index,
-            num_batches=np.array([1]),  # test passing a single value as array
-            meta={"num_features": PROTOTYPES.shape[1], "marginals": MARGINALS}
-        )
-        self.assertEqual(len(unscaled), 1)
-        ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        for i in range(3):
-            keep = target == i
-            ref_unscaled[:, i] += np.sum(impact[:, keep], axis=1)
-        np.testing.assert_allclose(unscaled[0][0], ref_unscaled)
-        np.testing.assert_allclose(unscaled[0][1], np.sum(ref_unscaled, axis=1))
-
-    def test_convert_to_unscaled_5(self):
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, batch_index = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch, batch],
-            num_batches=2,
-            meta={"num_features": PROTOTYPES.shape[1]}
-        )
-        unscaled = ClassifierSetManager._convert_to_unscaled(
-            impact=impact,
-            target=target,
-            batch_index=batch_index,
-            num_batches=np.array([0, 2]),
-            meta={"num_features": PROTOTYPES.shape[1], "marginals": MARGINALS}
-        )
-        self.assertEqual(len(unscaled), 2)
-        ref_batch_0 = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        ref_batch_2 = ref_batch_0.copy()
-        for i in range(3):
-            keep = target == i
-            ref_batch_2[:, i] += np.sum(impact[:, keep], axis=1)
-        np.testing.assert_allclose(unscaled[0][0], ref_batch_0)
-        np.testing.assert_allclose(unscaled[0][1], np.ones(ref_batch_0.shape[0]))
-        np.testing.assert_allclose(unscaled[1][0], ref_batch_2)
-        np.testing.assert_allclose(unscaled[1][1], np.sum(ref_batch_2, axis=1))
-
-    # method _compute_update() already tested by the above
+        shared.check_float_array(x=unscaled, name="unscaled")
+        scaled_reference = REFERENCE[:, batch["active_features"]] * batch["feature_weights"]
+        impact = shared.quick_compute_similarity(
+            scaled_reference=scaled_reference,
+            scaled_prototypes=batch["scaled_prototypes"],
+            ssq_reference=np.sum(scaled_reference ** 2.0, axis=1),
+            ssq_prototypes=batch["ssq_prototypes"]
+        ) * batch["prototype_weights"]
+        reference = np.zeros((REFERENCE.shape[0], MARGINALS.shape[0]), **shared.FLOAT_TYPE)
+        for i, label in enumerate(batch["target"]):
+            reference[:, label] += impact[:, i]
+        np.testing.assert_allclose(unscaled, reference)
+        shared.check_float_array(x=scale, name="scale")
+        np.testing.assert_allclose(scale, np.sum(reference, axis=1))
 
     def test_evaluate_1(self):
         manager = ClassifierSetManager(target=TARGET)
         scaled = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=False)
         # check default values for set manager with no data
         self.assertEqual(len(scaled), 1)
+        shared.check_float_array(x=scaled[0], name="scaled[0]")
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
@@ -830,8 +779,10 @@ class TestClassifierSetManager(TestCase):
         # check default values for set manager with no data
         self.assertEqual(len(scaled), 1)
         self.assertEqual(len(familiarity), 1)
+        shared.check_float_array(x=scaled[0], name="scaled[0]")
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(scaled[0], ref_scaled)
+        shared.check_float_array(x=familiarity[0], name="familiarity[0]")
         np.testing.assert_allclose(familiarity[0], np.zeros_like(familiarity[0]))
 
     def test_evaluate_3(self):
@@ -839,6 +790,7 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)  # batch with no prototypes has no impact on the model
         scaled = manager.evaluate(features=REFERENCE, num_batches=0, compute_familiarity=False)
         self.assertEqual(len(scaled), 1)
+        shared.check_float_array(x=scaled[0], name="scaled[0]")
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
@@ -848,6 +800,7 @@ class TestClassifierSetManager(TestCase):
         scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0]), compute_familiarity=False)
         # evaluate marginals only
         self.assertEqual(len(scaled), 1)
+        shared.check_float_array(x=scaled[0], name="scaled[0]")
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
@@ -856,18 +809,15 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         scaled = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=False)
         self.assertEqual(len(scaled), 1)
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, _ = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=1,
-            meta={"num_features": PROTOTYPES.shape[1]}
+        shared.check_float_array(x=scaled[0], name="scaled[0]")
+        meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
+            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
         )
-        ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        for i in range(3):
-            keep = target == i
-            ref_scaled[:, i] += np.sum(impact[:, keep], axis=1)
-        ref_scaled = (ref_scaled.transpose() / np.sum(ref_scaled, axis=1)).transpose()
+        ref_unscaled += base_unscaled
+        ref_scale += base_scale
+        ref_scaled = (ref_unscaled.transpose() / ref_scale).transpose()
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
     def test_evaluate_6(self):
@@ -876,21 +826,18 @@ class TestClassifierSetManager(TestCase):
         scaled, familiarity = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=True)
         self.assertEqual(len(scaled), 1)
         self.assertEqual(len(familiarity), 1)
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, _ = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch],
-            num_batches=1,
-            meta={"num_features": PROTOTYPES.shape[1]}
+        shared.check_float_array(x=scaled[0], name="scaled[0]")
+        meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
+            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
         )
-        ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        for i in range(3):
-            keep = target == i
-            ref_scaled[:, i] += np.sum(impact[:, keep], axis=1)
-        scale = np.sum(ref_scaled, axis=1)
-        ref_scaled = (ref_scaled.transpose() / scale).transpose()
+        ref_unscaled += base_unscaled
+        ref_scale += base_scale
+        ref_scaled = (ref_unscaled.transpose() / ref_scale).transpose()
         np.testing.assert_allclose(scaled[0], ref_scaled)
-        np.testing.assert_allclose(familiarity[0], scale - 1.0)
+        shared.check_float_array(x=familiarity[0], name="familiarity[0]")
+        np.testing.assert_allclose(familiarity[0], ref_scale - 1.0)
 
     def test_evaluate_7(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -898,21 +845,18 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0, 2]), compute_familiarity=False)
         self.assertEqual(len(scaled), 2)
-        batch = ClassifierSetManager._process_batch(BATCH_INFO)
-        impact, target, _ = ClassifierSetManager._compute_impact(
-            features=REFERENCE,
-            batches=[batch, batch],
-            num_batches=2,
-            meta={"num_features": PROTOTYPES.shape[1]}
+        shared.check_float_array(x=scaled[0], name="scaled[0]")
+        meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
+            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
         )
-        ref_batch_0 = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
-        ref_batch_2 = ref_batch_0.copy()
-        for i in range(3):
-            keep = target == i
-            ref_batch_2[:, i] += np.sum(impact[:, keep], axis=1)
-        ref_batch_2 = (ref_batch_2.transpose() / np.sum(ref_batch_2, axis=1)).transpose()
-        np.testing.assert_allclose(scaled[0], ref_batch_0)
-        np.testing.assert_allclose(scaled[1], ref_batch_2)
+        ref_unscaled = base_unscaled + 2.0 * ref_unscaled
+        ref_scale = base_scale + 2.0 * ref_scale
+        ref_scaled = (ref_unscaled.transpose() / ref_scale).transpose()
+        np.testing.assert_allclose(scaled[0], base_unscaled)  # baseline scale is 1.0
+        shared.check_float_array(x=scaled[1], name="scaled[1]")
+        np.testing.assert_allclose(scaled[1], ref_scaled, atol=1e-6)
 
     def test_get_feature_weights_fail_1(self):
         manager = ClassifierSetManager(target=TARGET)
@@ -931,6 +875,7 @@ class TestClassifierSetManager(TestCase):
         manager = ClassifierSetManager(target=TARGET)
         result = manager.get_feature_weights()  # check default values for set manager with no data
         self.assertEqual(len(result), 2)
+        shared.check_float_array(x=result["weight_matrix"], name="result['weight_matrix']")
         np.testing.assert_allclose(result["weight_matrix"], np.zeros((0, 0)))
         np.testing.assert_allclose(result["feature_index"], np.zeros(0, dtype=int))
 
@@ -939,6 +884,7 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO_NO_FEATURES)  # check behavior in case of no active features
         result = manager.get_feature_weights()
         self.assertEqual(len(result), 2)
+        shared.check_float_array(x=result["weight_matrix"], name="result['weight_matrix']")
         np.testing.assert_allclose(result["weight_matrix"], np.zeros((1, 0)))
         np.testing.assert_allclose(result["feature_index"], np.zeros(0, dtype=int))
 
@@ -950,13 +896,14 @@ class TestClassifierSetManager(TestCase):
         order = np.argsort(FEATURE_WEIGHTS[ref_feature_index])[-1::-1]
         ref_weight_matrix = FEATURE_WEIGHTS[ref_feature_index][order][np.newaxis, :]
         self.assertEqual(len(result), 2)
+        shared.check_float_array(x=result["weight_matrix"], name="result['weight_matrix']")
         np.testing.assert_allclose(result["weight_matrix"], ref_weight_matrix)
         np.testing.assert_allclose(result["feature_index"], ref_feature_index[order])
 
     def test_get_feature_weights_4(self):
         manager = ClassifierSetManager(target=TARGET)
         manager.add_batch(BATCH_INFO)
-        new_weights = np.arange(FEATURE_WEIGHTS.shape[0], dtype=float)
+        new_weights = np.arange(FEATURE_WEIGHTS.shape[0]).astype(**shared.FLOAT_TYPE)
         manager.add_batch({
             "prototypes": PROTOTYPES,
             "target": TARGET,
@@ -968,6 +915,7 @@ class TestClassifierSetManager(TestCase):
         order = np.argsort(FEATURE_WEIGHTS)[-1::-1]
         ref_weight_matrix = np.vstack([FEATURE_WEIGHTS[order], new_weights[order]])
         self.assertEqual(len(result), 2)
+        shared.check_float_array(x=result["weight_matrix"], name="result['weight_matrix']")
         np.testing.assert_allclose(result["weight_matrix"], ref_weight_matrix)
         np.testing.assert_allclose(result["feature_index"], order)
 
@@ -980,6 +928,7 @@ class TestClassifierSetManager(TestCase):
         order = np.argsort(FEATURE_WEIGHTS[ref_feature_index])[-1::-1]
         ref_weight_matrix = FEATURE_WEIGHTS[ref_feature_index][order][np.newaxis, :]
         self.assertEqual(len(result), 2)
+        shared.check_float_array(x=result["weight_matrix"], name="result['weight_matrix']")
         np.testing.assert_allclose(result["weight_matrix"], ref_weight_matrix)
         np.testing.assert_allclose(result["feature_index"], ref_feature_index[order])
 
@@ -1002,7 +951,7 @@ class TestClassifierSetManager(TestCase):
         try:
             # test only one exception from _check_evaluate_input() to ensure it is called; other exceptions tested by
             # the unit tests for _check_evaluate_input()
-            manager.get_batches(features=REFERENCE[0:1, :], num_batches=1)
+            manager.get_batches(features=REFERENCE[0:1, :].astype(**shared.FLOAT_TYPE), num_batches=1)
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(
@@ -1029,11 +978,14 @@ class TestClassifierSetManager(TestCase):
         active_features = np.nonzero(BATCH_INFO["feature_weights"])[0]
         active_prototypes = np.nonzero(BATCH_INFO["prototype_weights"])[0]
         np.testing.assert_array_equal(batches[0]["active_features"], active_features)
+        shared.check_float_array(x=batches[0]["prototypes"], name="batches[0]['prototypes']")
         np.testing.assert_array_almost_equal(
             batches[0]["prototypes"], BATCH_INFO["prototypes"][active_prototypes][:, active_features]
         )
         np.testing.assert_array_equal(batches[0]["target"], BATCH_INFO["target"][active_prototypes])
+        shared.check_float_array(x=batches[0]["feature_weights"], name="batches[0]['feature_weights']")
         np.testing.assert_array_equal(batches[0]["feature_weights"], BATCH_INFO["feature_weights"][active_features])
+        shared.check_float_array(x=batches[0]["prototype_weights"], name="batches[0]['prototype_weights']")
         np.testing.assert_array_equal(
             batches[0]["prototype_weights"], BATCH_INFO["prototype_weights"][active_prototypes]
         )
@@ -1048,6 +1000,7 @@ class TestClassifierSetManager(TestCase):
             "active_features", "feature_weights", "prototype_weights", "prototypes", "sample_index", "target"
         ]))
         self.assertEqual(batches[0]["active_features"].shape[0], 0)
+        shared.check_float_array(x=batches[0]["prototypes"], name="batches[0]['prototypes']")
         self.assertEqual(batches[0]["prototypes"].shape, (np.unique(TARGET).shape[0], 0))
         # note that the prototypes are merged to one representative per class present in TARGET
 
@@ -1064,7 +1017,7 @@ class TestClassifierSetManager(TestCase):
     def test_get_batches_4(self):
         manager = ClassifierSetManager(target=TARGET)
         manager.add_batch(BATCH_INFO)
-        batches = manager.get_batches(features=REFERENCE[:1])
+        batches = manager.get_batches(features=REFERENCE[:1].astype(**shared.FLOAT_TYPE))
         self.assertEqual(len(batches), 1)
         np.testing.assert_array_equal(np.sort(list(batches[0].keys())), np.array([
             "active_features", "feature_weights", "prototype_weights", "prototypes", "sample_index", "similarities",
@@ -1073,11 +1026,14 @@ class TestClassifierSetManager(TestCase):
         active_features = np.nonzero(BATCH_INFO["feature_weights"])[0]
         active_prototypes = np.nonzero(BATCH_INFO["prototype_weights"])[0]
         np.testing.assert_array_equal(batches[0]["active_features"], active_features)
+        shared.check_float_array(x=batches[0]["prototypes"], name="batches[0]['prototypes']")
         np.testing.assert_array_almost_equal(
             batches[0]["prototypes"], BATCH_INFO["prototypes"][active_prototypes][:, active_features]
         )
         np.testing.assert_array_equal(batches[0]["target"], BATCH_INFO["target"][active_prototypes])
+        shared.check_float_array(x=batches[0]["feature_weights"], name="batches[0]['feature_weights']")
         np.testing.assert_array_equal(batches[0]["feature_weights"], BATCH_INFO["feature_weights"][active_features])
+        shared.check_float_array(x=batches[0]["prototype_weights"], name="batches[0]['prototype_weights']")
         np.testing.assert_array_equal(
             batches[0]["prototype_weights"], BATCH_INFO["prototype_weights"][active_prototypes]
         )
@@ -1089,7 +1045,7 @@ class TestClassifierSetManager(TestCase):
         ) ** 2.0)
         np.testing.assert_allclose(batches[0]["similarities"], reference)
 
-    # method _compute_feature_similarities() already tested by the above
+    # methods _check_get_batches_input() and _compute_feature_similarities() already tested by the above
 
     def test_shrink_1(self):
         manager = ClassifierSetManager(target=TARGET)

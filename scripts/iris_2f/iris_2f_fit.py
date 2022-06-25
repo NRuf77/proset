@@ -53,6 +53,14 @@ experiments = (
         "select_para": {
             "lambda_v_range": 5.55307051e-03, "lambda_w_range": 1.74987513e-05, "num_batch_grid": np.array([5])
         }
+    }),
+    ("iris_2f_timing_1e7_model", {  # as iris_2f_2d_95_model with solver_factr fixed to 1e7 for timing purposes
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"solver_factr": 1e7}
+    }),
+    ("iris_2f_timing_1e10_model", {  # as iris_2f_2d_95_tf_model with solver_factr fixed to 1e10 for timing purposes
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"solver_factr": 1e10}
     })
 )
 print("  Select experiment")

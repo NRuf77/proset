@@ -52,7 +52,23 @@ experiments = (
         "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
         "select_para": {
             "lambda_v_range": 7.76720968e-06, "lambda_w_range": 1.63522125e-09, "num_batch_grid": np.array([8])
-        }
+        },
+    }),
+    ("digits_timing_1e7_model", {  # as digits_2d_95_model with solver_factr fixed to 1e7 for timing purposes
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"solver_factr": 1e7}
+    }),
+    ("digits_timing_1e10_model", {  # as digits_2d_95_model with solver_factr fixed to 1e10 for timing purposes
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"solver_factr": 1e10}
+    }),
+    ("digits_chunked_model", {  # as digits_2d_95_model with chunks = 2 to test chunking strategy
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
+        "select_para": {"chunks": 2}
+    }),
+    ("digits_tf_model", {  # as digits_2d_95_model but using tensorflow as compute backend
+        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000, "use_tensorflow": True},
+        "select_para": {}
     })
 )
 print("  Select experiment")

@@ -8,29 +8,24 @@ from setuptools import setup
 
 
 with open("proset/__init__.py", mode="r", encoding="utf-8") as file:
-    # note that we cannot just import the version from proset as dependencies may be missing
-    content = file.readlines()
-__version__ = None
-for line in content:
-    if line.startswith("__version__"):
-        __version__ = line.split("=")[1].replace("\"", "").strip()
-        break
-if __version__ is None:
-    raise RuntimeError("Unable to determine package version from proset/__init__.py.")
+    # retrieve module version without importing the package
+    version = file.readlines()
+version = [line for line in version if line.startswith("__version__")][0]
+version = version.split("=")[1].replace("\"", "").strip()
 
 with open("README.md", mode="r", encoding="utf-8") as file:
     readme = file.read()
 
 setup(
     name="proset",
-    version=__version__,
+    version=version,
     description="Prototype set models for supervised learning",
     long_description=readme,
     long_description_content_type="text/markdown",
     author="Nikolaus Ruf",
     author_email="nikolaus.ruf@t-online.de",
     url="https://github.com/NRuf77/proset",
-    packages=["proset", "proset.benchmarks", "proset.utility", "proset.utility.plots"],
+    packages=["proset", "proset.benchmarks", "proset.objectives", "proset.utility", "proset.utility.plots"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
@@ -40,17 +35,21 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "matplotlib>=3.3.2",
-        "numpy>=1.19.2",
-        "pandas>=1.1.3",
-        "scipy>=1.5.2",
-        "scikit-learn>=0.23.2",
-        "statsmodels>=0.12.0"
+        "matplotlib>=3.5.1",
+        "numpy>=1.22.3",
+        "pandas>=1.4.1",
+        "scipy>=1.8.0",
+        "scikit-learn>=1.0.2",
+        "statsmodels>=0.13.2"
     ],
-    extras_require={"benchmarks": ["psutil>=5.7.2", "shap>=0.39.0", "xgboost>=1.3.3"]},
+    extras_require={
+        "benchmarks": ["mnist>=0.2.2", "psutil>=5.7.2", "shap>=0.39.0", "xgboost>=1.3.3"],
+        "tensorflow": ["tensorflow>=2.8.0"]
+    },
     exclude_package_data={
         "proset": ["__pycache__"],
         "proset.benchmarks": ["__pycache__"],
+        "proset.objectives": ["__pycache__"],
         "proset.utility": ["__pycache__"]
     }
 )
