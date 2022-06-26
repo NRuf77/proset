@@ -43,8 +43,8 @@ class TfClassifierObjective(TfObjective):
         :param lambda_w: see docstring of objective.Objective.__init__() for details
         :param alpha_v: see docstring of objective.Objective.__init__() for details
         :param alpha_w: see docstring of objective.Objective.__init__() for details
-        :return: dict equal to the return value of the base class method with additional key 'counts' referencing the
-            vector of sample counts per class; raises a ValueError if a check fails
+        :return: dict equal to the return value of the base class method with additional key 'num_classes' referencing
+            the number of classes; raises a ValueError if a check fails
         """
         meta = TfObjective._check_init_values(  # this already checks whether tensorflow is installed
             features=features,
@@ -57,7 +57,7 @@ class TfClassifierObjective(TfObjective):
             alpha_v=alpha_v,
             alpha_w=alpha_w
         )
-        meta["counts"] = shared_classifier.check_classifier_init_values(target=target, max_fraction=max_fraction)
+        meta["num_classes"] = shared_classifier.check_classifier_init_values(target=target, max_fraction=max_fraction)
         return meta
 
     @staticmethod
@@ -68,7 +68,7 @@ class TfClassifierObjective(TfObjective):
         :param unscaled: 2D numpy array of type specified by shared.FLOAT_TYPE; unscaled predictions corresponding to
             the target values
         :param scale: see docstring of objective.Objective._assign_groups() for details
-        :param meta: dict; must have key 'counts' referencing the vector of sample counts per class
+        :param meta: dict; must have key 'num_classes' referencing the number of classes
         :return: as return value of objective.Objective._assign_groups()
         """
         return shared_classifier.assign_groups(target=target, unscaled=unscaled, meta=meta)
@@ -83,7 +83,7 @@ class TfClassifierObjective(TfObjective):
         :param weights: see docstring of objective.Objective._finalize_split() for details
         :param unscaled: see docstring of objective.Objective._finalize_split() for details
         :param scale: see docstring of objective.Objective._finalize_split() for details
-        :param meta: dict; must have key 'counts' referencing the vector of sample counts per class
+        :param meta: dict; must have key 'num_classes' referencing the number of classes
         :return: dict in the format specified for the return value of Objective.objective._split_samples(); this
             function adds the following field:
             - class_matches: 2D numpy boolean array with one row per reference point and one column per prototype

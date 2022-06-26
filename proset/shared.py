@@ -12,18 +12,35 @@ FLOAT_TYPE = {"dtype": np.float32, "order": "F"}  # enforce this format for all 
 LOG_OFFSET = 1e-10  # add to small numbers before taking the logarithm
 
 
-def check_classifier_target(target):
+def check_classifier_target(target, weights):
     """Check whether target for classification is encoded correctly.
 
     :param target: 1D numpy integer array; classes for classification problem encoded as integers from 0 to K - 1; all
         classes must be present
-    :return: 1D numpy integer array of counts for each class in order
+    :param weights: 1D numpy array with non-negative values of type specified by FLOAT_TYPE or None; sample weights to
+        be used in the likelihood function; pass None to use unit weights
+    :return: 1D numpy array with non-negative values of type specified by FLOAT_TYPE; counts for each class in order
     """
     if len(target.shape) != 1:
         raise ValueError("Parameter target must be a 1D array.")
     if not np.issubdtype(target.dtype, np.integer):
         raise TypeError("Parameter target must be an integer array.")
-    classes, counts = np.unique(target, return_counts=True)
+    if weights is None:
+        classes, counts = np.unique(target, return_counts=True)
+        counts = counts.astype(**FLOAT_TYPE)
+    else:
+        if len(weights.shape) != 1:
+            raise ValueError("Parameter weights must be a 1D array.")
+        if weights.shape[0] != target.shape[0]:
+            raise ValueError("Parameter weights must have as many elements as target.")
+        if np.any(weights < 0.0):
+            raise ValueError("Parameter weights must not contain negative values.")
+        check_float_array(x=weights, name="weights")
+        classes = np.unique(target)
+        sort_ix = np.argsort(target)
+        # np.add.reduceat() requires weights with the same target value to be grouped together
+        changes = find_changes(target[sort_ix])
+        counts = np.add.reduceat(weights[sort_ix], indices=changes)
     if not np.array_equal(classes, np.arange(classes.shape[0])):
         raise ValueError(
             "Parameter target must encode classes as integers from 0 to K - 1 and every class must be present."

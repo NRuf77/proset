@@ -111,6 +111,8 @@ reduce memory consumption for scoring;
 new options for select_hyperparameters(): chunks (macro-batching to reduce memory consumption for training),
 cv_groups (group related samples during cross-validation);
 add benchmark cases with greater sample size and feature dimension.
+- version 0.2.1: bugfix: if sample weights are passed for training, these are also used to compute marginal class
+probabilities.
 
 ### Note on performance
 Version 0.2.0 improves compute performance as version 0.1.0 was somewhat unsatisfactory in that regard.

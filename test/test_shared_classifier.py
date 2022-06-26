@@ -106,7 +106,7 @@ def _get_consistent_example():
         max_fraction=MAX_FRACTION,
         set_manager=MockSetManager(),
         random_state=RANDOM_STATE,
-        meta={"counts": COUNTS}
+        meta={"num_classes": COUNTS.shape[0]}
     )
     feature_weights = np.linspace(0.0, 1.0, sample_data["cand_features"].shape[1]).astype(**shared.FLOAT_TYPE)
     prototype_weights = np.linspace(1.0, 2.0, sample_data["cand_features"].shape[0]).astype(**shared.FLOAT_TYPE)
@@ -163,8 +163,8 @@ class TestSharedClassifier(TestCase):
 
     @staticmethod
     def test_check_classifier_init_values_1():
-        counts = shared_classifier.check_classifier_init_values(target=TARGET, max_fraction=MAX_FRACTION)
-        np.testing.assert_array_equal(counts, COUNTS)
+        num_classes = shared_classifier.check_classifier_init_values(target=TARGET, max_fraction=MAX_FRACTION)
+        np.testing.assert_array_equal(num_classes, COUNTS.shape[0])
 
     def test_compute_threshold_1(self):
         result = shared_classifier._compute_threshold(0.1)
@@ -190,7 +190,7 @@ class TestSharedClassifier(TestCase):
         num_groups, groups = shared_classifier.assign_groups(
             target=TARGET,
             unscaled=UNSCALED,
-            meta={"counts": COUNTS}
+            meta={"num_classes": COUNTS.shape[0]}
         )
         self.assertEqual(num_groups, 6)
         reference = 2 * TARGET
@@ -212,7 +212,7 @@ class TestSharedClassifier(TestCase):
             candidates=CANDIDATES,
             target=TARGET,
             weights=WEIGHTS,
-            meta={"counts": COUNTS}
+            meta={"num_classes": COUNTS.shape[0]}
         )
         shared.check_float_array(x=new_weights, name="new_weights")
         for i in range(len(COUNTS)):
@@ -229,7 +229,10 @@ class TestSharedClassifier(TestCase):
             "cand_features": FEATURES[CANDIDATES, :],
             "cand_target": TARGET[CANDIDATES]
         }
-        class_matches = shared_classifier.find_class_matches(sample_data=sample_data, meta={"counts": COUNTS})
+        class_matches = shared_classifier.find_class_matches(
+            sample_data=sample_data,
+            meta={"num_classes": COUNTS.shape[0]}
+        )
         self.assertTrue(class_matches.flags["F_CONTIGUOUS"])
         class_matches_reference = np.zeros(
             (sample_data["ref_features"].shape[0], sample_data["cand_features"].shape[0]), dtype=bool

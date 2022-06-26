@@ -23,7 +23,7 @@ class TestShared(TestCase):
     def test_check_classifier_target_fail_1(self):
         message = ""
         try:
-            shared.check_classifier_target(np.array([[0, 1]]))
+            shared.check_classifier_target(target=np.array([[0, 1]]), weights=None)
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter target must be a 1D array.")
@@ -31,7 +31,7 @@ class TestShared(TestCase):
     def test_check_classifier_target_fail_2(self):
         message = ""
         try:
-            shared.check_classifier_target(np.array([0.0, 1.0]))
+            shared.check_classifier_target(target=np.array([0.0, 1.0]), weights=None)
         except TypeError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter target must be an integer array.")
@@ -39,7 +39,47 @@ class TestShared(TestCase):
     def test_check_classifier_target_fail_3(self):
         message = ""
         try:
-            shared.check_classifier_target(np.array([0, 2]))
+            shared.check_classifier_target(
+                target=np.array([0, 1]), weights=np.array([[1.0, 1.0]]).astype(**shared.FLOAT_TYPE)
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter weights must be a 1D array.")
+
+    def test_check_classifier_target_fail_4(self):
+        message = ""
+        try:
+            shared.check_classifier_target(
+                target=np.array([0, 1]), weights=np.array([1.0, 1.0, 1.0]).astype(**shared.FLOAT_TYPE)
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter weights must have as many elements as target.")
+
+    def test_check_classifier_target_fail_5(self):
+        message = ""
+        try:
+            shared.check_classifier_target(
+                target=np.array([0, 1]), weights=np.array([1.0, -1.0]).astype(**shared.FLOAT_TYPE)
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter weights must not contain negative values.")
+
+    def test_check_classifier_target_fail_6(self):
+        message = ""
+        try:
+            # test only one exception to ensure shared.check_float_array() is called; other exceptions tested by the
+            # unit tests for that function
+            shared.check_classifier_target(target=np.array([0, 1]), weights=np.array([1.0, 1.0]).astype(np.float64))
+        except TypeError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter weights must be an array of type float32.")
+
+    def test_check_classifier_target_fail_7(self):
+        message = ""
+        try:
+            shared.check_classifier_target(target=np.array([0, 2]), weights=None)
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(
@@ -48,8 +88,17 @@ class TestShared(TestCase):
 
     @staticmethod
     def test_check_classifier_target_1():
-        result = shared.check_classifier_target(np.array([0, 1, 1, 0, 2]))
-        np.testing.assert_allclose(result, np.array([2, 2, 1]))
+        result = shared.check_classifier_target(target=np.array([0, 1, 1, 0, 2]), weights=None)
+        shared.check_float_array(x=result, name="result")
+        np.testing.assert_allclose(result, np.array([2.0, 2.0, 1.0]))
+
+    @staticmethod
+    def test_check_classifier_target_2():
+        result = shared.check_classifier_target(
+            target=np.array([0, 1, 1, 0, 2]), weights=np.array([0.1, 0.2, 0.2, 0.1, 0.3]).astype(**shared.FLOAT_TYPE)
+        )
+        shared.check_float_array(x=result, name="result")
+        np.testing.assert_allclose(result, np.array([0.2, 0.4, 0.3]))
 
     @staticmethod
     def test_find_changes_1():

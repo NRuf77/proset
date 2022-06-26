@@ -206,6 +206,8 @@ enable \texttt{tensorflow} \cite{Abadi_15} as alternative backend for model fitt
 reduce memory consumption for scoring;
 new options for \texttt{select\_hyperparameters()}: \texttt{chunks} (macro-batching to reduce memory consumption for training), \texttt{cv\_groups} (group related samples during cross-validation);
 add benchmark cases with greater sample size and feature dimension.
+%
+\item[0.2.1:] bugfix: if sample weights are passed for training, these are also used to compute marginal class probabilities.
 \end{description}
 %
 \endinput

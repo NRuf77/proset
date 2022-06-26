@@ -26,10 +26,13 @@ class SetManager(metaclass=ABCMeta):
 
     _target_type = None  # data type of target depends on subclass
 
-    def __init__(self, target):
+    def __init__(self, target, weights):
         """Initialize set manager.
 
-        :param target: list-like object; target for supervised learning
+        :param target: numpy array; target for supervised learning; must have as many elements along the first dimension
+            as features has rows
+        :param weights: 1D numpy array with non-negative values of type specified by shared.FLOAT_TYPE or None; sample
+            weights to be used in the likelihood function; pass None to use unit weights
         """
         self._batches = []
         self._meta = {
@@ -39,14 +42,15 @@ class SetManager(metaclass=ABCMeta):
             "num_features": None  # set when adding batches
         }
         # noinspection PyTypeChecker
-        self._meta.update(self._get_baseline_distribution(target))
+        self._meta.update(self._get_baseline_distribution(target=target, weights=weights))
 
     @staticmethod
     @abstractmethod
-    def _get_baseline_distribution(target):  # pragma: no cover
+    def _get_baseline_distribution(target, weights):  # pragma: no cover
         """Compute baseline distribution parameters from target for supervised learning.
 
         :param target: see docstring of __init__() for details
+        :param weights: see docstring of __init__() for details
         :return: dict; contains information regarding the baseline distribution that depends on the model
         """
         return NotImplementedError(
@@ -529,15 +533,16 @@ class ClassifierSetManager(SetManager):
     _target_type = {"dtype": int}
 
     @staticmethod
-    def _get_baseline_distribution(target):
+    def _get_baseline_distribution(target, weights):
         """Compute baseline distribution parameters from target for classification.
 
         :param target: 1D numpy integer array; class labels encoded as integers from 0 to K - 1
+        :param weights: see docstring of SetManager.__init__() for details
         :return: dict with key 'marginals' containing a 1D numpy array of type specified by shared.FLOAT_TYPE with the
             marginal distribution of the classes
         """
-        counts = shared.check_classifier_target(target)
-        return {"marginals": (counts / np.sum(counts)).astype(**shared.FLOAT_TYPE)}
+        counts = shared.check_classifier_target(target=target, weights=weights)
+        return {"marginals": (counts / np.sum(counts))}
 
     @property
     def marginals(self):
@@ -600,7 +605,7 @@ class ClassifierSetManager(SetManager):
             ssq_prototypes=batch["ssq_prototypes"]
         ) * batch["prototype_weights"]
         sort_ix = np.argsort(batch["target"])
-        # np.reduceat() requires prototypes with the same target value grouped together
+        # np.add.reduceat() requires prototypes with the same target value grouped together
         changes = shared.find_changes(batch["target"][sort_ix])
         contribution = np.zeros((features.shape[0], meta["marginals"].shape[0]), **shared.FLOAT_TYPE)
         contribution[:, np.unique(batch["target"])] = np.add.reduceat(impact[:, sort_ix], indices=changes, axis=1)

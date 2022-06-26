@@ -40,8 +40,8 @@ class NpClassifierObjective(NpObjective):
         :param lambda_w: see docstring of objective.Objective.__init__() for details
         :param alpha_v: see docstring of objective.Objective.__init__() for details
         :param alpha_w: see docstring of objective.Objective.__init__() for details
-        :return: dict equal to the return value of the base class method with additional key 'counts' referencing the
-            vector of sample counts per class; raises a ValueError if a check fails
+        :return: dict equal to the return value of the base class method with additional key 'num_classes' referencing
+            the number of classes; raises a ValueError if a check fails
         """
         meta = NpObjective._check_init_values(
             features=features,
@@ -54,7 +54,7 @@ class NpClassifierObjective(NpObjective):
             alpha_v=alpha_v,
             alpha_w=alpha_w
         )
-        meta["counts"] = shared_classifier.check_classifier_init_values(target=target, max_fraction=max_fraction)
+        meta["num_classes"] = shared_classifier.check_classifier_init_values(target=target, max_fraction=max_fraction)
         return meta
 
     @staticmethod
@@ -65,7 +65,7 @@ class NpClassifierObjective(NpObjective):
         :param unscaled: 2D numpy array of type specified by shared.FLOAT_TYPE; unscaled predictions corresponding to
             the target values
         :param scale: see docstring of objective.Objective._assign_groups() for details
-        :param meta: dict; must have key 'counts' referencing the vector of sample counts per class
+        :param meta: dict; must have key 'num_classes' referencing the number of classes
         :return: as return value of objective.Objective._assign_groups()
         """
         return shared_classifier.assign_groups(target=target, unscaled=unscaled, meta=meta)
@@ -80,7 +80,7 @@ class NpClassifierObjective(NpObjective):
         :param weights: see docstring of np_objective.NpObjective._finalize_split() for details
         :param unscaled: see docstring of np_objective.NpObjective._finalize_split() for details
         :param scale: see docstring of np_objective.NpObjective._finalize_split() for details
-        :param meta: dict; must have key 'counts' referencing the vector of sample counts per class
+        :param meta: dict; must have key 'num_classes' referencing the number of classes
         :return: dict in the format specified for the return value of np_objective.NpObjective._split_samples(); this
             function reorders the candidate information such that the target values are in ascending order; it adds the
             following fields:

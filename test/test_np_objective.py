@@ -453,7 +453,7 @@ class TestNpClassifierObjective(TestCase):
             random_state=RANDOM_STATE
         )
         self.assertEqual(len(objective._meta), 4)
-        np.testing.assert_allclose(objective._meta["counts"], COUNTS)
+        np.testing.assert_allclose(objective._meta["num_classes"], COUNTS.shape[0])
         dimensions = objective._sample_data["cand_features"].shape
         self.assertEqual(objective._meta["num_features"], dimensions[1])
         self.assertEqual(objective._meta["num_parameters"], dimensions[1] + dimensions[0])
@@ -493,7 +493,7 @@ class TestNpClassifierObjective(TestCase):
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
             random_state=RANDOM_STATE,
-            meta={"counts": COUNTS}
+            meta={"num_classes": COUNTS.shape[0]}
         )
         self.assertEqual(len(result), 13)
         shared.check_float_array(x=result["ref_features"], name="result['ref_features']")
@@ -543,7 +543,7 @@ class TestNpClassifierObjective(TestCase):
             target=TARGET,
             unscaled=UNSCALED,
             scale=SCALE,
-            meta={"counts": COUNTS}
+            meta={"num_classes": COUNTS.shape[0]}
         )
         self.assertEqual(num_groups, 6)
         reference = 2 * TARGET
@@ -556,7 +556,7 @@ class TestNpClassifierObjective(TestCase):
             target=TARGET,
             unscaled=UNSCALED,
             scale=SCALE,
-            meta={"counts": COUNTS}
+            meta={"num_classes": COUNTS.shape[0]}
         )
         result = NpClassifierObjective._sample_candidates(
             num_groups=num_groups,
@@ -624,7 +624,7 @@ class TestNpClassifierObjective(TestCase):
             target=TARGET,
             unscaled=UNSCALED,
             scale=SCALE,
-            meta={"counts": COUNTS}
+            meta={"num_classes": COUNTS.shape[0]}
         )
         result = NpClassifierObjective._get_group_samples(
             num_groups=num_groups,

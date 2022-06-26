@@ -157,7 +157,15 @@ Note that we permit $w_{c,j}=0$ as solution of the optimization problem which co
 However, since assigning zero weight to a point is equivalent to excluding it from the model, this does not cause any issues.\par
 %
 As all parameters are constrained to the first orthant, the fact that the $L_1$ penalty is not differentiable in zero does not pose a problem.
-In fact, we can simply replace the absolute value with the identity function and solve the optimization task using a standard solver for continuous optimization with bounds like L-BFGS-B \cite{Byrd_95}.\par
+In fact, we can simply replace the absolute value with the identity function and solve the optimization task using a standard solver for continuous optimization with bounds like L-BFGS-B \cite{Byrd_95}.
+%
+\begin{remark}
+Python package \texttt{proset} accepts optional sample weights for training.
+These determine the multiplicity of an observation, e.g., a sample with weight 2.0 is treated like two separate observations with identical features.
+This means that the sum of terms in (\ref{eq_log_likelihood}) is replaced by a weighted sum normalized by total weights instead of observation counts.
+The marginal probabilities are also computed as weighted averages (as of package version 0.2.1).
+The selection of candidates for prototypes discussed below is not affected by the weights.
+\end{remark}
 %
 To gain the full advantage of using L-BFGS-B, we need to compute the gradient of (\ref{eq_log_likelihood}) analytically.
 The partial derivatives of $\log(\hat{p}_{c,k}(x))$, $c>0$, are:

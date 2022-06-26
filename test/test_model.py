@@ -546,7 +546,7 @@ class TestClassifierModel(TestCase):
 
     def test_make_prototype_report_3(self):
         model = ClassifierModel()
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches()
@@ -561,7 +561,7 @@ class TestClassifierModel(TestCase):
     @staticmethod
     def test_make_prototype_report_4():
         model = ClassifierModel()
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches(features=FEATURES[0:1, :].astype(**shared.FLOAT_TYPE)) + [None]
         train_names = ["training {}".format(j) for j in range(np.max(batches[0]["sample_index"]) + 1)]
@@ -571,7 +571,7 @@ class TestClassifierModel(TestCase):
 
     def test_make_prototype_report_5(self):
         model = ClassifierModel()
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches()
@@ -589,7 +589,7 @@ class TestClassifierModel(TestCase):
         pd.testing.assert_frame_equal(result, ref_batch_2)
 
     def test_format_batch_1(self):
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         batch = set_manager.get_batches()[0]
         result = ClassifierModel._format_batch(
@@ -608,7 +608,7 @@ class TestClassifierModel(TestCase):
         np.testing.assert_array_equal(result["prototype weight"].values, batch["prototype_weights"])
 
     def test_format_batch_2(self):
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         batch = set_manager.get_batches(features=FEATURES[0:1, :].astype(**shared.FLOAT_TYPE),)[0]
         train_names = ["training {}".format(j) for j in range(np.max(batch["sample_index"]) + 1)]
@@ -627,7 +627,7 @@ class TestClassifierModel(TestCase):
         np.testing.assert_almost_equal(result["impact"], similarity * batch["prototype_weights"])
 
     def test_format_batch_3(self):
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         batch = set_manager.get_batches(features=FEATURES[0:1, :].astype(**shared.FLOAT_TYPE),)[0]
         train_names = [[], ["training {}".format(j) for j in range(np.max(batch["sample_index"]) + 1)]]
@@ -729,7 +729,7 @@ class TestClassifierModel(TestCase):
     @staticmethod
     def test_make_feature_report_4():
         model = ClassifierModel()
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches()
@@ -771,7 +771,7 @@ class TestClassifierModel(TestCase):
     @staticmethod
     def test_make_feature_report_5():
         model = ClassifierModel()
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches(features=FEATURES[0:1, :].astype(**shared.FLOAT_TYPE))
@@ -813,7 +813,7 @@ class TestClassifierModel(TestCase):
     @staticmethod
     def test_make_feature_report_6():
         model = ClassifierModel()
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches(features=FEATURES[0:1, :].astype(**shared.FLOAT_TYPE)) + [None]
         num_features = np.max(batches[0]["active_features"]) + 1
@@ -896,7 +896,7 @@ class TestClassifierModel(TestCase):
         self.assertEqual(list(result.columns), feature_columns[0])
 
     def test_format_feature_3(self):
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches()
         feature_columns = ClassifierModel._check_report_input(
@@ -927,7 +927,7 @@ class TestClassifierModel(TestCase):
         np.testing.assert_array_equal(result["X{} value".format(index)].values, batches[0]["prototypes"][:, 0])
 
     def test_format_feature_4(self):
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches(features=FEATURES[0:1, :].astype(**shared.FLOAT_TYPE),)
         feature_columns = ClassifierModel._check_report_input(
@@ -962,7 +962,7 @@ class TestClassifierModel(TestCase):
         np.testing.assert_array_equal(result["X{} similarity".format(index)].values, batches[0]["similarities"][:, 1])
 
     def test_format_feature_5(self):
-        set_manager = ClassifierSetManager(target=TARGET)
+        set_manager = ClassifierSetManager(target=TARGET, weights=None)
         set_manager.add_batch(BATCH_INFO)
         batches = set_manager.get_batches(features=FEATURES[0:1, :].astype(**shared.FLOAT_TYPE))
         feature_columns = ClassifierModel._check_report_input(

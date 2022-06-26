@@ -74,13 +74,23 @@ class TestClassifierSetManager(TestCase):
         try:
             # test only one exception to ensure shared.check_classifier_target() is called; other exceptions tested by
             # the unit tests for that function
-            ClassifierSetManager(target=np.array([[0, 1]]))
+            ClassifierSetManager(target=np.array([[0, 1]]), weights=None)
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter target must be a 1D array.")
 
     def test_init_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
+        self.assertEqual(manager._target_type, {"dtype": int})
+        self.assertEqual(manager.num_batches, 0)
+        self.assertEqual(manager.num_features, None)
+        shared.check_float_array(x=manager.marginals, name="manager.marginals")
+        np.testing.assert_allclose(manager.marginals, MARGINALS)
+        self.assertEqual(manager.get_active_features().shape[0], 0)
+        self.assertEqual(manager.get_num_prototypes(), 0)
+
+    def test_init_2(self):
+        manager = ClassifierSetManager(target=TARGET, weights=np.ones_like(TARGET, **shared.FLOAT_TYPE))
         self.assertEqual(manager._target_type, {"dtype": int})
         self.assertEqual(manager.num_batches, 0)
         self.assertEqual(manager.num_features, None)
@@ -204,7 +214,7 @@ class TestClassifierSetManager(TestCase):
     # method get_num_prototypes() tested above and below
 
     def test_add_batch_fail_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -219,7 +229,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter target must have integer elements.")
 
     def test_add_batch_fail_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -236,7 +246,7 @@ class TestClassifierSetManager(TestCase):
         )
 
     def test_add_batch_fail_3(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -253,7 +263,7 @@ class TestClassifierSetManager(TestCase):
         )
 
     def test_add_batch_fail_4(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -268,7 +278,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter prototypes must be a 2D array.")
 
     def test_add_batch_fail_5(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch({
             "prototypes": PROTOTYPES,
             "target": TARGET,
@@ -292,7 +302,7 @@ class TestClassifierSetManager(TestCase):
         ))
 
     def test_add_batch_fail_6(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:  # trigger one check from shared.check_float_array() to ensure it is called
             manager.add_batch({
@@ -307,7 +317,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter prototypes must be an array of type float32.")
 
     def test_add_batch_fail_7(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -322,7 +332,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter target must be a 1D array.")
 
     def test_add_batch_fail_8(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -337,7 +347,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter target must have as many elements as prototypes has rows.")
 
     def test_add_batch_fail_9(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -352,7 +362,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter feature_weights must be a 1D array.")
 
     def test_add_batch_fail_10(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -367,7 +377,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter feature_weights must have as many elements as prototypes has columns.")
 
     def test_add_batch_fail_11(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:  # trigger one check from shared.check_float_array() to ensure it is called
             manager.add_batch({
@@ -382,7 +392,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter feature_weights must be an array of type float32.")
 
     def test_add_batch_fail_12(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -397,7 +407,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter prototype_weights must be a 1D array.")
 
     def test_add_batch_fail_13(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -412,7 +422,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter prototype_weights must have as many elements as prototypes has rows.")
 
     def test_add_batch_fail_14(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:  # trigger one check from shared.check_float_array() to ensure it is called
             manager.add_batch({
@@ -427,7 +437,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter prototype_weights must be an array of type float32.")
 
     def test_add_batch_fail_15(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -442,7 +452,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter sample_index must be a 1D array.")
 
     def test_add_batch_fail_16(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -457,7 +467,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter sample_index must be an integer array.")
 
     def test_add_batch_fail_17(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.add_batch({
@@ -472,7 +482,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter sample_index must have as many elements as prototypes has rows.")
 
     def test_add_batch_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         self.assertEqual(manager.num_batches, 1)
         self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
@@ -480,7 +490,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(manager.get_num_prototypes(), np.sum(PROTOTYPE_WEIGHTS > 0.0))
 
     def test_add_batch_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         manager.add_batch(BATCH_INFO)
         self.assertEqual(manager.num_batches, 2)
@@ -490,7 +500,7 @@ class TestClassifierSetManager(TestCase):
         # the same training sample added to two different batches counts as two prototypes
 
     def test_add_batch_3(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)
         self.assertEqual(manager.num_batches, 1)
         self.assertEqual(manager.num_features, len(FEATURE_WEIGHTS))
@@ -572,7 +582,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(result["sample_index"], reduced_index)
 
     def test_evaluate_unscaled_fail_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.evaluate_unscaled(features=REFERENCE[:, 0], num_batches=None)
@@ -581,7 +591,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter features must be a 2D array.")
 
     def test_evaluate_unscaled_fail_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         message = ""
         try:
@@ -591,7 +601,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter features has 3 columns but {} are expected.".format(PROTOTYPES.shape[1]))
 
     def test_evaluate_unscaled_fail_3(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         message = ""
         try:  # trigger one check from shared.check_float_array() to ensure it is called
@@ -601,7 +611,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter features must be an array of type float32.")
 
     def test_evaluate_unscaled_fail_4(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:  # trigger one check from _check_num_batches() to ensure it is called
             manager.evaluate_unscaled(features=REFERENCE, num_batches=np.array([-1]))
@@ -610,7 +620,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter num_batches must not contain negative values if passing an array.")
 
     def test_evaluate_unscaled_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         unscaled = manager.evaluate_unscaled(features=REFERENCE, num_batches=None)
         # no batches means marginal distribution is returned
         self.assertEqual(len(unscaled), 1)
@@ -621,7 +631,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(unscaled[0][1], np.ones(ref_unscaled.shape[0]))
 
     def test_evaluate_unscaled_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)  # batch with no prototypes has no impact on the model
         unscaled = manager.evaluate_unscaled(features=REFERENCE, num_batches=0)
         self.assertEqual(len(unscaled), 1)
@@ -632,7 +642,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(unscaled[0][1], np.ones(ref_unscaled.shape[0]))
 
     def test_evaluate_unscaled_3(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=np.array([0]))  # evaluate marginals only
         self.assertEqual(len(unscaled), 1)
@@ -643,7 +653,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(unscaled[0][1], np.ones(ref_unscaled.shape[0]))
 
     def test_evaluate_unscaled_4(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=None)
         self.assertEqual(len(unscaled), 1)
@@ -660,7 +670,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(unscaled[0][1], ref_scale)
 
     def test_evaluate_unscaled_5(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         manager.add_batch(BATCH_INFO)
         unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=np.array([0, 2]))
@@ -765,7 +775,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(scale, np.sum(reference, axis=1))
 
     def test_evaluate_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         scaled = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=False)
         # check default values for set manager with no data
         self.assertEqual(len(scaled), 1)
@@ -774,7 +784,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
     def test_evaluate_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         scaled, familiarity = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=True)
         # check default values for set manager with no data
         self.assertEqual(len(scaled), 1)
@@ -786,7 +796,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(familiarity[0], np.zeros_like(familiarity[0]))
 
     def test_evaluate_3(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)  # batch with no prototypes has no impact on the model
         scaled = manager.evaluate(features=REFERENCE, num_batches=0, compute_familiarity=False)
         self.assertEqual(len(scaled), 1)
@@ -795,7 +805,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
     def test_evaluate_4(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0]), compute_familiarity=False)
         # evaluate marginals only
@@ -805,7 +815,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
     def test_evaluate_5(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         scaled = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=False)
         self.assertEqual(len(scaled), 1)
@@ -821,7 +831,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(scaled[0], ref_scaled)
 
     def test_evaluate_6(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         scaled, familiarity = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=True)
         self.assertEqual(len(scaled), 1)
@@ -840,7 +850,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(familiarity[0], ref_scale - 1.0)
 
     def test_evaluate_7(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         manager.add_batch(BATCH_INFO)
         scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0, 2]), compute_familiarity=False)
@@ -859,7 +869,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(scaled[1], ref_scaled, atol=1e-6)
 
     def test_get_feature_weights_fail_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             # test only one exception from _check_num_batches() to ensure it is called; other exceptions tested by the
@@ -872,7 +882,7 @@ class TestClassifierSetManager(TestCase):
         )
 
     def test_get_feature_weights_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         result = manager.get_feature_weights()  # check default values for set manager with no data
         self.assertEqual(len(result), 2)
         shared.check_float_array(x=result["weight_matrix"], name="result['weight_matrix']")
@@ -880,7 +890,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(result["feature_index"], np.zeros(0, dtype=int))
 
     def test_get_feature_weights_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO_NO_FEATURES)  # check behavior in case of no active features
         result = manager.get_feature_weights()
         self.assertEqual(len(result), 2)
@@ -889,7 +899,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(result["feature_index"], np.zeros(0, dtype=int))
 
     def test_get_feature_weights_3(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         result = manager.get_feature_weights()
         ref_feature_index = np.nonzero(FEATURE_WEIGHTS > 0.0)[0]
@@ -901,7 +911,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(result["feature_index"], ref_feature_index[order])
 
     def test_get_feature_weights_4(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         new_weights = np.arange(FEATURE_WEIGHTS.shape[0]).astype(**shared.FLOAT_TYPE)
         manager.add_batch({
@@ -920,7 +930,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(result["feature_index"], order)
 
     def test_get_feature_weights_5(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         manager.add_batch(BATCH_INFO)
         result = manager.get_feature_weights(num_batches=1)
@@ -933,7 +943,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_allclose(result["feature_index"], ref_feature_index[order])
 
     def test_get_batches_fail_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             # test only one exception from _check_num_batches() to ensure it is called; other exceptions tested by the
@@ -946,7 +956,7 @@ class TestClassifierSetManager(TestCase):
         )
 
     def test_get_batches_fail_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             # test only one exception from _check_evaluate_input() to ensure it is called; other exceptions tested by
@@ -959,7 +969,7 @@ class TestClassifierSetManager(TestCase):
         )
 
     def test_get_batches_fail_3(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
             manager.get_batches(features=REFERENCE)
@@ -968,7 +978,7 @@ class TestClassifierSetManager(TestCase):
         self.assertEqual(message, "Parameter features must have exactly one row.")
 
     def test_get_batches_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         batches = manager.get_batches()
         self.assertEqual(len(batches), 1)
@@ -992,7 +1002,7 @@ class TestClassifierSetManager(TestCase):
         np.testing.assert_array_equal(batches[0]["sample_index"], BATCH_INFO["sample_index"][active_prototypes])
 
     def test_get_batches_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO_NO_FEATURES)
         batches = manager.get_batches()
         self.assertEqual(len(batches), 1)
@@ -1008,14 +1018,14 @@ class TestClassifierSetManager(TestCase):
         # with no prototypes
 
     def test_get_batches_3(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)
         batches = manager.get_batches()
         self.assertEqual(len(batches), 1)
         self.assertEqual(batches[0], None)
 
     def test_get_batches_4(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         batches = manager.get_batches(features=REFERENCE[:1].astype(**shared.FLOAT_TYPE))
         self.assertEqual(len(batches), 1)
@@ -1048,13 +1058,13 @@ class TestClassifierSetManager(TestCase):
     # methods _check_get_batches_input() and _compute_feature_similarities() already tested by the above
 
     def test_shrink_1(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         result = manager.shrink()  # check that shrinking a set manager with no content breaks nothing
         self.assertEqual(manager.num_features, None)
         np.testing.assert_array_equal(result, np.zeros(0, dtype=int))
 
     def test_shrink_2(self):
-        manager = ClassifierSetManager(target=TARGET)
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         result = manager.shrink()
         active_features = np.nonzero(FEATURE_WEIGHTS)[0]

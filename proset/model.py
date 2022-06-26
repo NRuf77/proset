@@ -109,7 +109,9 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         ))
         MySetManager, MyObjective = self._get_compute_classes(self.use_tensorflow)  # pylint: disable=invalid-name
         if not warm_start or not hasattr(self, "set_manager_"):
-            self.set_manager_ = MySetManager(target=y)  # pylint: disable=attribute-defined-outside-init
+            self.set_manager_ = MySetManager(  # pylint: disable=attribute-defined-outside-init
+                target=y, weights=sample_weight
+            )
         for i in range(self.n_iter):
             objective = MyObjective(
                 features=X,
