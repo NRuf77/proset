@@ -208,6 +208,9 @@ new options for \texttt{select\_hyperparameters()}: \texttt{chunks} (macro-batch
 add benchmark cases with greater sample size and feature dimension.
 %
 \item[0.2.1:] bugfix: if sample weights are passed for training, these are also used to compute marginal class probabilities.
+%
+\item[0.3.0:] instead of splitting training data into chunks that fit in memory, model fitting now supports an upper bound
+on the number of samples per batch, which is more efficient.
 \end{description}
 %
 \endinput

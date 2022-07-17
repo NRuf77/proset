@@ -62,9 +62,9 @@ experiments = (
         "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
         "select_para": {"solver_factr": 1e10}
     }),
-    ("digits_chunked_model", {  # as digits_2d_95_model with chunks = 2 to test chunking strategy
+    ("digits_subsampled_model", {  # as digits_2d_95_model with max_samples = 500 to test subsampling
         "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
-        "select_para": {"chunks": 2}
+        "select_para": {"max_samples": 500}
     }),
     ("digits_tf_model", {  # as digits_2d_95_model but using tensorflow as compute backend
         "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000, "use_tensorflow": True},

@@ -26,7 +26,7 @@ input_files = [
     "digits_fix_opt_model.gz",
     "digits_timing_1e7_model.gz",
     "digits_timing_1e10_model.gz",
-    "digits_chunked_model.gz",
+    "digits_subsampled_model.gz",
     "digits_tf_model.gz"
 ]
 print("  Select input file:")

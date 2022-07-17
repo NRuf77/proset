@@ -16,9 +16,7 @@ import proset.utility as utility
 print("* Apply user settings")
 input_path = "scripts/results"
 input_files = [
-    "cifar-10_tf_model.gz",
-    "cifar-10_pca_no_scaling_tf_model.gz",
-    "cifar-10_pca_tf_model.gz",
+    "cifar-10_tf_subsample_model.gz"
 ]
 print("  Select input file:")
 for i, file_name in enumerate(input_files):

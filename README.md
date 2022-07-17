@@ -113,6 +113,8 @@ cv_groups (group related samples during cross-validation);
 add benchmark cases with greater sample size and feature dimension.
 - version 0.2.1: bugfix: if sample weights are passed for training, these are also used to compute marginal class
 probabilities.
+- version 0.3.0: instead of splitting training data into chunks that fit in memory, model fitting now supports an upper bound
+on the number of samples per batch, which is more efficient.
 
 ### Note on performance
 Version 0.2.0 improves compute performance as version 0.1.0 was somewhat unsatisfactory in that regard.

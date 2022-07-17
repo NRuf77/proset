@@ -16,9 +16,7 @@ import proset.utility as utility
 print("* Apply user settings")
 input_path = "scripts/results"
 input_files = [
-    "mnist_tf_model.gz",
-    "mnist_pca_no_scaling_tf_model.gz",
-    "mnist_pca_tf_model.gz"
+    "mnist_pca_no_scaling_tf_subsample_model.gz"
 ]
 print("  Select input file:")
 for i, file_name in enumerate(input_files):

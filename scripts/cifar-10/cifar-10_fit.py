@@ -24,37 +24,16 @@ random_state = np.random.RandomState(12345)
 working_path = "scripts/results"
 data_file = "cifar-10_data.gz"
 experiments = (
-    ("cifar-10_tf_model", {
+    ("cifar-10_tf_subsample_model", {
         "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 10000, "use_tensorflow": True},
         "select_para": {
             "transform": StandardScaler(),  # original features with scaling + centering only
             "lambda_w_range": 1e-8,
             "stage_1_trials": 11,
-            "num_batch_grid": np.arange(21),
-            "chunks": 2
+            "num_batch_grid": np.arange(11),
+            "max_samples": 35000
         }
     }),
-    ("cifar-10_pca_no_scaling_tf_model", {
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 10000, "use_tensorflow": True},
-        "select_para": {
-            "transform": PCA(n_components=0.99, whiten=True),  # PCA for unscaled features, scale output only
-            "lambda_w_range": 1e-8,
-            "stage_1_trials": 11,
-            "num_batch_grid": np.arange(21),
-            "chunks": 2
-        }
-    }),
-    ("cifar-10_pca_tf_model", {
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 10000, "use_tensorflow": True},
-        "select_para": {
-            "transform": Pipeline([("scaler", StandardScaler()), ("pca", PCA(n_components=0.99, whiten=True))]),
-            # PCA for scaled features, scale output again
-            "lambda_w_range": 1e-8,
-            "stage_1_trials": 11,
-            "num_batch_grid": np.arange(21),
-            "chunks": 2
-        }
-    })
 )
 
 print("  Select experiment")

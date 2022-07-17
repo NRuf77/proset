@@ -46,6 +46,46 @@ class FitMode(Enum):
     NEITHER = 3
 
 
+class Subsampler:  # pylint: disable = too-few-public-methods
+    """Class for subsampling data with optional stratification.
+    """
+
+    def __init__(self, subsample_rate, stratify, random_state):
+        """Initialize subsampler.
+
+        :param subsample_rate: float in (0.0, 1.0); fraction of samples to use for subsampling
+        :param stratify: boolean; whether to use stratified subsampling
+        :param random_state: an instance of np.random.RandomState, integer, or None; used to initialize the random
+            number generator
+        """
+        if not 0.0 < subsample_rate < 1.0:
+            raise ValueError("Parameter subsample_rate must lie in (0.0, 1.0).")
+        self._subsample_rate = subsample_rate
+        self._stratify = stratify
+        self._random_state = check_random_state(random_state)
+
+    def subsample(self, y):
+        """Create index vector for subsampling.
+
+        :param y: 1D numpy array
+        :return: 1D numpy integer array; indices into y indicating the selected sample
+        """
+        if not self._stratify:
+            return np.sort(self._create_sample_index(y.shape[0]))
+        groups = np.unique(y)
+        indices = [np.nonzero(y == group)[0] for group in groups]
+        indices = [ix[self._create_sample_index(ix.shape[0])] for ix in indices]
+        return np.sort(np.hstack(indices))
+
+    def _create_sample_index(self, num_samples):
+        """Create index vector for subsample without stratification.
+
+        :param num_samples: positive integer; sample size
+        :return: 1D numpy integer array; indices for subsample, not sorted
+        """
+        return self._random_state.choice(a=num_samples, size=int(np.ceil(self._subsample_rate * num_samples)))
+
+
 def select_hyperparameters(
         model,
         features,
@@ -59,7 +99,7 @@ def select_hyperparameters(
         num_batch_grid=None,
         num_folds=5,
         solver_factr=None,
-        chunks=1,
+        max_samples=None,
         num_jobs=None,
         random_state=None
 ):
@@ -91,11 +131,9 @@ def select_hyperparameters(
     :param solver_factr: non-negative float, tuple of two non-negative floats, or None; a single value is used to set
         solver tolerance for all model fits; if a tuple is given, the first value is used for cross-validation and the
         second for the final model fit; pass None to use (1e10, 1e7)
-    :param chunks: positive integer; split training data into this many parts for fitting; the transformer is still
-        fitted to the entire training data; in stage 1, each experiment using a single batch is conducted on a random
-        subsample representing a fraction of 1 / chunks of the training data; in stage 2 and for the final model, the
-        training data is split into 'chunks' parts which are sequentially used to add batches of prototypes; once all
-        parts have been processed, a new random split is generated until the desired number of batches is reached
+    :param max_samples: positive integer or None; maximum number of samples included in one batch for fitting; random
+        subsampling is stratified by class for a classifier; use this parameter to control memory usage; pass None to
+        use all training samples
     :param num_jobs: integer greater than 1 or None; number of jobs to run in parallel; pass None to disable parallel
         execution; for parallel execution, this function must be called inside an 'if __name__ == "__main__"' block to
         avoid spawning infinitely many subprocesses; as numpy usually runs on four cores already, the number of jobs
@@ -105,12 +143,12 @@ def select_hyperparameters(
     :return: dict with the following fields:
         - 'model': an instance of a proset model fitted to all samples using the selected hyperparameters; if a
           transform is provided, the return value is an instance of sklearn.pipeline.Pipeline bundling the transform
-          with the proset model; if chunks is greater than 1, the model's n_iter parameter is set to 1 as it was built
+          with the proset model; if max_samples is not None, the model's n_iter parameter is set to 1 as it was built
           by adding individual batches using the warm start option
         - 'stage_1': dict with information on parameter search for lambda_v and lambda_w
         - 'stage_2': dict with information on parameter search for number of batches
-        - 'chunk_ix': list of 1D numpy integer arrays; index vectors of training samples used for each batch; this is
-          only provided if chunks > 1
+        - 'sample_ix': list of 1D numpy integer arrays; index vectors of training samples used for each batch; this is
+          only provided if max_samples is not None and less than the number of samples in features
     """
     logger.info("Start hyperparameter selection")
     target = check_array(target, dtype=None, ensure_2d=False)
@@ -126,7 +164,7 @@ def select_hyperparameters(
         num_batch_grid=num_batch_grid,
         num_folds=num_folds,
         solver_factr=solver_factr,
-        chunks=chunks,
+        max_samples=max_samples,
         num_jobs=num_jobs,
         random_state=random_state
     )
@@ -156,7 +194,7 @@ def select_hyperparameters(
         random_state=random_state
     )
     logger.info("Fit final model with selected parameters")
-    model, chunk_ix = _make_final_model(
+    model, sample_ix = _make_final_model(
         settings=settings,
         features=features,
         target=target,
@@ -164,8 +202,8 @@ def select_hyperparameters(
     )
     logger.info("Hyperparameter selection complete")
     result = {"model": model, "stage_1": stage_1, "stage_2": stage_2}
-    if chunk_ix is not None:
-        result["chunk_ix"] = chunk_ix
+    if sample_ix is not None:
+        result["sample_ix"] = sample_ix
     return result
 
 
@@ -205,7 +243,7 @@ def _process_select_settings(
         num_folds,
         solver_factr,
         num_jobs,
-        chunks,
+        max_samples,
         random_state
 ):
     """Validate and prepare settings for select_hyperparameters().
@@ -218,7 +256,7 @@ def _process_select_settings(
     :param num_batch_grid: see docstring of select_hyperparameters() for details
     :param num_folds: see docstring of select_hyperparameters() for details
     :param solver_factr: see docstring of select_hyperparameters() for details
-    :param chunks: see docstring of select_hyperparameters() for details
+    :param max_samples: see docstring of select_hyperparameters() for details
     :param num_jobs: see docstring of select_hyperparameters() for details
     :param random_state: see docstring of select_hyperparameters() for details
     :return: dict with the following fields:
@@ -229,12 +267,10 @@ def _process_select_settings(
         - stage_1_trials: as input
         - fit_mode: one value of enum FitMode
         - num_batch_grid: as input or default if input is None
-        - splitter: an sklearn splitter for num_fold folds; stratified K-fold splitter if model is a classifier,
-          ordinary K-fold else
+        - splitter: an sklearn splitter for num_fold folds; an instance of StratifiedKFold if model is a classifier, an
+          instance of KFold else
         - solver_factr: tuple of two floats; float input is repeated, tuple input kept, None input replaced by default
-        - chunks: as input
-        - chunker: an sklearn splitter class or None; None if chunks is 1; otherwise, the class of which parameter
-          'splitter' is an instance
+        - max_samples: as input
         - num_jobs: as input
         - random_state: an instance of numpy.random.RandomState initialized with input random_state
     """
@@ -255,7 +291,7 @@ def _process_select_settings(
         stage_1_trials=stage_1_trials,
         num_batch_grid=num_batch_grid,
         solver_factr=solver_factr,
-        chunks=chunks,
+        max_samples=max_samples,
         num_jobs=num_jobs
     )
     model = deepcopy(model)  # do not change original input
@@ -274,8 +310,7 @@ def _process_select_settings(
         "num_batch_grid": num_batch_grid,
         "splitter": splitter(n_splits=num_folds, shuffle=True, random_state=random_state),
         "solver_factr": solver_factr,
-        "chunks": chunks,
-        "chunker": splitter if chunks > 1 else None,
+        "max_samples": max_samples,
         "num_jobs": num_jobs,
         "random_state": random_state
     }
@@ -288,7 +323,7 @@ def _check_select_settings(
         stage_1_trials,
         num_batch_grid,
         solver_factr,
-        chunks,
+        max_samples,
         num_jobs
 ):
     """Check input to select_hyperparameters() for consistency.
@@ -298,7 +333,7 @@ def _check_select_settings(
     :param stage_1_trials: see docstring of select_hyperparameters() for details
     :param num_batch_grid: see docstring of select_hyperparameters() for details
     :param solver_factr: tuple of two positive floats
-    :param chunks: see docstring of select_hyperparameters() for details
+    :param max_samples: see docstring of select_hyperparameters() for details
     :param num_jobs: see docstring of select_hyperparameters() for details
     :return: no return value; raises an exception if an issue is found
     """
@@ -320,10 +355,11 @@ def _check_select_settings(
         raise ValueError("Parameter solver_factr must have length two if passing a tuple.")
     if solver_factr[0] <= 0.0 or solver_factr[1] <= 0.0:
         raise ValueError("Parameter solver_factr must be positive / have positive elements.")
-    if not np.issubdtype(type(chunks), np.integer):
-        raise TypeError("Parameter chunks must be integer.")
-    if chunks < 1:
-        raise ValueError("Parameter chunks must be positive.")
+    if max_samples is not None:
+        if not np.issubdtype(type(max_samples), np.integer):
+            raise TypeError("Parameter max_samples must be integer if not passing None.")
+        if max_samples < 1:
+            raise ValueError("Parameter max_samples must be positive if not passing None.")
     if num_jobs is not None and not np.issubdtype(type(num_jobs), np.integer):
         raise ValueError("Parameter num_jobs must be integer if not passing None.")
     if num_jobs is not None and num_jobs < 2:
@@ -423,24 +459,25 @@ def _make_stage_1_plan(settings, features, target, weights, cv_groups):
         - target: as input
         - weights: as input
         - fold: non-negative integer; index of cross_validation fold used for testing
-        - train_ix: 1D numpy boolean array; indicator vector for the training set
+        - train_ix: 1D numpy integer array; indicator vector for the training set
         - trial: non-negative integer; index of parameter combination used for fitting
         - parameters: dict of hyperparameters to be used for fitting; this function specifies lambda_v, lambda_w,
           solver_factr, and random_state
-        - chunker: an sklearn splitter for settings["chunks"] folds or None if settings["chunks"] = 1; stratified K-fold
-          splitter if model is a classifier, ordinary K-fold else
+        - subsampler: an instance of class Subsampler or None if settings["max_samples"] is None or the number of
+          samples in train_ix does not exceed settings["max_samples"]; this uses stratification if model is a
+          classifier; the subsample rate is set to give the desired number of maximum samples (up to rounding errors)
         The second list contains the distinct combinations of parameters lambda_v and lambda_w.
     """
     lambda_v = _sample_lambda(
         lambda_range=settings["lambda_v_range"],
         trials=settings["stage_1_trials"],
-        do_randomize=settings["fit_mode"] == FitMode.BOTH,
+        randomize=settings["fit_mode"] == FitMode.BOTH,
         random_state=settings["random_state"]
     )
     lambda_w = _sample_lambda(
         lambda_range=settings["lambda_w_range"],
         trials=settings["stage_1_trials"],
-        do_randomize=settings["fit_mode"] == FitMode.BOTH,
+        randomize=settings["fit_mode"] == FitMode.BOTH,
         random_state=settings["random_state"]
     )
     states = _sample_random_state(
@@ -465,27 +502,28 @@ def _make_stage_1_plan(settings, features, target, weights, cv_groups):
             "solver_factr": settings["solver_factr"][0],
             "random_state": states[i * settings["stage_1_trials"] + j]
         },
-        "chunker": settings["chunker"](
-            n_splits=settings["chunks"],
-            shuffle=True,
+        "subsampler": _make_subsampler(
+            max_samples=settings["max_samples"],
+            num_samples=train_ix[i].shape[0],
+            stratify=is_classifier(settings["model"]),
             random_state=states[i * settings["stage_1_trials"] + j]
-        ) if settings["chunks"] > 1 else None
+        )
     } for i in range(settings["splitter"].n_splits) for j in range(settings["stage_1_trials"])], parameters
 
 
-def _sample_lambda(lambda_range, trials, do_randomize, random_state):
+def _sample_lambda(lambda_range, trials, randomize, random_state):
     """Sample penalty weights for cross-validation.
 
     :param lambda_range: see parameter lambda_v_range of select_hyperparameters()
     :param trials: see parameter stage_1_trials of select_hyperparameters()
-    :param do_randomize: boolean; whether to use random sampling in case lambda_range is really a range
+    :param randomize: boolean; whether to use random sampling in case lambda_range is really a range
     :param random_state: an instance of np.random.RandomState
     :return: 1D numpy float array of length trials; penalty weights for cross_validation
     """
     if isinstance(lambda_range, float):
         return lambda_range * np.ones(trials)
     logs = np.log(lambda_range)
-    if do_randomize:
+    if randomize:
         offset = random_state.uniform(size=trials)
     else:
         offset = np.linspace(0.0, 1.0, trials)
@@ -510,7 +548,7 @@ def _make_train_ix(features, target, cv_groups, splitter):
     :param target: numpy array; target for supervised learning; dimension and data type depend on model
     :param cv_groups: as return value of _process_cv_groups()
     :param splitter: sklearn splitter to use for cross-validation
-    :return: list of 1D numpy boolean arrays
+    :return: list of 1D numpy integer arrays
     """
     if cv_groups is None:
         train_ix = list(splitter.split(X=features, y=target))
@@ -534,19 +572,7 @@ def _make_train_ix(features, target, cv_groups, splitter):
                 "This can happen if the number of groups defined in cv_groups is too small",
                 "or the group sizes are too variable."
             ]), RuntimeWarning)
-    return [_binarize_index(ix=ix, size=features.shape[0]) for ix in train_ix]
-
-
-def _binarize_index(ix, size):
-    """Convert integer index vector to boolean.
-
-    :param ix: 1D numpy array of non-negative integers
-    :param size: positive integer; number of objects to be indexed
-    :return: 1D numpy boolean array; indicator vector representing 'ix'
-    """
-    result = np.zeros((size, ), dtype=bool)
-    result[ix] = True
-    return result
+    return train_ix
 
 
 def _make_transforms(features, train_ix, transform):
@@ -560,6 +586,23 @@ def _make_transforms(features, train_ix, transform):
     if transform is None:
         return [None] * len(train_ix)
     return [deepcopy(transform).fit(features[ix, :]) for ix in train_ix]
+
+
+def _make_subsampler(max_samples, num_samples, stratify, random_state):
+    """Create subsampler with appropriate training size.
+
+    :param max_samples: docstring of select_hyperparameters() for details
+    :param num_samples: positive integer; number of available samples
+    :param stratify: boolean, whether to use stratified subsampling
+    :param random_state: an instance of np.random.RandomState
+    :return: an instance of class Subsampler if max_samples is not None and num_samples > max_samples; None else
+    """
+    if max_samples is None:
+        return None
+    subsample_rate = max_samples / num_samples
+    if subsample_rate >= 1.0:
+        return None
+    return Subsampler(subsample_rate=subsample_rate, stratify=stratify, random_state=random_state)
 
 
 def _execute_plan(plan, num_jobs, fit_function, collect_function):
@@ -592,20 +635,6 @@ def _fit_stage_1(step):
     )
 
 
-def _prepare_features(features, sample_ix, transform):
-    """Prepare feature matrix for model fitting or scoring.
-
-    :param features: see docstring of select_hyperparameters() for details
-    :param sample_ix: 1D numpy boolean array with one element per row of features; indicate rows to include in output
-    :param transform: a fitted sklearn transformer or None
-    :return: feature matrix reduced to relevant samples and transformed if applicable
-    """
-    features = features[sample_ix, :]
-    if transform is not None:
-        features = transform.transform(features)
-    return features
-
-
 def _fit_model(step):
     """Fit model using one set of hyperparameters.
 
@@ -613,44 +642,60 @@ def _fit_model(step):
     :return: fitted model and 1D numpy bool array indicating the validation fold
     """
     model = step["model"].set_params(**step["parameters"])
-    target, use_ix = _get_first_chunk(target=step["target"], train_ix=step["train_ix"], chunker=step["chunker"])
+    target, use_ix = _get_training_samples(
+        target=step["target"], train_ix=step["train_ix"], subsampler=step["subsampler"]
+    )
     model.fit(
         X=_prepare_features(features=step["features"], sample_ix=use_ix, transform=step["transform"]),
         y=target,
         sample_weight=step["weights"][use_ix] if step["weights"] is not None else None
     )
-    return model, np.logical_not(step["train_ix"])  # validation fold is not affected by chunking
+    return model, _invert_index(index=step["train_ix"], max_value=step["features"].shape[0])
+    # validation fold is not affected by subsampling
 
 
-def _get_first_chunk(target, train_ix, chunker):
-    """Provide reduced target vector and index for first chunk of training data to be processed.
+def _invert_index(index, max_value):
+    """Find complement of integer index.
+
+    :param index: 1D numpy integer array
+    :param max_value: positive integer; maximum index value
+    :return: 1D numpy integer array, complementary index
+    """
+    complement = np.ones(max_value, dtype=bool)
+    complement[index] = False
+    return np.nonzero(complement)[0]
+
+
+def _get_training_samples(target, train_ix, subsampler):
+    """Provide reduced target vector and index for one batch of training data.
 
     :param target: numpy array; target for supervised learning; dimension and data type depend on model
-    :param train_ix: 1D numpy boolean array; indicator vector of training samples
-    :param chunker: an sklearn splitter or None
+    :param train_ix: 1D numpy integer array; indicator vector of training samples
+    :param subsampler: an instance of class Subsampler
     :return: two return values:
-        - numpy array; target reduced to samples of first chunk
-        - 1D numpy boolean array; indicator vector for samples of first chunk
+        - numpy array; reduced target vector
+        - 1D numpy integer array; indicator vector for subsampling
     """
     target = target[train_ix]
-    if chunker is not None:
-        chunk_ix = chunker.split(X=np.zeros((target.shape[0], 0)), y=target).__next__()[1]
-        target = target[chunk_ix]
-        train_ix = _update_index(sample_ix=train_ix, subset_ix=chunk_ix)
+    if subsampler is not None:
+        subset_ix = subsampler.subsample(target)
+        target = target[subset_ix]
+        train_ix = train_ix[subset_ix]
     return target, train_ix
 
 
-def _update_index(sample_ix, subset_ix):
-    """Reduce index vector to subset.
+def _prepare_features(features, sample_ix, transform):
+    """Prepare feature matrix for model fitting or scoring.
 
-    :param sample_ix: 1D numpy boolean array; original index vector
-    :param subset_ix: 1D numpy integer array; index vector indicating which of the True entries in sample_ix to keep
-    :return: 1D numpy boolean array of same length as sample_ix; reduced index vector
+    :param features: see docstring of select_hyperparameters() for details
+    :param sample_ix: 1D numpy integer array with one element per row of features; indicate rows to include in output
+    :param transform: a fitted sklearn transformer or None
+    :return: feature matrix reduced to relevant samples and transformed if applicable
     """
-    keep_ix = np.nonzero(sample_ix)[0][subset_ix]
-    sample_ix = np.zeros_like(sample_ix)
-    sample_ix[keep_ix] = True
-    return sample_ix
+    features = features[sample_ix, :]
+    if transform is not None:
+        features = transform.transform(features)
+    return features
 
 
 def _collect_stage_1(results, num_folds, trials):
@@ -769,11 +814,12 @@ def _make_stage_2_plan(settings, features, target, weights, cv_groups):
         - target: as input
         - weights: as input
         - num_batch_grid: as input
-        - train_ix: 1D numpy boolean array; indicator vector for the training set
+        - train_ix: 1D numpy integer array; indicator vector for the training set
         - parameters: dict of hyperparameters to be used for fitting; this function specifies n_iter, solver_factr, and
           random_state
-        - chunker: an sklearn splitter for settings["chunks"] folds or None if settings["chunks"] = 1; stratified K-fold
-          splitter if model is a classifier, ordinary K-fold else
+        - subsampler: an instance of class Subsampler or None if settings["max_samples"] is None or the number of
+          samples in train_ix does not exceed settings["max_samples"]; this uses stratification if model is a
+          classifier; the subsample rate is set to give the desired number of maximum samples (up to rounding errors)
     """
     n_iter = settings["num_batch_grid"][-1]
     states = _sample_random_state(size=settings["splitter"].n_splits, random_state=settings["random_state"])
@@ -790,9 +836,12 @@ def _make_stage_2_plan(settings, features, target, weights, cv_groups):
         "num_batch_grid": settings["num_batch_grid"],
         "train_ix": train_ix[i],
         "parameters": {"n_iter": n_iter, "solver_factr": settings["solver_factr"][0], "random_state": states[i]},
-        "chunker": settings["chunker"](
-            n_splits=settings["chunks"], shuffle=True, random_state=states[i]
-        ) if settings["chunks"] > 1 else None
+        "subsampler": _make_subsampler(
+            max_samples=settings["max_samples"],
+            num_samples=train_ix[i].shape[0],
+            stratify=is_classifier(settings["model"]),
+            random_state=states[i]
+        )
     } for i in range(len(train_ix))]
 
 
@@ -802,10 +851,10 @@ def _fit_stage_2(step):
     :param step: dict; as one element of the return value of _make_stage_2_plan()
     :return: 1D numpy float array; scores for different numbers of batches to be evaluated
     """
-    if step["chunker"] is None:
+    if step["subsampler"] is None:
         model, validate_ix = _fit_model(step)
     else:
-        model, validate_ix = _fit_model_chunked(step)
+        model, validate_ix = _fit_with_subsampling(step)
     return model.score(
         X=_prepare_features(features=step["features"], sample_ix=validate_ix, transform=step["transform"]),
         y=step["target"][validate_ix],
@@ -814,15 +863,15 @@ def _fit_stage_2(step):
     )
 
 
-def _fit_model_chunked(step):
-    """Fit model with multiple batches using chunking strategy.
+def _fit_with_subsampling(step):
+    """Fit model with multiple batches using subsampling for every batch.
 
-    :param step: dict; as one element of the return value of _make_stage_2_plan(); field 'chunker' must not be None
+    :param step: dict; as one element of the return value of _make_stage_2_plan(); field 'subsampler' must not be None
     :return: two return values:
         - fitted proset model object
-        - 1D numpy boolean array; indicator vector of validation fold
+        - 1D numpy integer array; indicator vector of validation fold
     """
-    model = _add_chunks(
+    model = _use_subsampling(
         model=step["model"].set_params(**step["parameters"]),
         transform=step["transform"],
         features=step["features"],
@@ -830,13 +879,14 @@ def _fit_model_chunked(step):
         weights=step["weights"],
         train_ix=step["train_ix"],
         num_batches=step["parameters"]["n_iter"],
-        chunker=step["chunker"],
+        subsampler=step["subsampler"],
         return_ix=False
     )
-    return model, np.logical_not(step["train_ix"])  # validation fold is not affected by chunking
+    return model, _invert_index(index=step["train_ix"], max_value=step["features"].shape[0])
+    # validation fold is not affected by subsampling
 
 
-def _add_chunks(model, transform, features, target, weights, train_ix, num_batches, chunker, return_ix):
+def _use_subsampling(model, transform, features, target, weights, train_ix, num_batches, subsampler, return_ix):
     """Iteratively add subsets of the training data to a proset model.
 
     :param model: see return value of _make_stage_2_plan() for details
@@ -846,11 +896,12 @@ def _add_chunks(model, transform, features, target, weights, train_ix, num_batch
     :param weights: see return value of _make_stage_2_plan() for details
     :param train_ix: see return value of _make_stage_2_plan() for details
     :param num_batches: see return value of _make_stage_2_plan() for details
-    :param chunker: see return value of _make_stage_2_plan() for details
-    :param return_ix: boolean; whether to return the list of sample indices for each chunk as second return value
+    :param subsampler: see return value of _make_stage_2_plan() for details
+    :param return_ix: boolean; whether to return the list of indices for subsampling as second return value
     :return: two return values:
         - model as input, after fitting
-        - list of 1D numpy integer arrays; list of index vectors for each chunk; only provided if return_ix is True
+        - list of 1D numpy integer arrays; list of index vectors for subsampling at each stage; only provided if
+          return_ix is True
     """
     target = target[train_ix]
     model.set_params(n_iter=0)  # initialize model with marginal probabilities
@@ -860,19 +911,15 @@ def _add_chunks(model, transform, features, target, weights, train_ix, num_batch
         sample_weight=weights[train_ix] if weights is not None else None,
     )
     model.set_params(n_iter=1)  # now add batches separately
-    chunks = []
     collect_ix = [] if return_ix else None
     for _ in range(num_batches):
-        if not chunks:  # split training data into chunks
-            chunks = list(chunker.split(X=np.zeros((target.shape[0], 0)), y=target))
-            chunks = [chunk[1] for chunk in chunks]  # keep only validation fold indices which define disjoint sets
-        chunk_ix = chunks.pop()
-        use_ix = _update_index(sample_ix=train_ix, subset_ix=chunk_ix)
+        subset_ix = subsampler.subsample(target)
+        use_ix = train_ix[subset_ix]
         if return_ix:
-            collect_ix.append(np.nonzero(use_ix)[0])
+            collect_ix.append(use_ix)
         model.fit(
             X=_prepare_features(features=features, sample_ix=use_ix, transform=transform),
-            y=target[chunk_ix],
+            y=target[subset_ix],
             sample_weight=weights[use_ix] if weights is not None else None,
             warm_start=True  # keep adding batches
         )
@@ -929,30 +976,35 @@ def _make_final_model(
     :return: two return values:
         - machine learning model; if settings["transform"] is None, returns settings["model"] after fitting; else,
           returns ans sklearn Pipeline object containing the fitted transform and model
-        - list of 1D numpy integer arrays or None; index vectors of chunks if settings['chunks'] > 1; else None
+        - list of 1D numpy integer arrays or None; list of index vectors for subsampling at each stage; None if no
+          subsampling was used
     """
     if settings["transform"] is not None:
         settings["transform"].fit(features)
-    if settings["chunks"] == 1:
+    subsampler = _make_subsampler(
+        max_samples=settings["max_samples"],
+        num_samples=features.shape[0],
+        stratify=is_classifier(settings["model"]),
+        random_state=settings["random_state"]
+    )
+    if subsampler is None:
         if settings["transform"] is not None:
             features = settings["transform"].transform(features)
         settings["model"].fit(X=features, y=target, sample_weight=weights)
-        chunk_ix = None
+        sample_ix = None
     else:
         num_batches = settings["model"].get_params()["n_iter"]
-        settings["model"], chunk_ix = _add_chunks(
-            model=settings["model"].set_params(n_iter=1),
+        settings["model"], sample_ix = _use_subsampling(
+            model=settings["model"],
             transform=settings["transform"],
             features=features,
             target=target,
             weights=weights,
-            train_ix=np.ones(features.shape[0], dtype=bool),
+            train_ix=np.arange(features.shape[0]),
             num_batches=num_batches,
-            chunker=settings["chunker"](
-                n_splits=settings["chunks"], shuffle=True, random_state=settings["random_state"]
-            ),
+            subsampler=subsampler,
             return_ix=True
         )
     if settings["transform"] is not None:
-        return Pipeline([("transform", settings["transform"]), ("model", settings["model"])]), chunk_ix
-    return settings["model"], chunk_ix
+        return Pipeline([("transform", settings["transform"]), ("model", settings["model"])]), sample_ix
+    return settings["model"], sample_ix

@@ -1,4 +1,4 @@
-"""Unit tests for code in the utility submodule.
+"""Unit tests for code in the utility.fit submodule.
 
 Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
@@ -15,10 +15,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
 from proset import ClassifierModel
-from proset.shared import check_feature_names
 import proset.utility.fit as fit
-import proset.utility.other as other
-import proset.utility.write as write
 from test.test_np_objective import FEATURES, TARGET, WEIGHTS  # pylint: disable=wrong-import-order
 
 
@@ -27,12 +24,58 @@ EXTENDED_FEATURES = np.vstack([FEATURES, FEATURES, FEATURES])
 EXTENDED_TARGET = np.hstack([TARGET, TARGET, TARGET])
 EXTENDED_WEIGHTS = np.hstack([WEIGHTS, WEIGHTS, WEIGHTS])
 EXTENDED_CV_GROUPS = np.hstack([np.zeros_like(TARGET), np.ones_like(TARGET), 2 * np.ones_like(TARGET)])
+TRAIN_SIZE = (int(np.floor(TARGET.shape[0] * 2.0 / 3.0)), int(np.ceil(TARGET.shape[0] * 2.0 / 3.0)))
+# bounds on combined training fold size for 3 CV folds
+MAX_SAMPLES = int(np.ceil(EXTENDED_TARGET.shape[0] / 2))
+EXTENDED_TRAIN_SIZE = (
+    int(np.floor(EXTENDED_TARGET.shape[0] * 2.0 / 3.0)), int(np.ceil(EXTENDED_TARGET.shape[0] * 2.0 / 3.0))
+)
 
 
 # pylint: disable=missing-function-docstring, protected-access, too-many-public-methods
 class TestUtility(TestCase):
     """Unit tests for selected helper functions in proset.utility.
     """
+
+    def test_subsampler_init_fail_1(self):
+        message = ""
+        try:
+            fit.Subsampler(subsample_rate=0.0, stratify=False, random_state=12345)
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter subsample_rate must lie in (0.0, 1.0).")
+
+    def test_subsampler_init_fail_2(self):
+        message = ""
+        try:
+            fit.Subsampler(subsample_rate=1.0, stratify=False, random_state=12345)
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter subsample_rate must lie in (0.0, 1.0).")
+
+    # correct working of Subsampler.__init__() tested by method tests below
+
+    def test_subsampler_subsample_1(self):
+        y = np.hstack([np.ones(5), np.zeros(4)])
+        subsampler = fit.Subsampler(subsample_rate=0.5, stratify=False, random_state=12345)
+        ix = subsampler.subsample(y)
+        self.assertEqual(ix.shape[0], 5)  # subsampler rounds up
+        self.assertTrue(np.min(ix) >= 0)
+        self.assertTrue(np.max(ix) < EXTENDED_TARGET.shape[0])
+        np.testing.assert_array_equal(ix, np.sort(ix))
+
+    def test_subsampler_subsample_2(self):
+        y = np.hstack([np.ones(5), np.zeros(3)])
+        subsampler = fit.Subsampler(subsample_rate=0.5, stratify=True, random_state=12345)
+        ix = subsampler.subsample(y)
+        self.assertEqual(ix.shape[0], 5)  # stratified subsampler rounds up per class
+        self.assertTrue(np.min(ix) >= 0)
+        self.assertTrue(np.max(ix) < EXTENDED_TARGET.shape[0])
+        np.testing.assert_array_equal(ix, np.sort(ix))
+        self.assertEqual(np.sum(y[ix] == 1), 3)
+        self.assertEqual(np.sum(y[ix] == 0), 2)
+
+    # Subsampler._create_sample_index() already tested by the above
 
     def test_select_hyperparameters_1(self):
         model = ClassifierModel()
@@ -70,7 +113,7 @@ class TestUtility(TestCase):
             num_batch_grid=np.array([0, 5, 10]),
             num_folds=3,
             solver_factr=(1e10, 1e8),
-            chunks=2,
+            max_samples=MAX_SAMPLES,
             num_jobs=None,
             random_state=12345
         )
@@ -89,7 +132,7 @@ class TestUtility(TestCase):
         self.assertEqual(sorted(list(result["stage_2"].keys())), [
             "best_index", "num_batch_grid", "scores", "selected_index", "threshold"
         ])
-        self.assertEqual(len(result["chunk_ix"]), result["model"]["model"].set_manager_.num_batches)
+        self.assertEqual(len(result["sample_ix"]), result["model"]["model"].set_manager_.num_batches)
 
     def test_select_hyperparameters_3(self):
         model = ClassifierModel()
@@ -193,7 +236,7 @@ class TestUtility(TestCase):
                 num_batch_grid=None,
                 num_folds=5,
                 solver_factr=1e7,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None,
                 random_state=None
             )
@@ -214,11 +257,11 @@ class TestUtility(TestCase):
             num_batch_grid=None,
             num_folds=5,
             solver_factr=None,
-            chunks=1,
+            max_samples=None,
             num_jobs=None,
             random_state=None
         )
-        self.assertEqual(len(result), 13)
+        self.assertEqual(len(result), 12)
         self.assertTrue(isinstance(result["model"], ClassifierModel))
         self.assertFalse(result["model"] is model)  # ensure original input is copied
         self.assertEqual(result["transform"], None)
@@ -230,8 +273,7 @@ class TestUtility(TestCase):
         self.assertFalse(result["num_batch_grid"] is fit.NUM_BATCH_GRID)  # ensure mutable default is copied
         self.assertTrue(isinstance(result["splitter"], StratifiedKFold))  # classifier needs stratified splitter
         self.assertEqual(result["solver_factr"], fit.SOLVER_FACTR)
-        self.assertEqual(result["chunks"], 1)
-        self.assertEqual(result["chunker"], None)
+        self.assertEqual(result["max_samples"], None)
         self.assertEqual(result["num_jobs"], None)
         self.assertTrue(isinstance(result["random_state"], np.random.RandomState))
 
@@ -248,11 +290,11 @@ class TestUtility(TestCase):
             num_batch_grid=num_batch_grid,
             num_folds=5,
             solver_factr=(1e12, 1e10),
-            chunks=2,
+            max_samples=MAX_SAMPLES,
             num_jobs=2,
             random_state=12345
         )
-        self.assertEqual(len(result), 13)
+        self.assertEqual(len(result), 12)
         self.assertTrue(isinstance(result["model"], ClassifierModel))
         self.assertFalse(result["model"] is model)  # ensure original input is copied
         self.assertTrue(isinstance(result["transform"], StandardScaler))
@@ -265,8 +307,7 @@ class TestUtility(TestCase):
         self.assertFalse(result["num_batch_grid"] is num_batch_grid)
         self.assertTrue(isinstance(result["splitter"], StratifiedKFold))  # classifier needs stratified splitter
         self.assertEqual(result["solver_factr"], (1e12, 1e10))
-        self.assertEqual(result["chunks"], 2)
-        self.assertEqual(result["chunker"], StratifiedKFold)
+        self.assertEqual(result["max_samples"], MAX_SAMPLES)
         self.assertEqual(result["num_jobs"], 2)
         self.assertTrue(isinstance(result["random_state"], np.random.RandomState))
 
@@ -281,11 +322,11 @@ class TestUtility(TestCase):
             num_batch_grid=None,
             num_folds=5,
             solver_factr=1e10,
-            chunks=1,
+            max_samples=None,
             num_jobs=None,
             random_state=None
         )
-        self.assertEqual(len(result), 13)
+        self.assertEqual(len(result), 12)
         self.assertTrue(isinstance(result["model"], ClassifierModel))
         self.assertFalse(result["model"] is model)  # ensure original input is copied
         self.assertEqual(result["transform"], None)
@@ -297,8 +338,7 @@ class TestUtility(TestCase):
         self.assertFalse(result["num_batch_grid"] is fit.NUM_BATCH_GRID)  # ensure mutable default is copied
         self.assertTrue(isinstance(result["splitter"], StratifiedKFold))  # classifier needs stratified splitter
         self.assertEqual(result["solver_factr"], (1e10, 1e10))
-        self.assertEqual(result["chunks"], 1)
-        self.assertEqual(result["chunker"], None)
+        self.assertEqual(result["max_samples"], None)
         self.assertEqual(result["num_jobs"], None)
         self.assertTrue(isinstance(result["random_state"], np.random.RandomState))
 
@@ -311,7 +351,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -329,7 +369,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -347,7 +387,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50.0,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except TypeError as ex:
@@ -363,7 +403,7 @@ class TestUtility(TestCase):
                 stage_1_trials=0,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -379,7 +419,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=np.array([[5, 10]]),
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -395,7 +435,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=np.array([5.0, 10.0]),
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except TypeError as ex:
@@ -411,7 +451,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=np.array([-5, 10]),
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -427,7 +467,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=np.array([10, 5]),
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -443,7 +483,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=(1e7, 1e7, 1e7),
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -459,7 +499,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=(0.0, 1e7),
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -475,7 +515,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=(1e7, 0.0),
-                chunks=1,
+                max_samples=None,
                 num_jobs=None
             )
         except ValueError as ex:
@@ -491,12 +531,12 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1.0,
+                max_samples=1.0,
                 num_jobs=None
             )
         except TypeError as ex:
             message = ex.args[0]
-        self.assertEqual(message, "Parameter chunks must be integer.")
+        self.assertEqual(message, "Parameter max_samples must be integer if not passing None.")
 
     def test_check_select_settings_fail_13(self):
         message = ""
@@ -507,12 +547,12 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=0,
+                max_samples=0,
                 num_jobs=None
             )
         except ValueError as ex:
             message = ex.args[0]
-        self.assertEqual(message, "Parameter chunks must be positive.")
+        self.assertEqual(message, "Parameter max_samples must be positive if not passing None.")
 
     def test_check_select_settings_fail_14(self):
         message = ""
@@ -523,7 +563,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=2.0
             )
         except ValueError as ex:
@@ -539,7 +579,7 @@ class TestUtility(TestCase):
                 stage_1_trials=50,
                 num_batch_grid=fit.NUM_BATCH_GRID,
                 solver_factr=fit.SOLVER_FACTR,
-                chunks=1,
+                max_samples=None,
                 num_jobs=1
             )
         except ValueError as ex:
@@ -554,7 +594,19 @@ class TestUtility(TestCase):
             stage_1_trials=50,
             num_batch_grid=fit.NUM_BATCH_GRID,
             solver_factr=fit.SOLVER_FACTR,
-            chunks=1,
+            max_samples=None,
+            num_jobs=None
+        )
+
+    @staticmethod
+    def test_check_select_settings_2():
+        fit._check_select_settings(
+            lambda_v_range=fit.LAMBDA_V_RANGE,
+            lambda_w_range=fit.LAMBDA_W_RANGE,
+            stage_1_trials=50,
+            num_batch_grid=fit.NUM_BATCH_GRID,
+            solver_factr=fit.SOLVER_FACTR,
+            max_samples=1000,
             num_jobs=None
         )
 
@@ -627,7 +679,7 @@ class TestUtility(TestCase):
             num_batch_grid=None,
             num_folds=3,
             solver_factr=None,
-            chunks=1,
+            max_samples=None,
             num_jobs=None,
             random_state=None
         )
@@ -643,14 +695,14 @@ class TestUtility(TestCase):
         np.testing.assert_array_equal(plan[0]["target"], TARGET)
         np.testing.assert_array_equal(plan[0]["weights"], WEIGHTS)
         self.assertEqual(plan[0]["fold"], 0)
-        self.assertEqual(plan[0]["train_ix"].shape, TARGET.shape)
+        self.assertTrue(TRAIN_SIZE[0] <= plan[0]["train_ix"].shape[0] <= TRAIN_SIZE[1])
         self.assertEqual(plan[0]["trial"], 0)
         self.assertEqual(len(plan[0]["parameters"]), 4)
         self.assertTrue(fit.LAMBDA_V_RANGE[0] <= plan[0]["parameters"]["lambda_v"] <= fit.LAMBDA_V_RANGE[1])
         self.assertTrue(fit.LAMBDA_W_RANGE[0] <= plan[0]["parameters"]["lambda_w"] <= fit.LAMBDA_W_RANGE[1])
         self.assertTrue(isinstance(plan[0]["parameters"]["random_state"], np.random.RandomState))
         self.assertEqual(plan[0]["parameters"]["solver_factr"], fit.SOLVER_FACTR[0])
-        self.assertEqual(plan[0]["chunker"], None)
+        self.assertEqual(plan[0]["subsampler"], None)
         reference = [{
             "lambda_v": plan[i]["parameters"]["lambda_v"],
             "lambda_w": plan[i]["parameters"]["lambda_w"]
@@ -669,7 +721,7 @@ class TestUtility(TestCase):
             num_batch_grid=None,
             num_folds=3,
             solver_factr=None,
-            chunks=2,
+            max_samples=MAX_SAMPLES,
             num_jobs=None,
             random_state=None
         )
@@ -700,25 +752,46 @@ class TestUtility(TestCase):
         np.testing.assert_array_equal(plan[0]["target"], EXTENDED_TARGET)
         np.testing.assert_array_equal(plan[0]["weights"], EXTENDED_WEIGHTS)
         self.assertEqual(plan[0]["fold"], 0)
-        self.assertEqual(plan[0]["train_ix"].shape, EXTENDED_TARGET.shape)
+        self.assertTrue(EXTENDED_TRAIN_SIZE[0] <= plan[0]["train_ix"].shape[0] <= EXTENDED_TRAIN_SIZE[1])
         self.assertEqual(plan[0]["trial"], 0)
         self.assertEqual(len(plan[0]["parameters"]), 4)
         self.assertTrue(fit.LAMBDA_V_RANGE[0] <= plan[0]["parameters"]["lambda_v"] <= fit.LAMBDA_V_RANGE[1])
         self.assertTrue(fit.LAMBDA_W_RANGE[0] <= plan[0]["parameters"]["lambda_w"] <= fit.LAMBDA_W_RANGE[1])
         self.assertTrue(isinstance(plan[0]["parameters"]["random_state"], np.random.RandomState))
         self.assertEqual(plan[0]["parameters"]["solver_factr"], fit.SOLVER_FACTR[0])
-        self.assertTrue(plan[0]["chunker"], StratifiedKFold)
+        self.assertTrue(isinstance(plan[0]["subsampler"], fit.Subsampler))
+        self.assertTrue(plan[0]["subsampler"]._stratify)
         reference = [{
             "lambda_v": plan[i]["parameters"]["lambda_v"],
             "lambda_w": plan[i]["parameters"]["lambda_w"]
         } for i in range(50)]
         self.assertEqual(lambdas, reference)
 
+    def test_make_stage_1_plan_3(self):
+        model = ClassifierModel()
+        settings = fit._process_select_settings(
+            model=model,
+            transform=None,
+            lambda_v_range=None,
+            lambda_w_range=None,
+            stage_1_trials=50,
+            num_batch_grid=None,
+            num_folds=3,
+            solver_factr=None,
+            max_samples=FEATURES.shape[0],  # no subsampling required
+            num_jobs=None,
+            random_state=None
+        )
+        plan, _ = fit._make_stage_1_plan(
+            settings=settings, features=FEATURES, target=TARGET, weights=WEIGHTS, cv_groups=None
+        )
+        self.assertEqual(plan[0]["subsampler"], None)  # check only difference to above
+
     def test_sample_lambda_1(self):
         result = fit._sample_lambda(
             lambda_range=1e-3,
             trials=10,
-            do_randomize=False,
+            randomize=False,
             random_state=np.random.RandomState()
         )
         self.assertEqual(result.shape, (10, ))
@@ -728,7 +801,7 @@ class TestUtility(TestCase):
         result = fit._sample_lambda(
             lambda_range=fit.LAMBDA_V_RANGE,
             trials=10,
-            do_randomize=False,
+            randomize=False,
             random_state=np.random.RandomState()
         )
         self.assertEqual(result.shape, (10, ))
@@ -740,7 +813,7 @@ class TestUtility(TestCase):
         result = fit._sample_lambda(
             lambda_range=fit.LAMBDA_V_RANGE,
             trials=10,
-            do_randomize=True,
+            randomize=True,
             random_state=np.random.RandomState()
         )
         self.assertEqual(result.shape, (10, ))
@@ -758,13 +831,12 @@ class TestUtility(TestCase):
             features=FEATURES, target=TARGET, cv_groups=None, splitter=StratifiedKFold(n_splits=3)
         )
         self.assertEqual(len(result), 3)
-        self.assertEqual(result[0].shape, TARGET.shape)
-        self.assertEqual(result[1].shape, TARGET.shape)
-        self.assertEqual(result[2].shape, TARGET.shape)
-        np.testing.assert_array_equal(
-            result[0].astype(int) + result[1].astype(int) + result[2].astype(int),
-            2 * np.ones(TARGET.shape[0], dtype=int)
-        )  # every observation is included in two sets of training indices
+        self.assertTrue(TRAIN_SIZE[0] <= result[0].shape[0] <= TRAIN_SIZE[1])
+        self.assertTrue(TRAIN_SIZE[0] <= result[1].shape[0] <= TRAIN_SIZE[1])
+        self.assertTrue(TRAIN_SIZE[0] <= result[2].shape[0] <= TRAIN_SIZE[1])
+        values, counts = np.unique(np.hstack(result), return_counts=True)
+        np.testing.assert_array_equal(values, np.arange(TARGET.shape[0]))
+        self.assertTrue(np.all(counts == 2))  # every observation is included in two sets of training indices
 
     def test_make_train_ix_2(self):
         cv_groups = fit._process_cv_groups(cv_groups=EXTENDED_CV_GROUPS, target=EXTENDED_TARGET, classify=True)
@@ -775,16 +847,15 @@ class TestUtility(TestCase):
             splitter=StratifiedKFold(n_splits=3)
         )
         self.assertEqual(len(result), 3)
-        self.assertEqual(result[0].shape, EXTENDED_TARGET.shape)
-        self.assertEqual(result[1].shape, EXTENDED_TARGET.shape)
-        self.assertEqual(result[2].shape, EXTENDED_TARGET.shape)
-        np.testing.assert_array_equal(
-            result[0].astype(int) + result[1].astype(int) + result[2].astype(int),
-            2 * np.ones(EXTENDED_TARGET.shape[0], dtype=int)
-        )  # every observation is included in two sets of training indices
+        self.assertTrue(EXTENDED_TRAIN_SIZE[0] <= result[0].shape[0] <= EXTENDED_TRAIN_SIZE[1])
+        self.assertTrue(EXTENDED_TRAIN_SIZE[0] <= result[1].shape[0] <= EXTENDED_TRAIN_SIZE[1])
+        self.assertTrue(EXTENDED_TRAIN_SIZE[0] <= result[2].shape[0] <= EXTENDED_TRAIN_SIZE[1])
+        values, counts = np.unique(np.hstack(result), return_counts=True)
+        np.testing.assert_array_equal(values, np.arange(EXTENDED_TARGET.shape[0]))
+        self.assertTrue(np.all(counts == 2))  # every observation is included in two sets of training indices
         for ix in result:  # each group is either completely contained in the training folds or validation fold
             train_groups = set(EXTENDED_CV_GROUPS[ix])
-            validate_groups = set(EXTENDED_CV_GROUPS[np.logical_not(ix)])
+            validate_groups = set(EXTENDED_CV_GROUPS[fit._invert_index(index=ix, max_value=EXTENDED_TARGET.shape[0])])
             self.assertEqual(len(train_groups.intersection(validate_groups)), 0)
 
     def test_make_train_ix_3(self):
@@ -796,16 +867,15 @@ class TestUtility(TestCase):
             splitter=KFold(n_splits=3)
         )
         self.assertEqual(len(result), 3)
-        self.assertEqual(result[0].shape, EXTENDED_TARGET.shape)
-        self.assertEqual(result[1].shape, EXTENDED_TARGET.shape)
-        self.assertEqual(result[2].shape, EXTENDED_TARGET.shape)
-        np.testing.assert_array_equal(
-            result[0].astype(int) + result[1].astype(int) + result[2].astype(int),
-            2 * np.ones(EXTENDED_TARGET.shape[0], dtype=int)
-        )  # every observation is included in two sets of training indices
+        self.assertTrue(EXTENDED_TRAIN_SIZE[0] <= result[0].shape[0] <= EXTENDED_TRAIN_SIZE[1])
+        self.assertTrue(EXTENDED_TRAIN_SIZE[0] <= result[1].shape[0] <= EXTENDED_TRAIN_SIZE[1])
+        self.assertTrue(EXTENDED_TRAIN_SIZE[0] <= result[2].shape[0] <= EXTENDED_TRAIN_SIZE[1])
+        values, counts = np.unique(np.hstack(result), return_counts=True)
+        np.testing.assert_array_equal(values, np.arange(EXTENDED_TARGET.shape[0]))
+        self.assertTrue(np.all(counts == 2))  # every observation is included in two sets of training indices
         for ix in result:  # each group is either completely contained in the training folds or validation fold
             train_groups = set(EXTENDED_CV_GROUPS[ix])
-            validate_groups = set(EXTENDED_CV_GROUPS[np.logical_not(ix)])
+            validate_groups = set(EXTENDED_CV_GROUPS[fit._invert_index(index=ix, max_value=EXTENDED_TARGET.shape[0])])
             self.assertEqual(len(train_groups.intersection(validate_groups)), 0)
 
     def test_make_train_ix_4(self):
@@ -835,11 +905,6 @@ class TestUtility(TestCase):
             "or the group sizes are too variable."
         ]))
 
-    @staticmethod
-    def test_binarize_index_1():
-        result = fit._binarize_index(ix=np.array([1, 2, 4]), size=6)
-        np.testing.assert_array_equal(result, np.array([False, True, True, False, True, False]))
-
     def test_make_transforms_1(self):
         train_ix = fit._make_train_ix(
             features=FEATURES, target=TARGET, cv_groups=None, splitter=StratifiedKFold(n_splits=3)
@@ -860,9 +925,49 @@ class TestUtility(TestCase):
         np.testing.assert_allclose(result[0].mean_, np.mean(FEATURES[train_ix[0], :], axis=0), atol=1e-5)
         np.testing.assert_allclose(result[0].var_, np.var(FEATURES[train_ix[0], :], axis=0), atol=1e-5)
 
-    # function fit._execute_plan() is already covered by tests for fit.select_hyperparameters()
+    def test_make_subsampler_1(self):
+        subsampler = fit._make_subsampler(max_samples=None, num_samples=10, stratify=True, random_state=12345)
+        self.assertEqual(subsampler, None)
 
-    # function fit._fit_stage_1() is already covered by tests for fit.select_hyperparameters()
+    def test_make_subsampler_2(self):
+        subsampler = fit._make_subsampler(max_samples=10, num_samples=10, stratify=True, random_state=12345)
+        self.assertEqual(subsampler, None)
+
+    def test_make_subsampler_3(self):
+        subsampler = fit._make_subsampler(max_samples=5, num_samples=10, stratify=True, random_state=12345)
+        self.assertTrue(isinstance(subsampler, fit.Subsampler))
+        self.assertEqual(subsampler._subsample_rate, 0.5)
+        self.assertTrue(subsampler._stratify)
+
+    def test_make_subsampler_4(self):
+        subsampler = fit._make_subsampler(max_samples=3, num_samples=10, stratify=False, random_state=12345)
+        self.assertTrue(isinstance(subsampler, fit.Subsampler))
+        self.assertEqual(subsampler._subsample_rate, 0.3)
+        self.assertFalse(subsampler._stratify)
+
+    # functions fit._execute_plan(), fit._fit_stage_1(), and fit._fit_model() are already covered by tests for
+    # fit.select_hyperparameters()
+
+    @staticmethod
+    def test_invert_index_1():
+        complement = fit._invert_index(index=np.array([1, 3, 5]), max_value=6)
+        np.testing.assert_array_equal(complement, np.array([0, 2, 4]))
+
+    @staticmethod
+    def test_get_training_samples_1():
+        train_ix = np.arange(0, TARGET.shape[0], 2)
+        target, use_ix = fit._get_training_samples(target=TARGET, train_ix=train_ix, subsampler=None)
+        np.testing.assert_array_equal(target, TARGET[train_ix])
+        np.testing.assert_array_equal(use_ix, train_ix)
+
+    def test_get_training_samples_2(self):
+        train_ix = np.arange(0, TARGET.shape[0], 2)
+        subsampler = fit.Subsampler(subsample_rate=0.5, stratify=False, random_state=12345)
+        target, use_ix = fit._get_training_samples(target=TARGET, train_ix=train_ix, subsampler=subsampler)
+        reduced_length = int(np.ceil(train_ix.shape[0] * 0.5))
+        self.assertEqual(target.shape[0], reduced_length)
+        self.assertEqual(use_ix.shape[0], reduced_length)
+        self.assertEqual(set(use_ix).intersection(set(train_ix)), set(use_ix))
 
     @staticmethod
     def test_prepare_features_1():
@@ -880,23 +985,6 @@ class TestUtility(TestCase):
         )[0]
         result = fit._prepare_features(features=FEATURES, sample_ix=train_ix, transform=transform)
         np.testing.assert_allclose(result, transform.transform(FEATURES[train_ix, :]), atol=1e-5)
-
-    # function fit._fit_model() is already covered by tests for fit.select_hyperparameters()
-
-    def test_get_first_chunk(self):
-        target = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
-        train_ix = np.array([True, True, False, True, True, False, True, True, False])
-        use_target, use_ix = fit._get_first_chunk(
-            target=target,
-            train_ix=train_ix,
-            chunker=StratifiedKFold(n_splits=2, shuffle=True, random_state=np.random.RandomState(12345))
-        )
-        np.testing.assert_array_equal(use_target, np.array([0, 1, 2]))
-        self.assertEqual(use_ix.shape, (9,))
-        self.assertEqual(np.nonzero(use_ix)[0].shape, (3, ))
-        np.testing.assert_array_equal(np.logical_and(train_ix, use_ix), use_ix)
-
-    # function fit._update_index() already tested by the above
 
     @staticmethod
     def test_collect_stage_1_1():
@@ -957,7 +1045,7 @@ class TestUtility(TestCase):
             num_batch_grid=None,
             num_folds=3,
             solver_factr=None,
-            chunks=1,
+            max_samples=None,
             num_jobs=None,
             random_state=None
         )
@@ -973,12 +1061,12 @@ class TestUtility(TestCase):
         np.testing.assert_array_equal(result[0]["target"], TARGET)
         np.testing.assert_array_equal(result[0]["weights"], WEIGHTS)
         np.testing.assert_array_equal(result[0]["num_batch_grid"], fit.NUM_BATCH_GRID)
-        self.assertEqual(result[0]["train_ix"].shape, TARGET.shape)
+        self.assertTrue(TRAIN_SIZE[0] <= result[0]["train_ix"].shape[0] <= TRAIN_SIZE[1])
         self.assertEqual(len(result[0]["parameters"]), 3)
         self.assertEqual(result[0]["parameters"]["n_iter"], fit.NUM_BATCH_GRID[-1])
         self.assertTrue(isinstance(result[0]["parameters"]["random_state"], np.random.RandomState))
         self.assertEqual(result[0]["parameters"]["solver_factr"], fit.SOLVER_FACTR[0])
-        self.assertEqual(result[0]["chunker"], None)
+        self.assertEqual(result[0]["subsampler"], None)
 
     def test_make_stage_2_plan_2(self):
         model = ClassifierModel()
@@ -992,7 +1080,7 @@ class TestUtility(TestCase):
             num_batch_grid=None,
             num_folds=3,
             solver_factr=None,
-            chunks=2,
+            max_samples=MAX_SAMPLES,
             num_jobs=None,
             random_state=None
         )
@@ -1023,18 +1111,36 @@ class TestUtility(TestCase):
         np.testing.assert_array_equal(result[0]["target"], EXTENDED_TARGET)
         np.testing.assert_array_equal(result[0]["weights"], EXTENDED_WEIGHTS)
         np.testing.assert_array_equal(result[0]["num_batch_grid"], fit.NUM_BATCH_GRID)
-        self.assertEqual(result[0]["train_ix"].shape, EXTENDED_TARGET.shape)
+        self.assertTrue(EXTENDED_TRAIN_SIZE[0] <= result[0]["train_ix"].shape[0] <= EXTENDED_TRAIN_SIZE[1])
         self.assertEqual(len(result[0]["parameters"]), 3)
         self.assertEqual(result[0]["parameters"]["n_iter"], fit.NUM_BATCH_GRID[-1])
         self.assertTrue(isinstance(result[0]["parameters"]["random_state"], np.random.RandomState))
         self.assertEqual(result[0]["parameters"]["solver_factr"], fit.SOLVER_FACTR[0])
-        self.assertTrue(isinstance(result[0]["chunker"], StratifiedKFold))
+        self.assertTrue(isinstance(result[0]["subsampler"], fit.Subsampler))
+        self.assertTrue(result[0]["subsampler"]._stratify)
 
-    # function fit._fit_stage_2() is already covered by tests for fit.select_hyperparameters()
+    def test_make_stage_2_plan_3(self):
+        model = ClassifierModel()
+        settings = fit._process_select_settings(
+            model=model,
+            transform=None,
+            lambda_v_range=None,
+            lambda_w_range=None,
+            stage_1_trials=50,
+            num_batch_grid=None,
+            num_folds=3,
+            solver_factr=None,
+            max_samples=FEATURES.shape[0],
+            num_jobs=None,
+            random_state=None
+        )
+        result = fit._make_stage_2_plan(
+            settings=settings, features=FEATURES, target=TARGET, weights=WEIGHTS, cv_groups=None
+        )
+        self.assertEqual(result[0]["subsampler"], None)  # check only difference to above
 
-    # function fit._fit_model_chunked() is already covered by tests for fit.select_hyperparameters()
-
-    # function fit._add_chunks() is already covered by tests for fit.select_hyperparameters()
+    # function fit._fit_stage_2(), fit._fit_with_subsampling(), and fit._use_subsampling() are already covered by tests
+    # for fit.select_hyperparameters()
 
     def test_evaluate_stage_2_1(self):
         scores = np.array([[0.0, 0.95, 0.9], [0.1, 0.9, 1.0]])
@@ -1071,11 +1177,11 @@ class TestUtility(TestCase):
             num_batch_grid=None,
             num_folds=5,
             solver_factr=1e10,
-            chunks=1,
+            max_samples=None,
             num_jobs=None,
             random_state=None
         )
-        model, chunk_ix = fit._make_final_model(
+        model, sample_ix = fit._make_final_model(
             settings=settings,
             features=EXTENDED_FEATURES,
             target=EXTENDED_TARGET,
@@ -1085,7 +1191,7 @@ class TestUtility(TestCase):
         self.assertTrue(isinstance(model["transform"], StandardScaler))
         self.assertTrue(isinstance(model["model"], ClassifierModel))
         check_is_fitted(model)
-        self.assertEqual(chunk_ix, None)
+        self.assertEqual(sample_ix, None)
 
     def test_make_final_model_2(self):
         settings = fit._process_select_settings(
@@ -1097,11 +1203,11 @@ class TestUtility(TestCase):
             num_batch_grid=None,
             num_folds=5,
             solver_factr=1e10,
-            chunks=2,
+            max_samples=MAX_SAMPLES,
             num_jobs=None,
             random_state=None
         )
-        model, chunk_ix = fit._make_final_model(
+        model, sample_ix = fit._make_final_model(
             settings=settings,
             features=EXTENDED_FEATURES,
             target=EXTENDED_TARGET,
@@ -1109,210 +1215,7 @@ class TestUtility(TestCase):
         )
         self.assertTrue(isinstance(model, ClassifierModel))
         check_is_fitted(model)
-        self.assertEqual(len(chunk_ix), 2)
-        chunk_1 = set(chunk_ix[0])
-        chunk_2 = set(chunk_ix[1])
-        self.assertEqual(len(chunk_1.intersection(chunk_2)), 0)
-        self.assertEqual(len(chunk_1.union(chunk_2)), EXTENDED_TARGET.shape[0])
-
-    # no tests for other.print_hyperparameter_report() which provides console output only
-
-    # no tests for other.print_feature_report() which provides console output only
-
-    def test_choose_reference_point_fail_1(self):
-        model = ClassifierModel(n_iter=0)
-        model.fit(X=FEATURES, y=TARGET)
-        message = ""
-        try:
-            # test only one exception raised by shared.check_scale_offset() to ensure it is called; other exceptions
-            # tested by the unit tests for that function
-            other.choose_reference_point(
-                features=FEATURES,
-                model=model,
-                scale=np.ones(FEATURES.shape[0] + 1),
-                offset=None
-            )
-        except ValueError as ex:
-            message = ex.args[0]
-        self.assertEqual(message, "Parameter scale must have one element per feature.")
-
-    def test_choose_reference_point_1(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        active_features = model.set_manager_.get_active_features()
-        result = other.choose_reference_point(features=FEATURES, model=model, scale=None, offset=None)
-        self.assertEqual(len(result), 6)
-        ix = result["index"]
-        self.assertTrue(ix in range(FEATURES.shape[0]))
-        np.testing.assert_array_equal(result["features_raw"], FEATURES[ix:(ix + 1), :])
-        self.assertFalse(result["features_raw"] is FEATURES[ix:(ix + 1), :])  # ensure submatrix is a copy
-        np.testing.assert_array_equal(result["features_processed"], FEATURES[ix:(ix + 1), active_features])
-        np.testing.assert_array_equal(result["prediction"], np.squeeze(model.predict_proba(X=FEATURES[ix:(ix + 1)])))
-        self.assertEqual(result["num_features"], FEATURES.shape[1])
-        np.testing.assert_array_equal(result["active_features"], active_features)
-
-    def test_find_best_point_1(self):
-        features = np.zeros((4, 0))
-        prediction = np.array([[0.1, 0.9], [0.3, 0.7], [0.5, 0.5], [0.9, 0.1]])
-        # this constellation gives the same Borda points to samples 1 and 2 but the probability estimate for sample 2
-        # has higher entropy and is preferred
-        result = other._find_best_point(features=features, prediction=prediction, is_classifier_=True)
-        self.assertEqual(result, 2)
-
-    def test_find_best_point_2(self):
-        features = np.array([[4.0], [2.0], [2.0], [1.0]])
-        prediction = np.array([[0.1, 0.9], [0.3, 0.7], [0.5, 0.5], [0.9, 0.1]])
-        # this constellation gives the same Borda points to samples 1 and 2 but the probability estimate for sample 2
-        # has higher entropy and is preferred
-        result = other._find_best_point(features=features, prediction=prediction, is_classifier_=True)
-        self.assertEqual(result, 2)
-
-    @staticmethod
-    def test_compute_borda_points_1():
-        metric = np.array([5.0, 2.0, 4.0, 3.0, 2.0, 1.0])
-        reference = np.array([0.0, 3.5, 1.0, 2.0, 3.5, 5.0])
-        result = other._compute_borda_points(metric)
-        np.testing.assert_array_equal(result, reference)
-
-    # no tests for other.print_point_report() which provides console output only
-
-    def test_check_point_input_fail_1(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        reference = other.choose_reference_point(features=FEATURES, model=model)
-        message = ""
-        try:
-            # test only one exception raised by shared.check_feature_names() to ensure it is called; other exceptions
-            # tested by the unit tests for that function
-            other._check_point_input(reference=reference, feature_names=[], target_names=None)
-        except ValueError as ex:
-            message = ex.args[0]
-        self.assertEqual(message, "Parameter feature_names must have one element per feature if not None.")
-
-    def test_check_point_input_fail_2(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        reference = other.choose_reference_point(features=FEATURES, model=model)
-        message = ""
-        try:
-            # test only one exception raised by shared.check_feature_names() to ensure it is called; other exceptions
-            # tested by the unit tests for that function
-            other._check_point_input(reference=reference, feature_names=None, target_names="target")
-        except TypeError as ex:
-            message = ex.args[0]
-        self.assertEqual(
-            message, "Parameter target_names must be a list of strings or None if reference belongs to a classifier."
-        )
-
-    def test_check_point_input_fail_3(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        reference = other.choose_reference_point(features=FEATURES, model=model)
-        message = ""
-        try:
-            # test only one exception raised by shared.check_feature_names() to ensure it is called; other exceptions
-            # tested by the unit tests for that function
-            other._check_point_input(
-                reference=reference,
-                feature_names=None,
-                target_names=[str(i) for i in range(1, reference["prediction"].shape[0])]
-            )
-        except ValueError as ex:
-            message = ex.args[0]
-        self.assertEqual(message, " ".join([
-            "Parameter target_names must have one element per class if passing a list",
-            "and reference belongs to a classifier."
-        ]))
-
-    def test_check_point_input_fail_4(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        reference = other.choose_reference_point(features=FEATURES, model=model)
-        reference["prediction"] = 3.0  # simulate regressor output
-        message = ""
-        try:
-            # test only one exception raised by shared.check_feature_names() to ensure it is called; other exceptions
-            # tested by the unit tests for that function
-            other._check_point_input(reference=reference, feature_names=None, target_names=["target 1", "target 2"])
-        except TypeError as ex:
-            message = ex.args[0]
-        self.assertEqual(
-            message, "Parameter target_names must be a string or None if reference belongs to a regressor."
-        )
-
-    def test_check_point_input_1(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        reference = other.choose_reference_point(features=FEATURES, model=model)
-        ref_feature_names = check_feature_names(
-            num_features=FEATURES.shape[1],
-            feature_names=None,
-            active_features=model.set_manager_.get_active_features()
-        )
-        feature_names, target_names, is_classifier_ = other._check_point_input(
-            reference=reference,
-            feature_names=None,
-            target_names=None
-        )
-        self.assertEqual(feature_names, ref_feature_names)
-        self.assertEqual(target_names, [str(i) for i in range(reference["prediction"].shape[0])])
-        self.assertTrue(is_classifier_)
-
-    def test_check_point_input_2(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        reference = other.choose_reference_point(features=FEATURES, model=model)
-        ref_feature_names = ["feature {}".format(i) for i in range(FEATURES.shape[1])]
-        ref_target_names = ["class {}".format(i) for i in range(reference["prediction"].shape[0])]
-        feature_names, target_names, is_classifier_ = other._check_point_input(
-            reference=reference,
-            feature_names=ref_feature_names,
-            target_names=ref_target_names
-        )
-        self.assertEqual(feature_names, [ref_feature_names[i] for i in model.set_manager_.get_active_features()])
-        self.assertEqual(target_names, ref_target_names)
-        self.assertFalse(target_names is ref_target_names)  # ensure input list is copied
-        self.assertTrue(is_classifier_)
-
-    def test_check_point_input_3(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        reference = other.choose_reference_point(features=FEATURES, model=model)
-        reference["prediction"] = 3.0  # simulate regressor output
-        ref_feature_names = ["feature {}".format(i) for i in range(FEATURES.shape[1])]
-        feature_names, target_names, is_classifier_ = other._check_point_input(
-            reference=reference,
-            feature_names=ref_feature_names,
-            target_names=None
-        )
-        self.assertEqual(feature_names, [ref_feature_names[i] for i in model.set_manager_.get_active_features()])
-        self.assertEqual(target_names, "value")
-        self.assertFalse(is_classifier_)
-
-    def test_check_point_input_4(self):
-        model = ClassifierModel()
-        model.fit(X=FEATURES, y=TARGET)
-        reference = other.choose_reference_point(features=FEATURES, model=model)
-        reference["prediction"] = 3.0  # simulate regressor output
-        ref_feature_names = ["feature {}".format(i) for i in range(FEATURES.shape[1])]
-        feature_names, target_names, is_classifier_ = other._check_point_input(
-            reference=reference,
-            feature_names=ref_feature_names,
-            target_names="target"
-        )
-        self.assertEqual(feature_names, [ref_feature_names[i] for i in model.set_manager_.get_active_features()])
-        self.assertEqual(target_names, "target")
-        self.assertFalse(is_classifier_)
-
-    # no tests for write.write_report() which provides file output only
-
-    def test_update_format_1(self):
-        default = {"a": 1}
-        result = write._update_format(format_=None, default=default)
-        self.assertEqual(result, default)
-        self.assertFalse(result is default)  # ensure default is copied
-
-    def test_update_format_2(self):
-        default = {"a": 1, "b": 2}
-        result = write._update_format(format_={"a": 3}, default=default)
-        self.assertEqual(result, {"a": 3, "b": 2})
+        self.assertEqual(len(sample_ix), 2)
+        self.assertTrue(MAX_SAMPLES <= sample_ix[0].shape[0] <= MAX_SAMPLES + 1)
+        # stratified sampling on two classes can at most generate one more sample than specified due to rounding errors
+        self.assertTrue(MAX_SAMPLES <= sample_ix[1].shape[0] <= MAX_SAMPLES + 1)
