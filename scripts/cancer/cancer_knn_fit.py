@@ -30,7 +30,6 @@ result = fit_knn_classifier(
     labels=data["y_train"],
     transform=StandardScaler(),
     k_grid=np.arange(1, 101),  # trial with default shows more than 30 neighbors may be needed
-    num_folds=5,
     random_state=random_state
 )
 

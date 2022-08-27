@@ -10,8 +10,6 @@ import pickle
 
 import numpy as np
 from sklearn.decomposition import PCA
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 
 from proset import ClassifierModel
 from proset.benchmarks import start_console_log
@@ -27,8 +25,7 @@ experiments = (
     ("mnist_pca_no_scaling_tf_subsample_model", {
         "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 10000, "use_tensorflow": True},
         "select_para": {
-            "transform": Pipeline([("scaler", StandardScaler()), ("pca", PCA(n_components=0.99, whiten=True))]),
-            # PCA for scaled features, scale output again
+            "transform": PCA(n_components=0.99, whiten=True),  # PCA for unscaled features, output is scaled
             "lambda_w_range": 1e-8,
             "stage_1_trials": 11,
             "num_batch_grid": np.arange(11),

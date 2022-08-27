@@ -25,13 +25,10 @@ with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
 
 print("* Select hyperparameters via cross-validation")
 result = fit_knn_classifier(
-    features=data["X_train"],
-    labels=data["y_train"],
-    # no scaling transform to avoid blowing up noise in areas that are almost uniformly white
-    k_grid=np.arange(1, 101),  # trial with default shows more than 30 neighbors may be needed
-    num_folds=5,
-    random_state=random_state
+    features=data["X_train"], labels=data["y_train"], k_grid=np.arange(1, 101), random_state=random_state
 )
+# no scaling transform to avoid blowing up noise in areas that are almost uniformly white; trial with default shows more
+# than 30 neighbors may be needed
 
 print("* Save results")
 result["data"] = data

@@ -29,12 +29,7 @@ encoder = LabelEncoder().fit(data["y_train"])
 print("* Select hyperparameters via cross-validation")
 t_start = time.time()
 result = fit_xgb_classifier(
-    features=data["X_train"],
-    labels=encoder.transform(data["y_train"]),
-    colsample_range=(0.1, 0.9),
-    subsample_range=(0.1, 0.9),
-    num_folds=5,
-    random_state=random_state
+    features=data["X_train"], labels=encoder.transform(data["y_train"]), random_state=random_state
 )
 t_end = time.time()
 print("  - elapsed time = {} s".format(int(t_end - t_start)))

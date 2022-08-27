@@ -24,15 +24,8 @@ with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
     data = pickle.load(file)
 
 print("* Select hyperparameters via cross-validation")
-result = fit_xgb_classifier(
-    features=data["X_train"],
-    labels=data["y_train"],
-    max_depth=100,  # classifier appears unable to engage with data
-    colsample_range=(0.1, 0.9),
-    subsample_range=(0.1, 0.9),
-    num_folds=5,
-    random_state=random_state
-)
+result = fit_xgb_classifier(features=data["X_train"], labels=data["y_train"], max_depth=100, random_state=random_state)
+# classifier appears unable to engage with data regardless of max_depth
 
 print("* Save results")
 result["data"] = data

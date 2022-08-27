@@ -19,28 +19,28 @@ def print_hyperparameter_report(result):  # pragma: no cover
     :param result: as return value of select_hyperparameters()
     :return: no return value; results printed to console
     """
-    print("{:9s}   {:8s}   {:8s}   {:8s}".format("stage 1", "lambda_v", "lambda_w", "log-loss"))
+    print("{:9s}   {:>8s}   {:>8s}   {:>8s}".format("stage 1", "lambda_v", "lambda_w", "log-loss"))
     print("{:9s}   {:8.1e}   {:8.1e}   {:8.2f}".format(
         "optimal",
         result["stage_1"]["lambda_grid"][result["stage_1"]["best_index"], 0],
         result["stage_1"]["lambda_grid"][result["stage_1"]["best_index"], 1],
         -result["stage_1"]["scores"][result["stage_1"]["best_index"]]
     ))
-    print("{:9s}   {:8s}   {:8s}   {:8.2f}".format("threshold", "", "", -result["stage_1"]["threshold"]))
+    print("{:9s}   {:>8s}   {:>8s}   {:8.2f}".format("threshold", "", "", -result["stage_1"]["threshold"]))
     print("{:9s}   {:8.1e}   {:8.1e}   {:8.2f}\n".format(
         "selected",
         result["stage_1"]["lambda_grid"][result["stage_1"]["selected_index"], 0],
         result["stage_1"]["lambda_grid"][result["stage_1"]["selected_index"], 1],
         -result["stage_1"]["scores"][result["stage_1"]["selected_index"]]
     ))
-    print("{:9s}   {:8s}   {:8s}   {:8s}".format("stage 2", "batches", "", "log-loss"))
+    print("{:9s}   {:>8s}   {:>8s}   {:>8s}".format("stage 2", "batches", "", "log-loss"))
     print("{:9s}   {:8d}   {:8s}   {:8.2f}".format(
         "optimal",
         result["stage_2"]["num_batch_grid"][result["stage_2"]["best_index"]],
         "",
         -result["stage_2"]["scores"][result["stage_2"]["best_index"]]
     ))
-    print("{:9s}   {:8s}   {:8s}   {:8.2f}".format("threshold", "", "", -result["stage_2"]["threshold"]))
+    print("{:9s}   {:>8s}   {:>8s}   {:8.2f}".format("threshold", "", "", -result["stage_2"]["threshold"]))
     print("{:9s}   {:8d}   {:8s}   {:8.2f}\n".format(
         "selected",
         result["stage_2"]["num_batch_grid"][result["stage_2"]["selected_index"]],

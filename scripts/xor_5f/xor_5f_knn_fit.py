@@ -26,11 +26,7 @@ with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
 
 print("* Select hyperparameters via cross-validation")
 result = fit_knn_classifier(
-    features=data["X_train"],
-    labels=data["y_train"],
-    transform=StandardScaler(),
-    num_folds=5,
-    random_state=random_state
+    features=data["X_train"], labels=data["y_train"], transform=StandardScaler(), random_state=random_state
 )
 
 print("* Save results")

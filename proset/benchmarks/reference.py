@@ -99,8 +99,8 @@ def fit_xgb_classifier(
         eta=(1e-1, 1e-2),
         num_iter=(100, 10000),
         max_depth=10,
-        colsample_range=1.0,
-        subsample_range=1.0,
+        colsample_range=(0.1, 0.9),
+        subsample_range=(0.1, 0.9),
         stage_1_trials=100,
         num_folds=5,
         random_state=None

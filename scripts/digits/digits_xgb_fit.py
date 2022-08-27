@@ -26,14 +26,7 @@ with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
 
 print("* Select hyperparameters via cross-validation")
 t_start = time.time()
-result = fit_xgb_classifier(
-    features=data["X_train"],
-    labels=data["y_train"],
-    colsample_range=(0.1, 0.9),
-    subsample_range=(0.1, 0.9),
-    num_folds=5,
-    random_state=random_state
-)
+result = fit_xgb_classifier(features=data["X_train"], labels=data["y_train"], random_state=random_state)
 t_end = time.time()
 print("  - elapsed time = {} s".format(int(t_end - t_start)))
 

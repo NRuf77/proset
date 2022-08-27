@@ -9,8 +9,6 @@ import os
 import pickle
 
 import numpy as np
-from sklearn.decomposition import PCA
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from proset import ClassifierModel
