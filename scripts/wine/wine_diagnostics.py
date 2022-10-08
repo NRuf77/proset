@@ -17,21 +17,7 @@ import proset.utility as utility
 print("* Apply user settings")
 input_path = "scripts/results"
 output_path = "scripts/reports"
-input_files = [
-    "wine_2d_05_model.gz",
-    "wine_2d_50_model.gz",
-    "wine_2d_95_model.gz",
-    "wine_1d_model.gz",
-    "wine_fix_model.gz",
-    "wine_fix_opt_model.gz",
-    "wine_timing_1e7_model.gz",
-    "wine_timing_1e10_model.gz"
-]
-print("  Select input file:")
-for i, file_name in enumerate(input_files):
-    print("  {} - {}".format(i, file_name))
-choice = int(input())
-input_file = input_files[choice]
+input_file = "wine_10b_model.gz"
 export_file = input_file.replace(".gz", "_export.xlsx")
 model_name = input_file.replace(".gz", "")
 

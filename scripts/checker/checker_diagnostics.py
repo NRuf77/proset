@@ -18,25 +18,7 @@ import proset.utility as utility
 print("* Apply user settings")
 input_path = "scripts/results"
 output_path = "scripts/reports"
-input_files = [
-    "checker_2d_05_model.gz",
-    "checker_2d_50_model.gz",
-    "checker_2d_95_model.gz",
-    "checker_1d_model.gz",
-    "checker_fix_model.gz",
-    "checker_fix_100_model.gz",
-    "checker_fix_300_model.gz",
-    "checker_fix_1500_model.gz",
-    "checker_fix_opt_model.gz",
-    "checker_timing_1e7_model.gz",
-    "checker_timing_1e10_model.gz",
-    "checker_tf_model.gz"
-]
-print("  Select input file:")
-for i, file_name in enumerate(input_files):
-    print("  {} - {}".format(i, file_name))
-choice = int(input())
-input_file = input_files[choice]
+input_file = "checker_10b_model.gz"
 export_file = input_file.replace(".gz", "_export.xlsx")
 model_name = input_file.replace(".gz", "")
 

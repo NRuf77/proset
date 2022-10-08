@@ -17,7 +17,7 @@ import proset.utility as utility
 print("* Apply user settings")
 input_path = "scripts/results"
 output_path = "scripts/reports"
-input_file = "xor_3f_2d_95_model.gz"
+input_file = "xor_3f_10b_model.gz"
 export_file = input_file.replace(".gz", "_export.xlsx")
 model_name = input_file.replace(".gz", "")
 

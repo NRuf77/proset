@@ -173,7 +173,7 @@ class TfObjective(Objective, metaclass=ABCMeta):
         """
         return {
             "prototypes": self._sample_data["cand_features"].numpy().astype(**FLOAT_TYPE),
-            "target": self._sample_data["cand_target"].numpy().astype(np.integer),
+            "target": self._sample_data["cand_target"].numpy().astype(int),
             "feature_weights": parameter[:self._meta["num_features"]].astype(**FLOAT_TYPE),
             "prototype_weights": parameter[self._meta["num_features"]:].astype(**FLOAT_TYPE),
             "sample_index": self._sample_data["cand_index"]

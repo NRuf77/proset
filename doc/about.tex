@@ -17,10 +17,10 @@ For example, Andrew and Gao \cite{Andrew_07} developed the OWL-QN algorithm to m
 This algorithm solves the optimization problem restricted to a particular orthant via backtracking line search.
 The absolute value of each coefficient is represented as plus or minus identity depending on the orthant, so the restricted problem is everywhere differentiable.
 If an optimum is found where any coefficients are exactly zero, the generalized Kuhn-Tucker conditions for the subgradient of the original term determine whether the solution is a local minimum or can be improved by moving to another orthant.
-In case of proset, all model coefficients nonnegative, so optimization is naturally restricted to the first orthant.
+In case of proset, all model coefficients are nonnegative, so optimization is naturally restricted to the first orthant.
 Thus, we can rely on a standard algorithm for constrained continuous optimization like L-BFGS-B \cite{Byrd_95}.\par
 %
-Zou and Hastie \cite{Zou_05} show that a combined $L_1$- and $L_2$-penalty overcome some issues observed for the $L_1$-penalty applied to linear regression, but which we expect to affect other models as well.
+Zou and Hastie \cite{Zou_05} show that combining an $L_1$- and $L_2$-penalty overcomes some issues observed for the $L_1$-penalty applied to linear regression, but which we expect to affect other models as well.
 One of these issues is that, in case of several highly correlated features, the LASSO tends to arbitrarily select only one of them.
 With the elastic net penalty, highly correlated features are typically either included or excluded as a group.
 Furthermore, empirical results indicate that $L_2$-regularization improves the quality of the selected models.
@@ -107,7 +107,9 @@ In the benchmark study, we optimize the models on each data set for minimal log-
 For the best performing algorithm, we compute the sum of cross-validation mean and standard deviation for log-loss using the optimal hyperparameters.
 If another algorithm reaches a score less than or equal to this threshold, we consider it `equivalent' to the best model.
 Table \ref{tab_classifier_comparison} summarizes the relative performance of the classifiers on eleven test cases.
-A model is rated as either `best' (lowest log-loss), `equivalent' (log-loss less than or equal to the threshold), `worse' (log-loss above the threshold), or `worst' (classifier returns constant estimator).\par
+Results are based on the updated fit strategy for proset described in Section \ref{sec_updated_fit}.
+A model is rated as either `best' (lowest log-loss), `equivalent' (log-loss less than or equal to the threshold), `worse' (log-loss above the threshold), or `worst' (classifier returns constant estimator).
+\par
 %
 \begin{table}
 \caption{Comparison of classification algorithms}
@@ -119,7 +121,7 @@ A model is rated as either `best' (lowest log-loss), `equivalent' (log-loss less
 &\multicolumn{4}{c|}{\textbf{Log-loss score}}\\
 \textbf{Classifier}&\textbf{Best}&\textbf{Equivalent}&\textbf{Worse}&\textbf{Worst$^*$}\\
 proset&4&2&5&--\\
-kNN&1&3&6&1\\
+kNN&2&1&7&1\\
 XGBoost&7&--&2&2\\
 \multicolumn{5}{|l|}{$^*$ Algorithm returns constant estimator.}\\
 \hline
@@ -127,16 +129,15 @@ XGBoost&7&--&2&2\\
 \end{center}
 \end{table}
 %
-For the test cases -- which are of course not representative of anything in particular -- the performance of proset is in-between kNN and XGBoost.
-There are also several instances where two or all three of the models are equivalent.
+For the test cases -- which are of course not representative of anything in particular -- the performance of proset is typically in-between kNN and XGBoost.
 The exception are three of the four cases where XGBoost is `worse' or `worst'.
 These are artificial data sets where the target is a deterministic function of five or six features.
 The fourth data set is very small and performance on testing data highly variable.\par
 %
-Our study contains artificial test cases relying on the interaction of three to six features.
+Our study contains artificial test cases relying on the deterministic interaction of three to six features.
 XGBoost provides very good results up to four features, is worse than the other two models for five features, and fails on six features.
 This may be a limitation of the binary decision trees used as base learners.
-Both kNN and proset models have some predictive value for the higher order interaction terms, although results are far from perfect given that the relationship between features and target is deterministic.
+Both kNN and proset models have some predictive value for the higher order interaction terms, although results are far from perfect given the deterministic nature of the problems.
 If we add six more irrelevant features to the sixth order interaction, kNN also fails.
 The proset classifier is able to select only the relevant inputs and produce a nontrivial estimate as before.\par
 %
@@ -151,7 +152,7 @@ If the number of relevant features is small, users can assess whether the choice
 %
 \item Prototype selection simplifies reviewing the model structure even if the number of features is large.
 We can perform weighted PCA on the feature matrix for the prototypes and use this to create low-dimensional maps of the data.
-Also, a check whether the training data has labeling errors or artifacts can start with the smaller set of prototypes.
+Also, a check whether the training data contains labeling errors or artifacts can start with the smaller set of prototypes.
 %
 \item The estimate for a particular sample can be explained by reviewing the prototypes with the highest impact.
 This is an explanation in terms of similar training instances instead of more abstract properties, which can help nontechnical users to understand and trust the model.
@@ -161,7 +162,6 @@ That means the algorithm can detect whether a new sample is far away from the tr
 \end{itemize}
 %
 Note that the last three properties do not require the selected number of features to be small.
-For example, proset could be used as the final stage in transfer learning and add its capabilities to a model of arbitrary complexity like a deep neural network.
 %
 \section{The curse of dimensionality}
 \label{sec_curse}
@@ -176,7 +176,7 @@ As the volume containing such points is proportional to $h_n^d$, the number of p
 Thus, the bandwidth can only converge to zero very slowly with $n$ if $d$ is large, with a corresponding slow reduction in bias.\par
 %
 What are the implications for proset?
-Feature selection is obviously beneficial as the convergence rate of the estimator should depend only on the number of features included in the model.
+Feature selection is obviously beneficial as the convergence rate of the estimator depends only on the number of features included in the model.
 The impact of prototype selection is harder to quantify.
 Consider a target distribution that can be replicated exactly by proset, i.e., it is generated by local averaging using a finite number of kernel functions for weighting.
 In this situation, the bandwidth does no longer have to vanish asymptotically with $n$ to yield a small bias.
@@ -213,6 +213,8 @@ add benchmark cases with greater sample size and feature dimension.
 on the number of samples per batch, which is more efficient.
 %
 \item[0.3.1:] cleaned up benchmark scripts.
+%
+\item[0.4.0:] modified the recommended fit strategy to reduce overfitting when using multiple batches.
 \end{description}
 %
 \endinput

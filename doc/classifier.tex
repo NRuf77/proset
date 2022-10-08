@@ -504,8 +504,8 @@ The first experiment uses a dominant $L_1$-penalty ($\alpha_v=\alpha_w=0.05$), t
 Figure \ref{fig_parameter_search} shows parameter search results for the first experiment using iris data.
 In the lower plot, the log-loss for stage 1 as a function of either $\lambda_v$ or $\lambda_w$ appears highly variable.
 However, this is mostly due to changes in the other parameter, as evidenced by the surface plot.
-Complete results for all data sets are presented in tables \ref{tab_e1}, \ref{tab_e2}, and \ref{tab_e3}.
-A comparison of the first six experiments is found in table \ref{tab_e1_to_e6}.
+Complete results for all data sets are presented in Tables \ref{tab_e1}, \ref{tab_e2}, and \ref{tab_e3}.
+A comparison of the first six experiments is found in Table \ref{tab_e1_to_e6}.
 The description of individual experiments comprises the following information:
 %
 \begin{description}
@@ -702,7 +702,7 @@ Balanced acc.&0.69&0.98&0.95&0.97&0.94&0.74\\
 \end{center}
 \end{table}
 %
-The fourth experiment shows the effect of using the optimal parameters from cross-validation instead of the equivalent sparser solution (see table \ref{tab_e4}).
+The fourth experiment shows the effect of using the optimal parameters from cross-validation instead of the equivalent sparser solution (see Table \ref{tab_e4}).
 In half of the cases, results actually outperform those of the first three experiments.
 However, the log-loss scores for [E3] are still below the equivalence thresholds for [E4] in these cases.
 This means the metrics for the benchmark cases do not indicate that the `1 SE rule' is necessary to prevent overfitting, but we can use it to obtain a sparser parameterization with negligible loss in quality.
@@ -775,7 +775,7 @@ Balanced acc.&0.73&0.97&0.96&0.97&0.95&0.71\\
 The fifth experiment shows what happens if we fix $\lambda_w$ and perform cross-validation only with respect to $\lambda_v$ and $B$.
 Based on the previous experiments, $\lambda_w=10^{-8}$ appears to be a suitable choice.
 As stage 1 now deals with a single parameter, we replace the random search with a grid search using 11 points equidistantly spaced on the log-scale.
-The results in table \ref{tab_e5} show that fixing the penalty on prototype weights has only a small impact on model quality.
+The results in Table \ref{tab_e5} show that fixing the penalty on prototype weights has only a small impact on model quality.
 All log-loss scores except that for the digits case are below the equivalence threshold for the best model found.
 Therefore, $\lambda_w=10^{-8}$ is the recommended default for the proset classifier.\par
 %
@@ -815,7 +815,7 @@ Balanced acc.&0.76&0.95&0.95&0.98&0.95&0.75\\
 \end{center}
 \end{table}
 %
-The sixth experiment considers fixing both $\lambda_w$ and $\lambda_v$ (see table \ref{tab_e6}).
+The sixth experiment considers fixing both $\lambda_w$ and $\lambda_v$ (see Table \ref{tab_e6}).
 The former is again set to $\lambda_w=10^{-8}$, the latter to $\lambda_w=10^{-3}$, which is close to the parameters selected in previous experiments.
 The mean scores for the digits and XOR 6f data are the best for any of the experiments.
 All other results are equivalent to the best model.
@@ -914,7 +914,7 @@ Balanced acc.&0.79&0.90&0.96&0.70&0.72&0.76\\
 \end{center}
 \end{table}
 %
-The seventh experiment shows the impact of different batch sizes $M$ (see table \ref{tab_e7}).
+The seventh experiment shows the impact of different batch sizes $M$ (see Table \ref{tab_e7}).
 It deals only with the checkerboard and XOR data, as the maximum batch size for the first four cases is limited by their small sample size.
 For each of the two large data sets, we try using 100, 300, and 1,500 samples instead of the default $M=1,000$.
 The model metrics for 100 and 300 samples are worse than before, while the results for 1,500 candidates are comparable.
@@ -1122,12 +1122,12 @@ Balanced acc.&0.69&0.97&0.96&0.98&0.98&0.50\\
 \end{center}
 \end{table}
 %
-Results for fitting kNN and XGBoost classifiers to the six examples used for the proset parameter study are given in tables \ref{tab_e8} and \ref{tab_e9}.
+Results for fitting kNN and XGBoost classifiers to the six examples used for the proset parameter study are given in Tables \ref{tab_e8} and \ref{tab_e9}.
 The structure of the tables and reported metrics are essentially the same as for proset in the previous section.
 For XGBoost, the number of active features reported is the number of features with positive importance score using the method's built-in scoring.\par
 %
 Table \ref{tab_e3_e8_e9} summarizes the performance of all three models.
-For proset, reference values are taken from the full parameters search using $\alpha_v=\alpha_w=0.95$ (see table \ref{tab_e3}).\par
+For proset, reference values are taken from the full parameters search using $\alpha_v=\alpha_w=0.95$ (see Table \ref{tab_e3}).\par
 %
 \begin{enumerate}
 \item\textbf{Iris 2f:} proset is best with kNN equivalent and XGBoost worse.
@@ -1349,8 +1349,8 @@ Balanced acc.&0.95&0.97&0.94&0.60&0.50\\
 %
 \clearpage
 %
-Results for proset, kNN, and XGBoost are summarized in tables \ref{tab_e10}, \ref{tab_e11}, and \ref{tab_e12}.
-A comparison of the three algorithms is shown in table \ref{tab_e10_e11_e12}:
+Results for proset, kNN, and XGBoost are summarized in Tables \ref{tab_e10}, \ref{tab_e11}, and \ref{tab_e12}.
+A comparison of the three algorithms is shown in Table \ref{tab_e10_e11_e12}:
 %
 \begin{enumerate}
 \item\textbf{Checker rot:} XGBoost still yields the best model on this pattern, but the log-loss is higher than for the original checkerboard.
@@ -1500,7 +1500,7 @@ This used Python 3.7\footnote{Python package \texttt{proset} is developed and te
 \end{center}
 \end{table}
 %
-Results in table \ref{tab_faster_timing} show that reducing precision has a negligible effect on the two smallest cases iris 2f and wine.
+Results in Table \ref{tab_faster_timing} show that reducing precision has a negligible effect on the two smallest cases iris 2f and wine.
 In fact, computations appear to be slightly slower, possibly because the linear algebra kernel is optimized for 64 bit.
 For the larger cancer, digits, and checker data sets, computation speed improves visibly.
 As reducing precision also halves the memory requirement, the measure is clearly sensible.\par
@@ -1793,7 +1793,7 @@ Selected log-loss&0.28&1.34\\
 \multicolumn{3}{|l|}{\textbf{Final model, scores for test data}}\\
 Active features&16&100\\
 Sparseness&0.05&0.05\\
-Prototypes&8,029&13411\\
+Prototypes&8,029&13,411\\
 Log-loss&0.25&1.32\\
 ROC-AUC&1.00&0.91\\
 Balanced acc.&0.95&0.55\\
@@ -1813,4 +1813,296 @@ However, overall performance is slightly worse, although results for MNIST are s
 For the two examples, the achieved increase in batch size appears to be too small to yield a significant improvement.
 We still believe that the new approach is the better one in general.
 %
+\section{Updated fit strategy}
+\label{sec_updated_fit}
+%
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+Except where noted, the results in this section were generated using version 0.4.0 of Python package \texttt{proset}.
+Different versions of \texttt{proset} or the underlying compute libraries may yield results that are qualitatively similar but not identical.
+}}\end{center}
+%
+When applying the proset classifier to problems outside the scope of this report, we found that the fit strategy proposed in Section \ref{sec_classifier_fit} is not ideal.
+As the penalty weights are selected for models with a single batch only, adding multiple batches can result in a modest degree of overfitting.
+In turn, cross-validation tends to choose a model with a single batch, which does not always make good use of the data.
+This is especially obvious if the number of samples evaluated per batch is limited due to memory constraints.
+In this case, any data not included in the first batch has no impact on the model at all.
+Thus, we modify the fit strategy to choose $\lambda_v$ and the number of batches in a single cross-validation step.
+All other model parameters are set to the defaults established earlier.
+The new approach is conceptually simpler, although it requires more computational effort than the previous strategy.
+As the log-loss for most benchmark cases is reduced, we consider this an acceptable trade-off.\par
+%
+\begin{algorithm}[Hyperparameter selection, updated]~
+\label{alg_hyperparameters_updated}
+%
+\begin{enumerate}
+\item Fix $M$, $\eta$, $\alpha_v$, $\alpha_w$, and $\lambda_w$.
+Choose a grid for $\lambda_v$ and an upper bound $B_U$ for $B$.
+%
+\item Split the data into a training set (70 \%) and test set (30 \%), stratified by class.
+%
+\item\textbf{Cross-validation}
+%
+\begin{enumerate}
+\item Perform five-fold cross-validation on the training set for each value of $\lambda_v$ and $B_U$ batches.
+%
+\item Compute the mean and standard deviation of log-loss for each value of $\lambda_v$ using $0\leq B\leq B_U$ batches from the fitted models.
+%
+\item Determine a threshold for model quality by taking the lowest achieved mean log-loss and adding the corresponding standard deviation.
+%
+\item Among all combinations whose mean log-loss is less than or equal to the threshold, choose the one with the largest $\lambda_v$.
+In case of multiple candidates, take the one with the smallest number of batches.
+\end{enumerate}
+%
+\item Refit the model with the selected parameters.
+%
+\item Score the final model on the test data.
+\end{enumerate}
+\end{algorithm}
+%
+Python package \texttt{proset} uses default parameters $M=1,000$, $\eta=0.5$, $\alpha_v=\alpha_w=0.95$ and $\lambda_w=10^{-8}$.
+The grid for $\lambda_v$ has 11 logarithmically spaced values from $10^{-6}$ to $10^{-1}$, $B_U$ is set to 10.
+These settings apply to all experiments except where noted.\par
+%
+\begin{table}
+\caption{[E16] Updated fit strategy for original benchmark cases}
+\label{tab_e16}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Cross-validation}}\\
+Optimal $\lambda_v$&$3.2\times10^{-5}$&$3.2\times10^{-4}$&$3.2\times10^{-3}$&$3.2\times10^{-4}$&$3.2\times10^{-5}$&$1.0\times10^{-3}$\\
+Selected $\lambda_v$&$1.0\times10^{-2}$&$3.2\times10^{-4}$&$3.2\times10^{-2}$&$3.2\times10^{-3}$&$1.0\times10^{-4}$&$3.2\times10^{-3}$\\
+Optimal batches&1&4&6&24&6&33\\
+Selected batches&1&2&1&3&2&2\\
+Optimal log-loss&0.48&0.06&0.09&0.14&0.16&0.50\\
+Threshold&0.67&0.09&0.13&0.17&0.17&0.52\\
+Selected log-loss&0.55&0.07&0.10&0.17&0.17&0.52\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&5&3&34&2&6\\
+Prototypes&17&95&39&877&525&543\\
+Log-loss&0.61&0.19&0.12&0.13&0.17&0.50\\
+ROC-AUC&0.83&0.99&0.99&1.00&0.99&0.83\\
+Balanced acc.&0.69&0.95&0.97&0.98&0.94&0.74\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E16, E3, E8, E9] Comparison of results (best log-loss bold)}
+\label{tab_e16_e3_e8, e9}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{[E16] Updated fit strategy for original benchmark cases}}\\
+Active features&2&5&3&34&2&6\\
+Log-loss&0.61&0.19&\textbf{0.12}&0.13&0.17&\textbf{0.50}\\
+Threshold&0.67&0.09&0.13&0.17&0.17&0.52\\
+ROC-AUC&0.83&0.99&0.99&1.00&0.99&0.83\\
+Balanced acc.&0.69&0.95&0.97&0.98&0.94&0.74\\
+\multicolumn{7}{|l|}{\textbf{[E3] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&7&4&30&2&6\\
+Log-loss&\textbf{0.43}&0.14&0.13&0.15&0.18&0.52\\
+Threshold stage 2&0.57&0.17&0.14&0.17&0.20&0.53\\
+ROC-AUC&0.91&1.00&0.99&1.00&0.99&0.82\\
+Balanced acc.&0.71&0.98&0.98&0.97&0.95&0.72\\
+\multicolumn{7}{|l|}{\textbf{[E8] $k$-nearest neighbor classifier with grid search for $k$}}\\
+Active features&2&13&30&64&2&6\\
+Log-loss&0.48&\textbf{0.11}&0.14&0.22&0.21&0.54\\
+Threshold CV&0.54&0.15&0.17&0.27&0.24&0.56\\
+ROC-AUC&0.93&1.00&1.00&1.00&0.98&0.83\\
+Balanced acc.&0.82&0.97&0.95&0.93&0.92&0.73\\
+\multicolumn{7}{|l|}{\textbf{[E9] XGBoost classifier with randomized parameter search}}\\
+Active features&2&13&29&53&2&1\\
+Log-loss&0.63&\textbf{0.11}&\textbf{0.12}&\textbf{0.11}&\textbf{0.06}&0.69\\
+Threshold stage 2&0.62&0.11&0.14&0.14&0.09&0.69\\
+ROC-AUC&0.89&1.00&0.99&1.00&1.00&0.50\\
+Balanced acc.&0.69&0.97&0.96&0.98&0.98&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+Table \ref{tab_e16} shows the results of applying the new fit strategy to the six original benchmark cases and Table \ref{tab_e16_e3_e8, e9} compares them to previous results for proset, kNN, and XGBoost.
+Results for the Iris 2f and Wine data sets are worse than before.
+For the Wine data, the log-loss for the final model is considerably larger than the threshold established during cross-validation.
+This is likely due to the small amount of data, which leads to high variance when subsampling for cross-validation and candidate selection.
+The four larger data sets all show an improvement.
+The log-loss for the Cancer data is now the same as for XGBoost and the new solution for Checker data is strictly better than the previous one under the threshold criterion.
+Note that the maximum number of batches $B_U$ was increased for the digits and XOR 6f data to obtain a solution where the minimal log-loss is not attained at the bound.\par
+%
+\begin{table}
+\caption{[E17] Updated fit strategy for additional benchmark cases}
+\label{tab_e17}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\textbf{Candidates}&1,000&$\sim280$&$\sim560$&$1000$&1,000\\
+\multicolumn{6}{|l|}{\textbf{Cross-validation}}\\
+Optimal $\lambda_v$&$3.2\times10^{-5}$&$1.0\times10^{-2}$&$1.0\times10^{-4}$&$3.2\times10^{-3}$&$3.2\times10^{-4}$\\
+Selected $\lambda_v$&$1.0\times10^{-4}$&$1.0\times10^{-2}$&$1.0\times10^{-2}$&$3.2\times10^{-3}$&$1.0\times10^{-3}$\\
+Optimal batches&7&1&6&9&1\\
+Selected batches&6&1&1&2&1\\
+Optimal log-loss&0.16&0.17&0.28&0.39&0.54\\
+Threshold&0.17&0.21&0.29&0.41&0.56\\
+Selected log-loss&0.17&0.17&0.29&0.40&0.55\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&3&4&5&6\\
+Prototypes&551&75&165&706&551\\
+Log-loss&0.16&0.18&0.28&0.38&0.53\\
+ROC-AUC&0.99&0.98&0.96&0.91&0.80\\
+Balanced acc.&0.95&0.93&0.87&0.81&0.72\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E17, E10, E11, E12] Comparison of results (best log-loss bold)}
+\label{tab_e17_e10_e11_e12}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{[E17] Updated fit strategy for additional benchmark cases}}\\
+Active features&2&3&4&5&6\\
+Log-loss&0.16&0.18&0.28&\textbf{0.38}&\textbf{0.53}\\
+Threshold&0.17&0.21&0.29&0.41&0.56\\
+ROC-AUC&0.99&0.98&0.96&0.91&0.80\\
+Balanced acc.&0.95&0.93&0.87&0.81&0.72\\
+\multicolumn{6}{|l|}{\textbf{[E10] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+Active features&2&3&4&5&6\\
+Log-loss&0.18&0.17&0.28&0.39&0.56\\
+Threshold stage 2&0.20&0.23&0.33&0.40&0.57\\
+ROC-AUC&0.99&0.99&0.97&0.91&0.80\\
+Balanced acc.&0.95&0.96&0.91&0.83&0.72\\
+\multicolumn{6}{|l|}{\textbf{[E11] $k$-nearest neighbor classifier with grid search for $k$}}\\
+Active features&2&3&4&5&12\\
+Log-loss&0.21&0.25&0.31&0.45&0.71\\
+Threshold CV&0.24&0.27&0.35&0.44&0.71\\
+ROC-AUC&0.98&0.98&0.95&0.88&0.46\\
+Balanced acc.&0.92&0.91&0.86&0.80&0.48\\
+\multicolumn{6}{|l|}{\textbf{[E12] XGBoost classifier with randomized parameter search}}\\
+Active features&2&3&4&5&1\\
+Log-loss&\textbf{0.12}&\textbf{0.11}&\textbf{0.23}&0.67&0.69\\
+Threshold stage 2&0.14&0.15&0.31&0.68&0.69\\
+ROC-AUC&0.99&1.00&0.98&0.65&0.50\\
+Balanced acc.&0.95&0.97&0.94&0.60&0.50\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+Results for the second set of benchmark cases are shown in Tables \ref{tab_e17} and \ref{tab_e17_e10_e11_e12}.
+As for the Checker data, the result for the rotated Checker data is strictly better than before.
+For the XOR cases, all four solutions are equivalent to the old proset models with two having slightly better and one having slightly worse log-loss.\par
+%
+\begin{table}
+\caption{[E18] Updated fit strategy for larger benchmark cases}
+\label{tab_e18}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrr|}
+\hline
+&\multicolumn{2}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{MNIST}&\textbf{CIFAR-10}\\
+\multicolumn{3}{|l|}{\textbf{Data}}\\
+Classes&10&10\\
+Preprocessing&PCA&C+S\\
+Features&331&2,048\\
+Samples&70,000&60,000\\
+Train samples&60,000&50,000\\
+Test samples&10,000&10,000\\
+\textbf{Samples per batch}&40,000&35,000\\
+\textbf{Candidates}&10,000&10,000\\
+\multicolumn{3}{|l|}{\textbf{Cross-validation}}\\
+Optimal $\lambda_v$&$1.0\times10^{-3}$&$1.0\times10^{-2}$\\
+Selected $\lambda_v$&$1.0\times10^{-3}$&$1.0\times10^{-2}$\\
+Optimal batches&4&7\\
+Selected batches&2&3\\
+Optimal log-loss&0.25&1.32\\
+Threshold&0.26&1.33\\
+Selected log-loss&0.25&1.32\\
+\multicolumn{3}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&30&136\\
+Sparseness&0.09&0.07\\
+Prototypes&15,359&17,689\\
+Log-loss&0.25&1.31\\
+ROC-AUC&1.00&0.91\\
+Balanced acc.&0.95&0.56\\
+\textbf{Runtime}&9:00 h&7:30 h\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E18, E15] Comparison of results (best log-loss bold)}
+\label{tab_e18_e15}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrr|}
+\hline
+&\multicolumn{2}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{MNIST}&\textbf{CIFAR-10}\\
+\multicolumn{3}{|l|}{\textbf{[E18] Updated fit strategy for larger benchmark cases}}\\
+Selected batches&2&3\\
+Active features&30&136\\
+Log-loss&\textbf{0.25}&\textbf{1.31}\\
+Threshold&0.26&1.33\\
+ROC-AUC&1.00&0.91\\
+Balanced acc.&0.95&0.56\\
+Runtime&9:00 h&7:30 h\\
+\multicolumn{3}{|l|}{\textbf{[E15] Larger benchmark cases with sample limit}}\\
+Selected batches&1&2\\
+Active features&16&100\\
+Log-loss&\textbf{0.25}&1.32\\
+Threshold&0.28&1.34\\
+ROC-AUC&1.00&0.91\\
+Balanced acc.&0.95&0.55\\
+Runtime&2:30 h&4:00 h\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+The fit strategy for [E1] to [E3] tests 50 random parameter combinations with a single batch in stage 1 and one model with 10 batches in stage 2.
+The new strategy tests 11 values for $\lambda_v$ up to 10 batches each.
+As the total number of batches fitted is around twice as large, the computation time is approximately doubled.
+For the larger benchmark cases, the old fit strategy fixes $\lambda_w$ and performs a line search for $\lambda_v$ using the same grid proposed for the new strategy.
+This means that the computation time would increase by a factor of almost 10, which is unattractive.
+For this reasons, the results in Table \ref{tab_e18} were generated using smaller grids with 3 logarithmically spaced points between $1.0\times10^{-4}$ and $1.0\times10^{-2}$ for MNIST and between $1.0\times10^{-3}$ and $1.0\times10^{-1}$ for CIFAR-10.
+A comparison with previous results is shown in Table \ref{tab_e18_e15}.
+Both models use an extra batch and more features under the new strategy.
+The metrics for the MNIST data are the same as before, log-loss for CIFAR-10 is marginally better but still equivalent in terms of the threshold.
 \endinput

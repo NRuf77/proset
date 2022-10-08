@@ -21,71 +21,24 @@ start_console_log()
 random_state = np.random.RandomState(12345)
 working_path = "scripts/results"
 data_file = "iris_2f_data.gz"
-experiments = (
-    ("iris_2f_2d_05_model", {  # fix both alphas to 5 % and choose optimal penalty weights and number of batches
-        "model_para": {"alpha_v": 0.05, "alpha_w": 0.05, "num_candidates": 1000},
-        "select_para": {}
-    }),
-    ("iris_2f_2d_50_model", {  # fix both alphas to 50 % and choose optimal penalty weights and number of batches
-        "model_para": {"alpha_v": 0.50, "alpha_w": 0.50, "num_candidates": 1000},
-        "select_para": {}
-    }),
-    ("iris_2f_2d_95_model", {  # fix both alphas to 95 % and choose optimal penalty weights and number of batches
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
-        "select_para": {}
-    }),
-    ("iris_2f_1d_model", {
-        # fix both alphas to 95 % and the prototype penalty weight to the recommended default 1e-8; choose the feature
-        # penalty weight and the number of batches
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
-        "select_para": {"lambda_w_range": 1e-8, "stage_1_trials": 11}  # need fewer trials for 1D search
-    }),
-    ("iris_2f_fix_model", {
-        # fix both alphas to 95 %, the feature penalty weight to 1e-3, and the prototype penalty weight to 1e-8; choose
-        # the number of batches
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
-        "select_para": {"lambda_v_range": 1e-3, "lambda_w_range": 1e-8}
-    }),
-    ("iris_2f_fix_opt_model", {
-        # fix both alphas to 95 %; fix the feature penalty weight, prototype penalty weight, and number of batches to
-        # the optimal values found for experiment iris_2f_2d_95_model (not using 'one standard error rule')
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
-        "select_para": {
-            "lambda_v_range": 5.55307051e-03, "lambda_w_range": 1.74987513e-05, "num_batch_grid": np.array([5])
-        }
-    }),
-    ("iris_2f_timing_1e7_model", {  # as iris_2f_2d_95_model with solver_factr fixed to 1e7 for timing purposes
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
-        "select_para": {"solver_factr": 1e7}
-    }),
-    ("iris_2f_timing_1e10_model", {  # as iris_2f_2d_95_tf_model with solver_factr fixed to 1e10 for timing purposes
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 1000},
-        "select_para": {"solver_factr": 1e10}
-    })
-)
-print("  Select experiment")
-for i in range(len(experiments)):
-    print("  {} - {}".format(i, experiments[i][0]))
-choice = int(input())
-experiment = experiments[choice]
+output_file = "iris_2f_10b_model.gz"
 
 print("* Load data")
 with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
     data = pickle.load(file)
 
 print("* Select hyperparameters via cross-validation")
-result = select_hyperparameters(
-    model=ClassifierModel(**experiment[1]["model_para"]),
+result = select_hyperparameters(  # default parameters, 10 batches maximum
+    model=ClassifierModel(),
     features=data["X_train"],
     target=data["y_train"],
     transform=StandardScaler(),
-    random_state=random_state,
-    **experiment[1]["select_para"]
+    random_state=random_state
 )
 
 print("* Save results")
 result["data"] = data
-with gzip.open(os.path.join(working_path, experiment[0] + ".gz"), mode="wb") as file:
+with gzip.open(os.path.join(working_path, output_file), mode="wb") as file:
     pickle.dump(result, file)
 
 print("* Done")

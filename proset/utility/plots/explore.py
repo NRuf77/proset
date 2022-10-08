@@ -289,8 +289,8 @@ class ModelPlots(metaclass=ABCMeta):
         if familiarity is not None:
             if len(familiarity.shape) != 1:
                 raise ValueError("Parameter familiarity must be 1D array.")
-            if np.any(familiarity <= 0.0):
-                raise ValueError("Parameter familiarity must have positive elements.")
+            if np.any(familiarity < 0.0):
+                raise ValueError("Parameter familiarity must not have negative elements.")
         quantiles = np.atleast_1d(quantiles)
         if np.any(quantiles <= 0.0) or np.any(quantiles >= 1.0):
             raise ValueError("Parameter quantiles must contain values in (0.0, 1.0).")
@@ -768,7 +768,7 @@ class ModelPlots(metaclass=ABCMeta):
             x_range,
             y_range
     ):
-        """Check that parameters for plots based on a batch of prototypes are valid.
+        """Check that parameters for a batch plot are valid.
 
         :param num_features: positive integer; expected number of features
         :param num_batches: positive integer; number of batches in the model
@@ -1039,7 +1039,7 @@ class ModelPlots(metaclass=ABCMeta):
         """Determine marker size for prototype scatter plot.
 
         :param plot_weights: 1D numpy array of positive floats; plot weights for prototypes
-        :param show_features: boolean; whether or not the plot contains supplementary points
+        :param show_features: boolean; whether the plot contains supplementary points
         :return: 1D numpy array of positive floats; squared marker size for matplotlib scatter plot
         """
         base_scale = LARGE_MARKER_SIZE ** 2.0  # plt.scatter() uses squared size as marker scale

@@ -113,15 +113,21 @@ cv_groups (group related samples during cross-validation);
 add benchmark cases with greater sample size and feature dimension.
 - version 0.2.1: bugfix: if sample weights are passed for training, these are also used to compute marginal class
 probabilities.
-- version 0.3.0: instead of splitting training data into chunks that fit in memory, model fitting now supports an upper bound
-on the number of samples per batch, which is more efficient.
-- version 0.3.1: benchmark scripts cleaned up. 
+- version 0.3.0: instead of splitting training data into chunks that fit in memory, model fitting now supports an upper
+bound on the number of samples per batch, which is more efficient.
+- version 0.3.1: benchmark scripts cleaned up.
+- version 0.4.0: modified the recommended fit strategy to reduce overfitting when using multiple batches.
 
 ### Note on performance
 Version 0.2.0 improves compute performance as version 0.1.0 was somewhat unsatisfactory in that regard.
 The time for training a classifier has been improved by a factor ranging from over two to nine for five test cases.
 Also, to support processing larger data sets, tensorflow can be used as an alternative backend for training.
 The memory requirements for training and scoring have been considerably reduced.
+
+Version 0.4.0 changes the algorithm for hyperparameter search used by utility.select_hyperparameters().
+With default settings, the new algorithm fits models with a total number of batches around twice as large as before.
+This leads to an approximate doubling of the corresponding runtime.
+The upside is that the resulting models tend to have slightly better log-loss.
 
 ## Contact
 Please contact <nikolaus.ruf@t-online.de> for any questions or suggestions.

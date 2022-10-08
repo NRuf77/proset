@@ -37,17 +37,7 @@ sample_class = "cat"
 data_path = "scripts/data"
 data_file = "cifar-10-python.tar.gz"  # downloaded from https://www.cs.toronto.edu/~kriz/cifar.html
 input_path = "scripts/results"
-input_files = [
-    "cifar-10_tf_model.gz",
-    "cifar-10_pca_no_scaling_tf_model.gz",
-    "cifar-10_pca_tf_model.gz",
-]
-print("  Select input file:")
-for i, file_name in enumerate(input_files):
-    print("  {} - {}".format(i, file_name))
-choice = int(input())
-input_file = input_files[choice]
-model_name = input_file.replace(".gz", "")
+input_file = "cifar-10_10b_model.gz"
 
 print("* Load image data and model fit results")
 train = []
@@ -86,8 +76,8 @@ best_prototypes = best_explain[["batch", "sample", "target"]].iloc[11:16]
 best_prototypes["batch"] = best_prototypes["batch"].astype(int)
 best_prototypes["sample"] = best_prototypes["sample"].astype(int)
 best_prototypes["train_ix"] = [
-    result["chunk_ix"][best_prototypes["batch"].iloc[i] - 1][best_prototypes["sample"].iloc[i]] for i in range(5)
-]  # remap chunk index to original training data index
+    result["sample_ix"][best_prototypes["batch"].iloc[i] - 1][best_prototypes["sample"].iloc[i]] for i in range(5)
+]  # remap sample index to original training data index
 best_prototypes["contribution"] = [
     best_explain["p class {}".format(best_prototypes["target"].iloc[i])].iloc[11 + i] for i in range(5)
 ]
@@ -99,7 +89,7 @@ worst_prototypes = worst_explain[["batch", "sample", "target"]].iloc[11:16]
 worst_prototypes["batch"] = worst_prototypes["batch"].astype(int)
 worst_prototypes["sample"] = worst_prototypes["sample"].astype(int)
 worst_prototypes["train_ix"] = [
-    result["chunk_ix"][worst_prototypes["batch"].iloc[i] - 1][worst_prototypes["sample"].iloc[i]] for i in range(5)
+    result["sample_ix"][worst_prototypes["batch"].iloc[i] - 1][worst_prototypes["sample"].iloc[i]] for i in range(5)
 ]
 worst_prototypes["contribution"] = [
     worst_explain["p class {}".format(worst_prototypes["target"].iloc[i])].iloc[11 + i] for i in range(5)

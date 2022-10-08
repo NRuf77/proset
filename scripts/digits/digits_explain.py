@@ -189,20 +189,7 @@ def _suppress_tick_labels():
 print("* Apply user settings")
 input_path = "scripts/results"
 output_path = "scripts/reports"
-input_files = [
-    "digits_2d_05_model.gz",
-    "digits_2d_50_model.gz",
-    "digits_2d_95_model.gz",
-    "digits_1d_model.gz",
-    "digits_fix_model.gz",
-    "digits_fix_opt_model.gz"
-]
-print("  Select input file:")
-for i, file_name in enumerate(input_files):
-    print("  {} - {}".format(i, file_name))
-choice = int(input())
-input_file = input_files[choice]
-export_file = input_file.replace(".gz", "_explain.xlsx")
+input_file = "digits_30b_model.gz"
 model_name = input_file.replace(".gz", "")
 
 print("* Load model fit results")

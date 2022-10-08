@@ -219,11 +219,11 @@ class SetManager(metaclass=ABCMeta):
               active prototypes
             - sample_index: 1D numpy integer array; sample indices reduced to active prototypes
         """
-        if np.all(batch_info["prototype_weights"] == 0.0):
+        active_prototypes = np.nonzero(batch_info["prototype_weights"] > 0.0)[0]
+        if np.all(active_prototypes.shape[0] == 0):
             return None
         active_features = np.nonzero(batch_info["feature_weights"] > 0.0)[0]
         feature_weights = batch_info["feature_weights"][active_features]
-        active_prototypes = np.nonzero(batch_info["prototype_weights"] > 0.0)[0]
         scaled_prototypes = batch_info["prototypes"][active_prototypes][:, active_features] * feature_weights
         target = batch_info["target"][active_prototypes]
         prototype_weights = batch_info["prototype_weights"][active_prototypes]

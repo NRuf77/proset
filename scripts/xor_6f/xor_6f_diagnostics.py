@@ -17,22 +17,7 @@ import proset.utility as utility
 print("* Apply user settings")
 input_path = "scripts/results"
 output_path = "scripts/reports"
-input_files = [
-    "xor_6f_2d_05_model.gz",
-    "xor_6f_2d_50_model.gz",
-    "xor_6f_2d_95_model.gz",
-    "xor_6f_1d_model.gz",
-    "xor_6f_fix_model.gz",
-    "xor_6f_fix_100_model.gz",
-    "xor_6f_fix_300_model.gz",
-    "xor_6f_fix_1500_model.gz",
-    "xor_6f_fix_opt_model.gz"
-]
-print("  Select input file:")
-for i, file_name in enumerate(input_files):
-    print("  {} - {}".format(i, file_name))
-choice = int(input())
-input_file = input_files[choice]
+input_file = "xor_6f_50b_model.gz"
 export_file = input_file.replace(".gz", "_export.xlsx")
 model_name = input_file.replace(".gz", "")
 

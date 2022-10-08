@@ -16,17 +16,8 @@ from sklearn.neighbors import KernelDensity
 
 print("* Apply user settings")
 input_path = "scripts/results"
-input_files = [
-    "mnist_tf_model.gz",
-    "mnist_pca_no_scaling_tf_model.gz",
-    "mnist_pca_tf_model.gz"
-]
-print("  Select input file:")
-for i, file_name in enumerate(input_files):
-    print("  {} - {}".format(i, file_name))
-choice = int(input())
-input_file = input_files[choice]
-model_name = input_file.replace(".gz", "")
+output_path = "scripts/reports"
+input_file = "mnist_pca_10b_model.gz"
 
 print("* Load model fit results")
 with gzip.open(os.path.join(input_path, input_file), mode="rb") as file:
@@ -61,13 +52,14 @@ kde.fit(familiarity[:5000, None])
 kde_hard = np.exp(kde.score_samples(grid))
 kde.fit(familiarity[5000:, None])
 kde_easy = np.exp(kde.score_samples(grid))
+kde_max = max(np.max(kde_easy), np.max(kde_hard))
 plt.figure()
 leg = [
     plt.plot(grid, kde_easy, 'b', linewidth=2)[0],
     plt.plot(grid, kde_hard, 'r', linewidth=2)[0]
 ]
-plt.xlim([0.0, 400.0])  # adapted manually
-plt.ylim([0.0, 0.01])
+plt.xlim([0.0, np.max(familiarity)])
+plt.ylim([0.0, kde_max * 1.05])
 plt.grid("on")
 plt.legend(leg, ["Easy cases", "Hard cases"])
 plt.title("MNIST: familiarity distribution of 'easy' and 'hard' cases")

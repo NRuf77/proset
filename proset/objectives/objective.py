@@ -19,10 +19,9 @@ import proset.shared as shared
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-
-LOG_CAPTION = "  ".join(["{:>10s}"] * 3).format("Group", "Samples", "Candidates")
-LOG_MESSAGE = "  ".join(["{:>10s}", "{:10d}", "{:10d}"])
+LOG_GROUP_BREAKDOWN = "Candidate breakdown by group"
+LOG_GROUP_CAPTION = "  ".join(["{:>10s}"] * 3).format("Group", "Samples", "Candidates")
+LOG_GROUP_MESSAGE = "  ".join(["{:>10s}", "{:10d}", "{:10d}"])
 LOG_EVALUATE = "objective = {:3.1e}, grad = {:3.1e}, features = {} / {}, prototypes = {} / {}"
 
 START_FEATURE_WEIGHT = 10.0  # this is divided by the number of features
@@ -262,14 +261,14 @@ class Objective(metaclass=ABCMeta):
         :return: no return value; log message generated if log level is at least INFO
         """
         if logger.isEnabledFor(logging.INFO):
-            logger.info("Candidate breakdown by group")
-            logger.info(LOG_CAPTION)
+            logger.info(LOG_GROUP_BREAKDOWN)
+            logger.info(LOG_GROUP_CAPTION)
             for i in range(num_groups):
                 is_group = groups == i
-                logger.info(LOG_MESSAGE.format(
+                logger.info(LOG_GROUP_MESSAGE.format(
                     str(i + 1), np.sum(is_group), np.sum(np.logical_and(is_group, candidates))
                 ))
-            logger.info(LOG_MESSAGE.format("Total", len(groups), np.sum(candidates)))
+            logger.info(LOG_GROUP_MESSAGE.format("Total", len(groups), np.sum(candidates)))
 
     @staticmethod
     def _get_group_samples(num_groups, groups, num_candidates, max_fraction):

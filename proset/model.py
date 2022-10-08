@@ -29,11 +29,14 @@ import proset.shared as shared
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-LOG_CAPTION = "  ".join(["{:>10s}"] * 6 + ["{:s}"]).format(
+LOG_START = \
+    "Fit proset model with {} batches, lambda_v = {:0.2e}, lambda_w = {:0.2e}, alpha_v={:0.2f}, and alpha_w={:0.2f}"
+LOG_RESULT_BATCHES = "Batch {} fit results"
+LOG_RESULT_CAPTION = "  ".join(["{:>10s}"] * 6 + ["{:s}"]).format(
    "Iterations", "Calls", "Objective", "Gradient", "Features", "Prototypes", "Status"
 )
-LOG_MESSAGE = "  ".join(["{:10d}", "{:10d}", "{:10.1e}", "{:10.1e}", "{:10d}", "{:10d}", "{:s}"])
+LOG_RESULT_MESSAGE = "  ".join(["{:10d}", "{:10d}", "{:10.1e}", "{:10.1e}", "{:10d}", "{:10d}", "{:s}"])
+LOG_DONE = "Model fit complete"
 
 LIMITED_M = 10  # parameters controlling L-BFGS-B fit
 LIMITED_PGTOL = 1e-5
@@ -104,9 +107,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         """
         self._check_hyperparameters()
         X, y, sample_weight = self._validate_arrays(X=X, y=y, sample_weight=sample_weight, reset=not warm_start)
-        logger.info("Fit proset model with {} batches and penalties lambda_v = {:0.2e}, lambda_w = {:0.2e}".format(
-            self.n_iter, self.lambda_v, self.lambda_w
-        ))
+        logger.info(LOG_START.format(self.n_iter, self.lambda_v, self.lambda_w, self.alpha_v, self.alpha_w))
         MySetManager, MyObjective = self._get_compute_classes(self.use_tensorflow)  # pylint: disable=invalid-name
         if not warm_start or not hasattr(self, "set_manager_"):
             self.set_manager_ = MySetManager(  # pylint: disable=attribute-defined-outside-init
@@ -141,9 +142,9 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             batch_info = objective.get_batch_info(solution[0])  # solution[0] is the parameter vector
             self.set_manager_.add_batch(batch_info)
             if logger.isEnabledFor(logging.INFO):  # pragma: no cover
-                logger.info("Batch {} fit results".format(i + 1))
-                logger.info(LOG_CAPTION)
-                logger.info(LOG_MESSAGE.format(
+                logger.info(LOG_RESULT_BATCHES.format(i + 1))
+                logger.info(LOG_RESULT_CAPTION)
+                logger.info(LOG_RESULT_MESSAGE.format(
                     solution[2]["nit"],
                     solution[2]["funcalls"],
                     solution[1],
@@ -152,7 +153,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
                     len(np.nonzero(batch_info["prototype_weights"])[0]),
                     self._parse_solver_status(solution[2])
                 ))
-        logger.info("Model fit complete")
+        logger.info(LOG_DONE)
         return self
 
     def _check_hyperparameters(self):

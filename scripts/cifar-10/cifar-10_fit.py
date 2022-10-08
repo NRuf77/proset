@@ -21,41 +21,26 @@ start_console_log()
 random_state = np.random.RandomState(12345)
 working_path = "scripts/results"
 data_file = "cifar-10_data.gz"
-experiments = (
-    ("cifar-10_tf_subsample_model", {
-        "model_para": {"alpha_v": 0.95, "alpha_w": 0.95, "num_candidates": 10000, "use_tensorflow": True},
-        "select_para": {
-            "transform": StandardScaler(),  # original features with scaling + centering only
-            "lambda_w_range": 1e-8,
-            "stage_1_trials": 11,
-            "num_batch_grid": np.arange(11),
-            "max_samples": 35000
-        }
-    }),
-)
-
-print("  Select experiment")
-for i in range(len(experiments)):
-    print("  {} - {}".format(i, experiments[i][0]))
-choice = int(input())
-experiment = experiments[choice]
+output_file = "cifar-10_10b_model.gz"
 
 print("* Load data")
 with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
     data = pickle.load(file)
 
 print("* Select hyperparameters via cross-validation")
-result = select_hyperparameters(
-    model=ClassifierModel(**experiment[1]["model_para"]),
+result = select_hyperparameters(  # default parameters, 10 batches maximum, coarse grid due to time constraints
+    model=ClassifierModel(num_candidates=10000, use_tensorflow=True),
     features=data["X_train"],
     target=data["y_train"],
-    random_state=random_state,
-    **experiment[1]["select_para"]
+    transform=StandardScaler(),
+    lambda_v_grid=np.logspace(-3.0, -1.0, 3),
+    max_samples=35000,
+    random_state=random_state
 )
 
 print("* Save results")
 result["data"] = data
-with gzip.open(os.path.join(working_path, experiment[0] + ".gz"), mode="wb") as file:
+with gzip.open(os.path.join(working_path, output_file), mode="wb") as file:
     pickle.dump(result, file)
 
 print("* Done")
