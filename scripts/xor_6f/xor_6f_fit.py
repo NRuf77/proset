@@ -21,7 +21,21 @@ start_console_log()
 random_state = np.random.RandomState(12345)
 working_path = "scripts/results"
 data_file = "xor_6f_data.gz"
-output_file = "xor_6f_50b_model.gz"
+experiments = (
+    ("xor_6f_10b_model", {  # default parameters, 10 batches maximum, use tensorflow
+        "model_para": {"use_tensorflow": True},
+        "select_para": {}
+    }),
+    ("xor_6f_10b_beta_50_model", {  # change beta to 0.5
+        "model_para": {"beta": 0.5, "use_tensorflow": True},
+        "select_para": {}
+    })
+)
+print("  Select experiment")
+for i in range(len(experiments)):
+    print("  {} - {}".format(i, experiments[i][0]))
+choice = int(input())
+experiment = experiments[choice]
 
 print("* Load data")
 with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
@@ -29,18 +43,17 @@ with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
 
 print("* Select hyperparameters via cross-validation")
 result = select_hyperparameters(
-    # increase max_batches to 50 as optimum was at 10 (20, 30) for 10 (20, 30) max_batches
-    model=ClassifierModel(use_tensorflow=True),
+    model=ClassifierModel(**experiment[1]["model_para"]),
     features=data["X_train"],
     target=data["y_train"],
     transform=StandardScaler(),
-    max_batches=50,
-    random_state=random_state
+    random_state=random_state,
+    **experiment[1]["select_para"]
 )
 
 print("* Save results")
 result["data"] = data
-with gzip.open(os.path.join(working_path, output_file), mode="wb") as file:
+with gzip.open(os.path.join(working_path, experiment[0] + ".gz"), mode="wb") as file:
     pickle.dump(result, file)
 
 print("* Done")

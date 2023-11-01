@@ -15,7 +15,15 @@ import proset.utility as utility
 
 print("* Apply user settings")
 input_path = "scripts/results"
-input_file = "cifar-10_10b_model.gz"
+input_files = [
+    "cifar-10_10b_model.gz",
+    "cifar-10_10b_beta_50_model.gz"
+]
+print("  Select input file:")
+for i, file_name in enumerate(input_files):
+    print("  {} - {}".format(i, file_name))
+choice = int(input())
+input_file = input_files[choice]
 model_name = input_file.replace(".gz", "")
 
 print("* Load model fit results")

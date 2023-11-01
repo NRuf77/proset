@@ -17,8 +17,8 @@ from sklearn.utils.validation import check_array
 import proset.shared as shared
 
 
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler())
+LOGGER = logging.getLogger(__name__)
+LOGGER.addHandler(logging.NullHandler())
 LOG_GROUP_BREAKDOWN = "Candidate breakdown by group"
 LOG_GROUP_CAPTION = "  ".join(["{:>10s}"] * 3).format("Group", "Samples", "Candidates")
 LOG_GROUP_MESSAGE = "  ".join(["{:>10s}", "{:10d}", "{:10d}"])
@@ -37,6 +37,7 @@ class Objective(metaclass=ABCMeta):
             features,
             target,
             weights,
+            beta,
             num_candidates,
             max_fraction,
             set_manager,
@@ -54,8 +55,10 @@ class Objective(metaclass=ABCMeta):
             as features has rows
         :param weights: 1D numpy array with non-negative values of type specified by shared.FLOAT_TYPE or None; sample
             weights to be used in the likelihood function; pass None to use unit weights
+        :param beta: float in (0.0, 0.5]; assign observations to groups for sampling candidates such that half of them
+            are drawn from the 100 * beta percent where the current prediction is worst
         :param num_candidates: positive integer; total number of candidates for prototypes to be drawn
-        :param max_fraction: float in (0.0 1.0); maximum fraction of candidates to be drawn from one group of samples;
+        :param max_fraction: float in (0.0, 1.0); maximum fraction of candidates to be drawn from one group of samples;
             what constitutes a group depends on the kind of model
         :param set_manager: an instance of a subclass of abstract class proset.set_manager.SetManager
         :param lambda_v: non-negative float; penalty weight for the feature weights
@@ -72,6 +75,7 @@ class Objective(metaclass=ABCMeta):
             features=features,
             target=target,
             weights=weights,
+            beta=beta,
             num_candidates=num_candidates,
             max_fraction=max_fraction,
             lambda_v=lambda_v,
@@ -86,6 +90,7 @@ class Objective(metaclass=ABCMeta):
             target=target,
             weights=weights,
             num_candidates=num_candidates,
+            beta=beta,
             max_fraction=max_fraction,
             set_manager=set_manager,
             random_state=random_state,
@@ -108,6 +113,7 @@ class Objective(metaclass=ABCMeta):
             features,
             target,
             weights,
+            beta,
             num_candidates,
             max_fraction,
             lambda_v,
@@ -120,6 +126,7 @@ class Objective(metaclass=ABCMeta):
         :param features: see docstring of __init__() for details
         :param target: see docstring of __init__() for details
         :param weights: see docstring of __init__() for details
+        :param beta: see docstring of __init__() for details
         :param num_candidates: see docstring of __init__() for details
         :param max_fraction: see docstring of __init__() for details
         :param lambda_v: see docstring of __init__() for details
@@ -144,6 +151,8 @@ class Objective(metaclass=ABCMeta):
         if np.any(weights < 0.0):
             raise ValueError("Parameter weights must not contain negative values.")
         shared.check_float_array(x=weights, name="weights")
+        if beta <= 0.0 or beta > 0.5:
+            raise ValueError("Parameter beta must lie in (0.0, 0.5].")
         if not np.issubdtype(type(num_candidates), np.integer):
             raise TypeError("Parameter num_candidates must be integer.")
         if num_candidates <= 0:
@@ -161,12 +170,15 @@ class Objective(metaclass=ABCMeta):
         return {}
 
     @classmethod
-    def _split_samples(cls, features, target, weights, num_candidates, max_fraction, set_manager, random_state, meta):
+    def _split_samples(
+            cls, features, target, weights, beta, num_candidates, max_fraction, set_manager, random_state, meta
+    ):
         """Split training samples into candidates for new prototypes and reference points for computing likelihood.
 
         :param features: see docstring of __init__() for details
         :param target: see docstring of __init__() for details
         :param weights: see docstring of __init__() for details
+        :param beta: see docstring of __init__() for details
         :param num_candidates: see docstring of __init__() for details
         :param max_fraction: see docstring of __init__() for details
         :param random_state: see docstring of __init__() for details
@@ -190,7 +202,9 @@ class Objective(metaclass=ABCMeta):
             - cand_index: 1D numpy array; index vector indicating the training samples used as candidates
         """
         unscaled, scale = set_manager.evaluate_unscaled(features=features, num_batches=None)[0]
-        num_groups, groups = cls._assign_groups(target=target, unscaled=unscaled, scale=scale, meta=meta)
+        num_groups, groups = cls._assign_groups(
+            target=target, beta=beta, scaled=(unscaled.transpose() / scale).transpose(), meta=meta
+        )
         candidates = cls._sample_candidates(
             num_groups=num_groups,
             groups=groups,
@@ -203,6 +217,8 @@ class Objective(metaclass=ABCMeta):
             candidates=candidates,
             features=features,
             target=target,
+            num_groups=num_groups,
+            groups=groups,
             weights=weights,
             unscaled=unscaled,
             scale=scale,
@@ -212,13 +228,13 @@ class Objective(metaclass=ABCMeta):
     # noinspection PyUnusedLocal
     @staticmethod
     @abstractmethod
-    def _assign_groups(target, unscaled, scale, meta):  # pragma: no cover
+    def _assign_groups(target, beta, scaled, meta):  # pragma: no cover
         """Divide training samples into groups for sampling candidates.
 
         :param target: see docstring of __init__() for details
-        :param unscaled: numpy array of type specified by shared.FLOAT_TYPE; unscaled predictions corresponding to the
+        :param beta: see docstring of __init__() for details
+        :param scaled: numpy array of type specified by shared.FLOAT_TYPE; scaled predictions corresponding to the
             target values
-        :param scale: 1D numpy array of type specified by shared.FLOAT_TYPE; scaling factors for unscaled
         :param meta: dict; required content depends on subclass implementation
         :return: two return values:
             - integer; total number of groups mandated by hyperparameters
@@ -260,15 +276,15 @@ class Objective(metaclass=ABCMeta):
         :param candidates: as return value of _sample_candidates()
         :return: no return value; log message generated if log level is at least INFO
         """
-        if logger.isEnabledFor(logging.INFO):
-            logger.info(LOG_GROUP_BREAKDOWN)
-            logger.info(LOG_GROUP_CAPTION)
+        if LOGGER.isEnabledFor(logging.INFO):
+            LOGGER.info(LOG_GROUP_BREAKDOWN)
+            LOGGER.info(LOG_GROUP_CAPTION)
             for i in range(num_groups):
                 is_group = groups == i
-                logger.info(LOG_GROUP_MESSAGE.format(
+                LOGGER.info(LOG_GROUP_MESSAGE.format(
                     str(i + 1), np.sum(is_group), np.sum(np.logical_and(is_group, candidates))
                 ))
-            logger.info(LOG_GROUP_MESSAGE.format("Total", len(groups), np.sum(candidates)))
+            LOGGER.info(LOG_GROUP_MESSAGE.format("Total", len(groups), np.sum(candidates)))
 
     @staticmethod
     def _get_group_samples(num_groups, groups, num_candidates, max_fraction):
@@ -300,11 +316,14 @@ class Objective(metaclass=ABCMeta):
         original_order[unique_groups] = samples_per_group
         return np.round(original_order).astype(int)
 
-    @staticmethod
+    @classmethod
     def _finalize_split(
+            cls,
             candidates,
             features,
             target,
+            num_groups,
+            groups,
             weights,
             unscaled,
             scale,
@@ -315,6 +334,8 @@ class Objective(metaclass=ABCMeta):
         :param candidates: as return value of _sample_candidates()
         :param features: see docstring of __init__() for details
         :param target: see docstring of __init__() for details
+        :param num_groups: as first return value of _assign_groups()
+        :param groups: as second return value of _assign_groups()
         :param weights: see docstring of __init__() for details
         :param unscaled: numpy array; unscaled predictions corresponding to the target values
         :param scale: 1D numpy array; scaling factors for unscaled
@@ -327,8 +348,10 @@ class Objective(metaclass=ABCMeta):
         return {
             "ref_features": ref_features,
             "ref_features_squared": ref_features ** 2.0,
-            "ref_target": target[reference],  # no need to enforce order on 1D array
-            "ref_weights": weights[reference],
+            "ref_target": target[reference],
+            "ref_weights": cls._adjust_ref_weights(
+                weights=weights, candidates=candidates, reference=reference, num_groups=num_groups, groups=groups
+            ),
             "ref_unscaled": unscaled[reference].astype(**shared.FLOAT_TYPE),
             "ref_scale": scale[reference],
             "cand_features": cand_features,
@@ -336,6 +359,29 @@ class Objective(metaclass=ABCMeta):
             "cand_target": target[candidates],
             "cand_index": np.nonzero(candidates)[0]
         }
+
+    @staticmethod
+    def _adjust_ref_weights(weights, candidates, reference, num_groups, groups):
+        """Adjust weights for reference points to maintain the original ratios between groups.
+
+        :param weights: see docstring of __init__() for details
+        :param candidates: as return value of _sample_candidates()
+        :param reference: boolean complement of candidates
+        :param num_groups: as first return value of _assign_groups()
+        :param groups: as second return value of _assign_groups()
+        :return: 1D numpy array with non-negative values of type specified by shared.FLOAT_TYPE, adjusted reference
+            weights
+        """
+        ref_weights = weights[reference]
+        ref_groups = groups[reference]
+        for i in range(num_groups):
+            ref_ix = ref_groups == i
+            if np.any(ref_ix):  # avoid division by zero warning for empty groups that do not require rescaling anyway
+                ix = groups == i
+                group_weight = np.sum(weights[ix])
+                group_weight /= group_weight - np.sum(weights[np.logical_and(ix, candidates)])
+                ref_weights[ref_ix] = ref_weights[ref_ix] * group_weight
+        return ref_weights
 
     def get_starting_point_and_bounds(self):
         """Provide starting parameter vector and bounds for optimization.
@@ -367,8 +413,8 @@ class Objective(metaclass=ABCMeta):
         """
         parameter = self._check_evaluate_parameter(parameter=parameter, meta=self._meta)
         objective, gradient = self._evaluate_objective(parameter)
-        if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            logger.debug(LOG_EVALUATE.format(
+        if LOGGER.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            LOGGER.debug(LOG_EVALUATE.format(
                 objective,
                 np.max(np.abs(gradient)),
                 np.nonzero(parameter[:self._meta["num_features"]])[0].shape[0],

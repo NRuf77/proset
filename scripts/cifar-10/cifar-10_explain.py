@@ -37,7 +37,15 @@ sample_class = "cat"
 data_path = "scripts/data"
 data_file = "cifar-10-python.tar.gz"  # downloaded from https://www.cs.toronto.edu/~kriz/cifar.html
 input_path = "scripts/results"
-input_file = "cifar-10_10b_model.gz"
+input_files = [
+    "cifar-10_10b_model.gz",
+    "cifar-10_10b_beta_50_model.gz"
+]
+print("  Select input file:")
+for i, file_name in enumerate(input_files):
+    print("  {} - {}".format(i, file_name))
+choice = int(input())
+input_file = input_files[choice]
 
 print("* Load image data and model fit results")
 train = []

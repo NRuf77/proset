@@ -21,25 +21,39 @@ start_console_log()
 random_state = np.random.RandomState(12345)
 working_path = "scripts/results"
 data_file = "digits_data.gz"
-output_file = "digits_30b_model.gz"
+experiments = (
+    ("digits_20b_model", {  # default parameters, 20 batches maximum as 10 is selected otherwise
+        "model_para": {},
+        "select_para": {"max_batches": 20}
+    }),
+    ("digits_20b_beta_50_model", {  # change beta to 0.5
+        "model_para": {"beta": 0.5},
+        "select_para": {"max_batches": 20}
+    })
+)
+print("  Select experiment")
+for i in range(len(experiments)):
+    print("  {} - {}".format(i, experiments[i][0]))
+choice = int(input())
+experiment = experiments[choice]
 
 print("* Load data")
 with gzip.open(os.path.join(working_path, data_file), mode="rb") as file:
     data = pickle.load(file)
 
 print("* Select hyperparameters via cross-validation")
-result = select_hyperparameters(  # increase to 30 batches maximum so optimum is below upper bound
-    model=ClassifierModel(),
+result = select_hyperparameters(
+    model=ClassifierModel(**experiment[1]["model_para"]),
     features=data["X_train"],
     target=data["y_train"],
     transform=StandardScaler(),
-    max_batches=30,
-    random_state=random_state
+    random_state=random_state,
+    **experiment[1]["select_para"]
 )
 
 print("* Save results")
 result["data"] = data
-with gzip.open(os.path.join(working_path, output_file), mode="wb") as file:
+with gzip.open(os.path.join(working_path, experiment[0] + ".gz"), mode="wb") as file:
     pickle.dump(result, file)
 
 print("* Done")

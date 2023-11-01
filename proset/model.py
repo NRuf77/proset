@@ -27,8 +27,8 @@ from proset.set_manager import ClassifierSetManager
 import proset.shared as shared
 
 
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler())
+LOGGER = logging.getLogger(__name__)
+LOGGER.addHandler(logging.NullHandler())
 LOG_START = \
     "Fit proset model with {} batches, lambda_v = {:0.2e}, lambda_w = {:0.2e}, alpha_v={:0.2f}, and alpha_w={:0.2f}"
 LOG_RESULT_BATCHES = "Batch {} fit results"
@@ -57,6 +57,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             lambda_w=1e-8,
             alpha_v=0.95,
             alpha_w=0.95,
+            beta=0.1,
             num_candidates=1000,
             max_fraction=0.5,
             solver_factr=1e7,
@@ -72,6 +73,8 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             remainder is assigned as l1 penalty weight
         :param alpha_w: float in [0.0, 1.0]; fraction of lambda_w assigned as l2 penalty weight to prototype weights;
             the remainder is assigned as l1 penalty weight
+        :param beta: float in (0.0, 0.5]; assign observations to groups for sampling candidates such that half of them
+            are drawn from the 100 * beta percent where the current prediction is worst
         :param num_candidates: positive integer; number of candidates for prototypes to try for each batch
         :param max_fraction: float in (0.0, 1.0); maximum fraction of candidates to draw from one group of candidates;
             candidates are grouped by class and whether the current model classifies them correctly or not
@@ -89,6 +92,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         self.lambda_w = lambda_w
         self.alpha_v = alpha_v
         self.alpha_w = alpha_w
+        self.beta = beta
         self.num_candidates = num_candidates
         self.max_fraction = max_fraction
         self.random_state = random_state
@@ -107,7 +111,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         """
         self._check_hyperparameters()
         X, y, sample_weight = self._validate_arrays(X=X, y=y, sample_weight=sample_weight, reset=not warm_start)
-        logger.info(LOG_START.format(self.n_iter, self.lambda_v, self.lambda_w, self.alpha_v, self.alpha_w))
+        LOGGER.info(LOG_START.format(self.n_iter, self.lambda_v, self.lambda_w, self.alpha_v, self.alpha_w))
         MySetManager, MyObjective = self._get_compute_classes(self.use_tensorflow)  # pylint: disable=invalid-name
         if not warm_start or not hasattr(self, "set_manager_"):
             self.set_manager_ = MySetManager(  # pylint: disable=attribute-defined-outside-init
@@ -119,6 +123,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
                 target=y,
                 weights=sample_weight,
                 num_candidates=self.num_candidates,
+                beta=self.beta,
                 max_fraction=self.max_fraction,
                 set_manager=self.set_manager_,
                 lambda_v=self.lambda_v,
@@ -141,10 +146,10 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             )
             batch_info = objective.get_batch_info(solution[0])  # solution[0] is the parameter vector
             self.set_manager_.add_batch(batch_info)
-            if logger.isEnabledFor(logging.INFO):  # pragma: no cover
-                logger.info(LOG_RESULT_BATCHES.format(i + 1))
-                logger.info(LOG_RESULT_CAPTION)
-                logger.info(LOG_RESULT_MESSAGE.format(
+            if LOGGER.isEnabledFor(logging.INFO):  # pragma: no cover
+                LOGGER.info(LOG_RESULT_BATCHES.format(i + 1))
+                LOGGER.info(LOG_RESULT_CAPTION)
+                LOGGER.info(LOG_RESULT_MESSAGE.format(
                     solution[2]["nit"],
                     solution[2]["funcalls"],
                     solution[1],
@@ -153,7 +158,7 @@ class Model(BaseEstimator, metaclass=ABCMeta):
                     len(np.nonzero(batch_info["prototype_weights"])[0]),
                     self._parse_solver_status(solution[2])
                 ))
-        logger.info(LOG_DONE)
+        LOGGER.info(LOG_DONE)
         return self
 
     def _check_hyperparameters(self):

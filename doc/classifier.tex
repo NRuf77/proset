@@ -11,7 +11,7 @@ Our goal is to estimate the conditional distribution of $Y_n$ given $X_n$.
 As proset models are discriminative instead of generative, the distribution of $X_n$ is of no concern and we just deal with the observed realizations $x_n\in\R^D$ in practice.
 Nominal or ordinal features can be included in the model via encoding as real vectors.\par
 %
-A proset classifier is built from $B\geq0$ ``batches'' of points selected from the available samples.
+A proset classifier is built from $B\geq0$ `batches' of points selected from the available samples.
 Each batch is defined by a a nonempty subset $S_1,\dots,S_B\subset\{1,\dots,N\}$ of the observation indices.
 The collection of batches is denoted by
 %
@@ -119,7 +119,12 @@ The conditional probabilities using only batches up to $c$ are given by
 \hat{p}_{c,k}(x)=\frac{\hat{q}_{c,k}(x)}{\sum_{l=0}^{K-1}\hat{q}_{c,l}(x)}\label{eq_pckx}
 \end{equation}
 %
-which also satisfy $\hat{p}_{0,k}(x)=\hat{p}_{0,k}$.\par
+which also satisfy $\hat{p}_{0,k}(x)=\hat{p}_{0,k}$.
+%
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+The likelihood function shown below was modified in version 0.5.0 of the algorithm.
+See Section \ref{sec_updated_candidate_sampling} `Updated candidate sampling' for details.
+}}\end{center}
 %
 Given the first $c-1$ batches, the parameters for batch $c>0$ are chosen to minimize the following function, which is the negative log-likelihood with regularization as per (\ref{eq_regularization}) and reweighting as discussed above:
 %
@@ -213,6 +218,11 @@ The partial derivatives of the objective function on the first orthant are
 \label{eq_l_partial_w}\\
 &+\lambda\beta(\alpha_w w_{c,j}+(1-\alpha_w))\notag
 \end{align}
+%
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+The strategy for selecting prototypes described below was modified in version 0.5.0 of the algorithm.
+See Section \ref{sec_updated_candidate_sampling} `Updated candidate sampling' for details.
+}}\end{center}
 %
 It remains to consider how to choose the prototypes for each batch and the starting points for optimization.
 For the former, we score the model for iteration $c-1$ on all samples to get a probability distribution for each $Y_n$.
@@ -320,6 +330,11 @@ We then replace all prototypes belonging to the same component by a single proto
 %
 \section{Fit strategy}
 \label{sec_classifier_fit}
+%
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+Version 0.5.0 of the algorithm adds a new hyperparameter $\beta\in(0.0,0.5]$ to control candidate selection.
+See Section \ref{sec_updated_candidate_sampling} `Updated candidate sampling' for details.
+}}\end{center}
 %
 Fitting a proset classifier is controlled by seven hyperparameters:
 %
@@ -497,7 +512,7 @@ The first experiment uses a dominant $L_1$-penalty ($\alpha_v=\alpha_w=0.05$), t
 %
 \begin{center}
 \subfloat[\textbf{Stage 1}]{\includegraphics[height=0.4\textheight]{figures/iris_2f_dominant_l1_2d_search.pdf}}\\
-\subfloat[\textbf{Both stages}]{\includegraphics[width=0.99\textwidth, trim={0.5cm 0.5cm 0.5cm 0.5cm}, clip]{figures/iris_2f_dominant_l1_1d_search.pdf}}
+\subfloat[\textbf{Both stages}]{\includegraphics[width=0.99\textwidth, trim={0.5cm 0.5cm 0.5cm 0.3cm}, clip]{figures/iris_2f_dominant_l1_1d_search.pdf}}
 \end{center}
 \end{figure}
 %
@@ -1901,7 +1916,7 @@ Balanced acc.&0.69&0.95&0.97&0.98&0.94&0.74\\
 %
 \begin{table}
 \caption{[E16, E3, E8, E9] Comparison of results (best log-loss bold)}
-\label{tab_e16_e3_e8, e9}
+\label{tab_e16_e3_e8_e9}
 %
 \begin{center}
 \small
@@ -1938,7 +1953,7 @@ Balanced acc.&0.69&0.97&0.96&0.98&0.98&0.50\\
 \end{center}
 \end{table}
 %
-Table \ref{tab_e16} shows the results of applying the new fit strategy to the six original benchmark cases and Table \ref{tab_e16_e3_e8, e9} compares them to previous results for proset, kNN, and XGBoost.
+Table \ref{tab_e16} shows the results of applying the new fit strategy to the six original benchmark cases and Table \ref{tab_e16_e3_e8_e9} compares them to previous results for proset, kNN, and XGBoost.
 Results for the Iris 2f and Wine data sets are worse than before.
 For the Wine data, the log-loss for the final model is considerably larger than the threshold established during cross-validation.
 This is likely due to the small amount of data, which leads to high variance when subsampling for cross-validation and candidate selection.
@@ -2105,4 +2120,348 @@ For this reasons, the results in Table \ref{tab_e18} were generated using smalle
 A comparison with previous results is shown in Table \ref{tab_e18_e15}.
 Both models use an extra batch and more features under the new strategy.
 The metrics for the MNIST data are the same as before, log-loss for CIFAR-10 is marginally better but still equivalent in terms of the threshold.
+%
+\clearpage
+%
+\section{Updated candidate sampling}
+\label{sec_updated_candidate_sampling}
+%
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+Except where noted, the results in this section were generated using version 0.5.0 of Python package \texttt{proset}.
+Different versions of \texttt{proset} or the underlying compute libraries may yield results that are qualitatively similar but not identical.
+}}\end{center}
+%
+The strategy for choosing candidates proposed in Section \ref{sec_classifier_definition} divides the samples for each class into two groups based on whether or not the true class is assigned the largest probability.
+To generalize this approach to regression, we need to choose a data-adaptive threshold on the absolute residual.
+For a more consistent procedure, we apply a similar idea to classification as well:
+training samples are ranked in order of the predicted probability for the true class and half of the candidates for each class drawn from the worst cases.
+`Worst' means that the predicted probability for a class is below the $\beta$-quantile of all predictions for that class, where $\beta\in(0.0,0.5]$ is a new hyperparameter.
+Setting $\beta=0.5$ is `indifferent' sampling as we select half of the candidates below the median and the other half above.
+Smaller values for $\beta$ put more emphasis on difficult cases.\par
+%
+The new approach has two advantages over the old:
+%
+\begin{enumerate}
+\item The algorithm can identify cases that are `relatively difficult'.
+The original strategy does never distiguish samples that are assigned, e.g., probabilities of 0.6 and 0.9 for the true class.
+With the new approach, the former can be prioritized if they rank among the worst.
+%
+\item We can now analyze the impact of doing preferential sampling at all and possibly tune the rate for better performance.
+\end{enumerate}
+%
+Another change implemented as part of this update is how re-weighting of samples in the likelihood function (\ref{eq_log_likelihood}) is handled.
+The original implementation assigns weights to the reference samples per class to compensate for the change in proportions caused by removing the candidates.
+In the new version, the weights are computed separately for each of the $2K$ sampling groups.
+This is done to further minimize the distortion introduced by the non-stratified candidate selection.\par
+%
+\begin{table}
+\caption{[E19] Updated candidate sampling for original benchmarks ($\beta=0.5$)}
+\label{tab_e19}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Cross-validation}}\\
+Optimal $\lambda_v$&$3.2\times10^{-5}$&$3.2\times10^{-4}$&$3.2\times10^{-2}$&$3.2\times10^{-4}$&$3.2\times10^{-5}$&$1.0\times10^{-3}$\\
+Selected $\lambda_v$&$1.0\times10^{-2}$&$3.2\times10^{-3}$&$3.2\times10^{-2}$&$3.2\times10^{-3}$&$3.2\times10^{-5}$&$1.0\times10^{-3}$\\
+Optimal batches&1&3&1&12&5&8\\
+Selected batches&1&3&1&4&3&4\\
+Optimal log-loss&0.48&0.07&0.10&0.15&0.16&0.49\\
+Threshold&0.67&0.11&0.12&0.18&0.16&0.51\\
+Selected log-loss&0.55&0.10&0.10&0.17&0.16&0.50\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&5&3&37&2&6\\
+Prototypes&17&42&39&838&1,353&1,626\\
+Log-loss&0.61&0.17&0.12&0.12&0.15&0.48\\
+ROC-AUC&0.83&0.99&0.99&1.00&0.99&0.85\\
+Balanced acc.&0.69&0.97&0.97&0.98&0.95&0.77\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E20] Updated candidate sampling for original benchmarks ($\beta=0.1$)}
+\label{tab_e20}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{Data}}\\
+Classes&3&3&2&10&2&2\\
+Features&2&13&30&64&2&6\\
+Samples&150&178&569&1,797&6,400&6,400\\
+Train samples&105&124&398&1,257&4,480&4,480\\
+Test samples&45&54&171&540&1,920&1,920\\
+\textbf{Candidates}&$\sim50$&$\sim60$&$\sim200$&$\sim630$&1,000&1,000\\
+\multicolumn{7}{|l|}{\textbf{Cross-validation}}\\
+Optimal $\lambda_v$&$3.2\times10^{-5}$&$3.2\times10^{-4}$&$1.0\times10^{-2}$&$3.2\times10^{-4}$&$1.0\times10^{-4}$&$1.0\times10^{-3}$\\
+Selected $\lambda_v$&$1.0\times10^{-2}$&$1.0\times10^{-3}$&$3.2\times10^{-2}$&$3.2\times10^{-3}$&$3.2\times10^{-4}$&$3.2\times10^{-3}$\\
+Optimal batches&1&9&8&17&7&9\\
+Selected batches&1&7&1&2&1&2\\
+Optimal log-loss&0.48&0.06&0.09&0.14&0.16&0.50\\
+Threshold&0.67&0.08&0.12&0.17&0.18&0.52\\
+Selected log-loss&0.55&0.06&0.10&0.17&0.17&0.51\\
+\multicolumn{7}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&10&3&26&2&6\\
+Prototypes&17&94&39&672&329&770\\
+Log-loss&0.61&0.08&0.12&0.14&0.17&0.48\\
+ROC-AUC&0.83&1.00&0.99&1.00&0.99&0.85\\
+Balanced acc.&0.69&0.98&0.97&0.98&0.95&0.76\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E19, E20, E16] Comparison of results (best log-loss bold)}
+\label{tab_e19_e20_e16}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrrr|}
+\hline
+&\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
+\multicolumn{7}{|l|}{\textbf{[E19] Updated candidate sampling for original benchmarks ($\beta=0.5$)}}\\
+Active features&2&5&3&37&2&6\\
+Batches&1&3&1&4&3&4\\
+Prototypes&17&42&39&838&1,353&1,626\\
+Log-loss&\textbf{0.61}&0.17&\textbf{0.12}&\textbf{0.12}&\textbf{0.15}&\textbf{0.48}\\
+Threshold&0.67&0.11&0.12&0.18&0.16&0.51\\
+ROC-AUC&0.83&0.99&0.99&1.00&0.99&0.85\\
+Balanced acc.&0.69&0.97&0.97&0.98&0.95&0.77\\
+\multicolumn{7}{|l|}{\textbf{[E20] Updated candidate sampling for original benchmarks ($\beta=0.1$)}}\\
+Active features&2&10&3&26&2&6\\
+Batches&1&7&1&2&1&2\\
+Prototypes&17&94&39&672&329&770\\
+Log-loss&\textbf{0.61}&\textbf{0.08}&\textbf{0.12}&0.14&0.17&\textbf{0.48}\\
+Threshold&0.67&0.08&0.12&0.17&0.18&0.52\\
+ROC-AUC&0.83&1.00&0.99&1.00&0.99&0.85\\
+Balanced acc.&0.69&0.98&0.97&0.98&0.95&0.76\\
+\multicolumn{7}{|l|}{\textbf{[E16] Updated fit strategy for original benchmark cases}}\\
+Active features&2&5&3&34&2&6\\
+Batches&1&2&1&3&2&2\\
+Prototypes&17&95&39&877&525&543\\
+Log-loss&\textbf{0.61}&0.19&\textbf{0.12}&0.13&0.17&0.50\\
+Threshold&0.67&0.09&0.13&0.17&0.17&0.52\\
+ROC-AUC&0.83&0.99&0.99&1.00&0.99&0.83\\
+Balanced acc.&0.69&0.95&0.97&0.98&0.94&0.74\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E21] Updated candidate sampling for additional benchmarks ($\beta=0.5$)}
+\label{tab_e21}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\textbf{Candidates}&1,000&$\sim280$&$\sim560$&$1000$&1,000\\
+\multicolumn{6}{|l|}{\textbf{Cross-validation}}\\
+Optimal $\lambda_v$&$3.2\times10^{-5}$&$3.2\times10^{-3}$&$1.0\times10^{-3}$&$3.2\times10^{-3}$&$3.2\times10^{-4}$\\
+Selected $\lambda_v$&$1.0\times10^{-4}$&$1.0\times10^{-2}$&$1.0\times10^{-2}$&$3.2\times10^{-3}$&$1.0\times10^{-3}$\\
+Optimal batches&9&5&7&10&1\\
+Selected batches&2&1&1&2&1\\
+Optimal log-loss&0.16&0.16&0.29&0.38&0.54\\
+Threshold&0.17&0.19&0.29&0.39&0.56\\
+Selected log-loss&0.17&0.17&0.29&0.39&0.55\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&3&4&5&6\\
+Prototypes&574&75&165&665&515\\
+Log-loss&0.16&0.18&0.28&0.38&0.53\\
+ROC-AUC&0.99&0.98&0.96&0.91&0.80\\
+Balanced acc.&0.95&0.93&0.87&0.82&0.72\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E22] Updated candidate sampling for additional benchmarks ($\beta=0.1$)}
+\label{tab_e22}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{Data}}\\
+Classes&2&2&2&2&2\\
+Features&2&3&4&5&12\\
+Samples&6,400&800&1,600&3,200&6,400\\
+Train samples&4,480&560&1,120&2,240&4,480\\
+Test samples&1,920&240&480&960&1,920\\
+\textbf{Candidates}&1,000&$\sim280$&$\sim560$&$1000$&1,000\\
+\multicolumn{6}{|l|}{\textbf{Cross-validation}}\\
+Optimal $\lambda_v$&$3.2\times10^{-5}$&$1.0\times10^{-2}$&$1.0\times10^{-3}$&$3.2\times10^{-3}$&$3.2\times10^{-4}$\\
+Selected $\lambda_v$&$3.2\times10^{-4}$&$1.0\times10^{-2}$&$1.0\times10^{-2}$&$3.2\times10^{-3}$&$1.0\times10^{-3}$\\
+Optimal batches&4&1&7&7&1\\
+Selected batches&1&1&1&2&1\\
+Optimal log-loss&0.17&0.16&0.29&0.39&0.54\\
+Threshold&0.18&0.17&0.29&0.41&0.56\\
+Selected log-loss&0.17&0.17&0.29&0.40&0.55\\
+\multicolumn{6}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&2&3&4&5&6\\
+Prototypes&342&75&165&722&515\\
+Log-loss&0.16&0.18&0.28&0.38&0.53\\
+ROC-AUC&0.99&0.98&0.96&0.91&0.80\\
+Balanced acc.&0.95&0.93&0.87&0.82&0.72\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E21, E22, E17] Comparison of results (best log-loss bold)}
+\label{tab_e21_e22_e17}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrrr|}
+\hline
+&\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
+\multicolumn{6}{|l|}{\textbf{[E21] Updated candidate sampling for additional benchmarks ($\beta=0.5$)}}\\
+Active features&2&3&4&5&6\\
+Batches&2&1&1&2&1\\
+Prototypes&574&75&165&665&515\\
+Log-loss&\textbf{0.16}&\textbf{0.18}&\textbf{0.28}&\textbf{0.38}&\textbf{0.53}\\
+Threshold&0.17&0.19&0.29&0.39&0.56\\
+ROC-AUC&0.99&0.98&0.96&0.91&0.80\\
+Balanced acc.&0.95&0.93&0.87&0.82&0.72\\
+\multicolumn{6}{|l|}{\textbf{[E22] Updated candidate sampling for additional benchmarks ($\beta=0.1$)}}\\
+Active features&2&3&4&5&6\\
+Batches&1&1&1&2&1\\
+Prototypes&342&75&165&722&515\\
+Log-loss&\textbf{0.16}&\textbf{0.18}&\textbf{0.28}&\textbf{0.38}&\textbf{0.53}\\
+Threshold&0.18&0.17&0.29&0.41&0.56\\
+ROC-AUC&0.99&0.98&0.96&0.91&0.80\\
+Balanced acc.&0.95&0.93&0.87&0.82&0.72\\
+\multicolumn{6}{|l|}{\textbf{[E17] Updated fit strategy for additional benchmark cases}}\\
+Active features&2&3&4&5&6\\
+Batches&6&1&1&2&1\\
+Prototypes&551&75&165&706&551\\
+Log-loss&\textbf{0.16}&\textbf{0.18}&\textbf{0.28}&\textbf{0.38}&\textbf{0.53}\\
+Threshold&0.17&0.21&0.29&0.41&0.56\\
+ROC-AUC&0.99&0.98&0.96&0.91&0.80\\
+Balanced acc.&0.95&0.93&0.87&0.81&0.72\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E23] Updated candidate sampling for larger benchmarks}
+\label{tab_e23}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrrrr|}
+\hline
+&\multicolumn{4}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{MNIST}&\textbf{MNIST}&\textbf{CIFAR-10}&\textbf{CIFAR-10}\\
+\textbf{$\beta$}&0.5&0.1&0.5&0.1\\
+\multicolumn{5}{|l|}{\textbf{Data}}\\
+Classes&10&10&10&10\\
+Preprocessing&PCA&PCA&C+S&C+S\\
+Features&331&331&2,048&2,048\\
+Samples&70,000&70,000&60,000&60,000\\
+Train samples&60,000&60,000&50,000&50,000\\
+Test samples&10,000&10,000&10,000&10,000\\
+\textbf{Samples per batch}&40,000&40,000&35,000&35,000\\
+\textbf{Candidates}&10,000&10,000&10,000&10,000\\
+\multicolumn{5}{|l|}{\textbf{Cross-validation}}\\
+Optimal $\lambda_v$&$1.0\times10^{-3}$&$1.0\times10^{-3}$&$1.0\times10^{-2}$&$1.0\times10^{-2}$\\
+Selected $\lambda_v$&$1.0\times10^{-3}$&$1.0\times10^{-3}$&$1.0\times10^{-2}$&$1.0\times10^{-2}$\\
+Optimal batches&3&3&6&6\\
+Selected batches&2&2&3&3\\
+Optimal log-loss&0.24&0.25&1.31&1.33\\
+Threshold&0.25&0.26&1.32&1.33\\
+Selected log-loss&0.24&0.25&1.32&1.33\\
+\multicolumn{5}{|l|}{\textbf{Final model, scores for test data}}\\
+Active features&24&28&121&118\\
+Sparseness&0.07&0.08&0.06&0.06\\
+Prototypes&15,009&15,139&18,235&18,393\\
+Log-loss&0.24&0.24&1.30&1.32\\
+ROC-AUC&1.00&1.00&0.91&0.91\\
+Balanced acc.&0.95&0.95&0.56&0.56\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+\begin{table}
+\caption{[E23, E18] Comparison of results (best log-loss bold)}
+\label{tab_e23_e18}
+%
+\begin{center}
+\small
+\begin{tabular}{|lrr|}
+\hline
+&\multicolumn{2}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
+&\textbf{MNIST}&\textbf{CIFAR-10}\\
+\multicolumn{3}{|l|}{\textbf{[E23]  Updated candidate sampling ($\beta=0.5$)}}\\
+Active features&24&121\\
+Batches&2&3\\
+Prototypes&15,009&18,235\\
+Log-loss&\textbf{0.24}&\textbf{1.30}\\
+Threshold&0.25&1.32\\
+ROC-AUC&1.00&0.91\\
+Balanced acc.&0.95&0.56\\
+\multicolumn{3}{|l|}{\textbf{[E23]  Updated candidate sampling ($\beta=0.1$)}}\\
+Active features&28&118\\
+Batches&2&3\\
+Prototypes&15,139&18,393\\
+Log-loss&\textbf{0.24}&1.32\\
+Threshold&0.26&1.33\\
+ROC-AUC&1.00&0.91\\
+Balanced acc.&0.95&0.56\\
+\multicolumn{3}{|l|}{\textbf{[E18] Updated fit strategy}}\\
+Active features&30&136\\
+Batches&2&3\\
+Prototypes&15,359&17,689\\
+Log-loss&0.25&1.31\\
+Threshold&0.26&1.33\\
+ROC-AUC&1.00&0.91\\
+Balanced acc.&0.95&0.56\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+%
+To study the impact of the new approach, we re-fit the updated model to all benchmark cases using either $\beta=0.1$ or $\beta=0.5$.
+For the remaining hyperparameters, we choose the same settings as in Section \ref{sec_updated_fit}, i.e., only $\lambda_v$ and the number of batches are determined by grid search.
+Results for the original benchmark cases are shown in Tables \ref{tab_e19} and \ref{tab_e20}, the comparison with previous experiments is made in Table \ref{tab_e19_e20_e16}.
+The scores for the additional benchmark cases are collected in Tables \ref{tab_e21}, \ref{tab_e22}, and \ref{tab_e21_e22_e17}.
+Those for the larger benchmark cases are found in Tables \ref{tab_e23} and \ref{tab_e23_e18}.\par
+%
+It turns out that the impact on model performance is negligible.
+However, setting $\beta=0.1$ results in fewer batches and a smaller set of prototypes for some of the larger examples.
+Thus, the updated version of the software package uses this as default value for the hyperparameter.
 \endinput

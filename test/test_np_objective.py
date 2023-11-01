@@ -14,9 +14,9 @@ import proset.shared as shared
 
 # pylint: disable=wrong-import-order
 from test.test_shared_classifier import MockSetManager, _get_consistent_example, FEATURES, TARGET, COUNTS, \
-    COUNTS_BELOW_FIVE, WEIGHTS, UNSCALED, SCALE, LARGE_GROUPS, NUM_LARGE_GROUPS, SAMPLES_PER_LARGE_GROUP, \
-    NUM_CANDIDATES, NUM_CANDIDATES_2, MAX_FRACTION, MAX_FRACTION_2, MAX_FRACTION_AT_LEAST_FIVE, LAMBDA_V, LAMBDA_W, \
-    ALPHA_V, ALPHA_W, RANDOM_STATE
+    COUNTS_BELOW_FIVE, WEIGHTS, UNSCALED, SCALE, SCALED, GROUPS, LARGE_GROUPS, NUM_LARGE_GROUPS, \
+    SAMPLES_PER_LARGE_GROUP, NUM_CANDIDATES, NUM_CANDIDATES_2, MAX_FRACTION, MAX_FRACTION_2, \
+    MAX_FRACTION_AT_LEAST_FIVE, LAMBDA_V, LAMBDA_W, ALPHA_V, ALPHA_W, BETA, RANDOM_STATE
 
 
 def _choose_half(x):
@@ -42,6 +42,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET[:, np.newaxis],
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -62,6 +63,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION_AT_LEAST_FIVE,
                 set_manager=MockSetManager(),
@@ -85,6 +87,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES[:, 0],
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -105,6 +108,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES[0:1, :],
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -125,6 +129,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET[:-1],
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -145,6 +150,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES.astype(np.float64),
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -165,6 +171,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS[:, np.newaxis],
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -185,6 +192,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS[:-1],
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -205,6 +213,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET,
                 weights=-WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -225,6 +234,7 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS.astype(np.float64),
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -245,6 +255,49 @@ class TestNpClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=0.0,
+                num_candidates=NUM_CANDIDATES,
+                max_fraction=MAX_FRACTION,
+                set_manager=MockSetManager(),
+                lambda_v=LAMBDA_V,
+                lambda_w=LAMBDA_W,
+                alpha_v=ALPHA_V,
+                alpha_w=ALPHA_W,
+                random_state=RANDOM_STATE
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter beta must lie in (0.0, 0.5].")
+
+    def test_init_fail_12(self):
+        message = ""
+        try:
+            NpClassifierObjective(
+                features=FEATURES,
+                target=TARGET,
+                weights=WEIGHTS,
+                beta=0.6,
+                num_candidates=NUM_CANDIDATES,
+                max_fraction=MAX_FRACTION,
+                set_manager=MockSetManager(),
+                lambda_v=LAMBDA_V,
+                lambda_w=LAMBDA_W,
+                alpha_v=ALPHA_V,
+                alpha_w=ALPHA_W,
+                random_state=RANDOM_STATE
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter beta must lie in (0.0, 0.5].")
+
+    def test_init_fail_13(self):
+        message = ""
+        try:
+            NpClassifierObjective(
+                features=FEATURES,
+                target=TARGET,
+                weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=1.0,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -258,13 +311,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter num_candidates must be integer.")
 
-    def test_init_fail_12(self):
+    def test_init_fail_14(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=0,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -278,13 +332,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter num_candidates must be positive.")
 
-    def test_init_fail_13(self):
+    def test_init_fail_15(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=0.0,
                 set_manager=MockSetManager(),
@@ -298,13 +353,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter max_fraction must lie in (0.0, 1.0).")
 
-    def test_init_fail_14(self):
+    def test_init_fail_16(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=1.0,
                 set_manager=MockSetManager(),
@@ -318,13 +374,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter max_fraction must lie in (0.0, 1.0).")
 
-    def test_init_fail_15(self):
+    def test_init_fail_17(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -338,13 +395,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter lambda_v must not be negative.")
 
-    def test_init_fail_16(self):
+    def test_init_fail_18(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -358,13 +416,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter lambda_w must not be negative.")
 
-    def test_init_fail_17(self):
+    def test_init_fail_19(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -378,13 +437,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter alpha_v must lie in [0.0, 1.0].")
 
-    def test_init_fail_18(self):
+    def test_init_fail_20(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -398,13 +458,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter alpha_v must lie in [0.0, 1.0].")
 
-    def test_init_fail_19(self):
+    def test_init_fail_21(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -418,13 +479,14 @@ class TestNpClassifierObjective(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter alpha_w must lie in [0.0, 1.0].")
 
-    def test_init_fail_20(self):
+    def test_init_fail_22(self):
         message = ""
         try:
             NpClassifierObjective(
                 features=FEATURES,
                 target=TARGET,
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -443,6 +505,7 @@ class TestNpClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -470,6 +533,7 @@ class TestNpClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=None,  # use unit weights
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -489,6 +553,7 @@ class TestNpClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -506,16 +571,17 @@ class TestNpClassifierObjective(TestCase):
         ref_target = TARGET[reference]
         np.testing.assert_allclose(result["ref_target"], ref_target)
         shared.check_float_array(x=result["ref_weights"], name="result['ref_weights']")
-        class_scales = np.zeros(max(TARGET) + 1, dtype=float)
-        for i in range(class_scales.shape[0]):
-            ix = TARGET == i
-            class_scales[i] = np.sum(WEIGHTS[ix]) / np.sum(WEIGHTS[np.logical_and(ix, reference)])
+        group_scales = np.zeros(max(GROUPS) + 1, dtype=float)
+        for i in range(group_scales.shape[0]):
+            ix = GROUPS == i
+            group_scales[i] = np.sum(WEIGHTS[ix]) / np.sum(WEIGHTS[np.logical_and(ix, reference)])
         ref_weights = WEIGHTS[reference]
-        for i, target in enumerate(ref_target):
-            ref_weights[i] *= class_scales[target]
+        for i, target in enumerate(GROUPS[reference]):
+            ref_weights[i] *= group_scales[target]
         # noinspection PyTypeChecker
-        self.assertAlmostEqual(np.sum(ref_weights), np.sum(WEIGHTS))  # check whether reference weights are consistent
-        np.testing.assert_allclose(result["ref_weights"], ref_weights)
+        self.assertAlmostEqual(np.sum(ref_weights), np.sum(WEIGHTS), delta=1e-6)
+        # check whether reference weights are consistent
+        np.testing.assert_allclose(result["ref_weights"], ref_weights, atol=1e-6)
         shared.check_float_array(x=result["ref_unscaled"], name="result['ref_unscaled']")
         np.testing.assert_allclose(result["ref_unscaled"], UNSCALED[reference])
         shared.check_float_array(x=result["ref_scale"], name="result['ref_scale']")
@@ -540,23 +606,14 @@ class TestNpClassifierObjective(TestCase):
 
     def test_assign_groups_1(self):
         num_groups, groups = NpClassifierObjective._assign_groups(
-            target=TARGET,
-            unscaled=UNSCALED,
-            scale=SCALE,
-            meta={"num_classes": COUNTS.shape[0]}
+            target=TARGET, beta=BETA, scaled=SCALED, meta={"num_classes": COUNTS.shape[0]}
         )
         self.assertEqual(num_groups, 6)
-        reference = 2 * TARGET
-        prediction = np.argmax(UNSCALED, axis=1)
-        reference[prediction != TARGET] += 1
-        np.testing.assert_allclose(groups, reference)
+        np.testing.assert_allclose(groups, GROUPS)
 
     def test_sample_candidates_1(self):
         num_groups, groups = NpClassifierObjective._assign_groups(
-            target=TARGET,
-            unscaled=UNSCALED,
-            scale=SCALE,
-            meta={"num_classes": COUNTS.shape[0]}
+            target=TARGET, beta=BETA, scaled=SCALED, meta={"num_classes": COUNTS.shape[0]}
         )
         result = NpClassifierObjective._sample_candidates(
             num_groups=num_groups,
@@ -621,10 +678,7 @@ class TestNpClassifierObjective(TestCase):
 
     def test_get_group_samples_1(self):
         num_groups, groups = NpClassifierObjective._assign_groups(
-            target=TARGET,
-            unscaled=UNSCALED,
-            scale=SCALE,
-            meta={"num_classes": COUNTS.shape[0]}
+            target=TARGET, beta=BETA, scaled=SCALED, meta={"num_classes": COUNTS.shape[0]}
         )
         result = NpClassifierObjective._get_group_samples(
             num_groups=num_groups,
@@ -666,13 +720,14 @@ class TestNpClassifierObjective(TestCase):
         np.testing.assert_allclose(result, np.ones(4, dtype=int) * NUM_CANDIDATES_2 / 4)
         # all groups are large enough to support an equal split
 
-    # method _finalize_split() already tested by test_split_samples_1() above
+    # methods _finalize_split() and _adjust_ref_weights() already tested by test_split_samples_1() above
 
     def test_get_starting_point_and_bounds_1(self):
         objective = NpClassifierObjective(
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -699,6 +754,7 @@ class TestNpClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -721,6 +777,7 @@ class TestNpClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -749,6 +806,7 @@ class TestNpClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -791,6 +849,7 @@ class TestNpClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -1015,6 +1074,7 @@ class TestNpClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),

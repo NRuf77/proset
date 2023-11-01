@@ -25,6 +25,7 @@ class NpObjective(Objective, metaclass=ABCMeta):
             features,
             target,
             weights,
+            beta,
             num_candidates,
             max_fraction,
             set_manager,
@@ -39,6 +40,7 @@ class NpObjective(Objective, metaclass=ABCMeta):
         :param features: see docstring of objective.Objective.__init__() for details
         :param target: see docstring of objective.Objective.__init__() for details
         :param weights: see docstring of objective.Objective.__init__() for details
+        :param beta: see docstring of objective.Objective.__init__() for details
         :param num_candidates: see docstring of objective.Objective.__init__() for details
         :param max_fraction: see docstring of objective.Objective.__init__() for details
         :param set_manager: see docstring of objective.Objective.__init__() for details
@@ -53,6 +55,7 @@ class NpObjective(Objective, metaclass=ABCMeta):
             features=features,
             target=target,
             weights=weights,
+            beta=beta,
             num_candidates=num_candidates,
             max_fraction=max_fraction,
             set_manager=set_manager,
@@ -64,21 +67,15 @@ class NpObjective(Objective, metaclass=ABCMeta):
         )
         self._sample_cache = None
 
-    @staticmethod
-    def _finalize_split(
-            candidates,
-            features,
-            target,
-            weights,
-            unscaled,
-            scale,
-            meta
-    ):
+    @classmethod
+    def _finalize_split(cls, candidates, features, target, num_groups, groups, weights, unscaled, scale, meta):
         """Apply sample split into candidates for prototypes and reference points.
 
         :param candidates: see docstring of objective.Objective._finalize_split() for details
         :param features: see docstring of objective.Objective.__init__() for details
         :param target: see docstring of objective.Objective.__init__() for details
+        :param num_groups: see docstring of objective.Objective.__init__() for details
+        :param groups: see docstring of objective.Objective.__init__() for details
         :param weights: see docstring of objective.Objective.__init__() for details
         :param unscaled: see docstring of objective.Objective._finalize_split() for details
         :param scale: see docstring of objective.Objective._finalize_split() for details
@@ -92,6 +89,8 @@ class NpObjective(Objective, metaclass=ABCMeta):
             candidates=candidates,
             features=features,
             target=target,
+            num_groups=num_groups,
+            groups=groups,
             weights=weights,
             unscaled=unscaled,
             scale=scale,

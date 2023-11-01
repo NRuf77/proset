@@ -243,7 +243,7 @@ For the computation of the `dominant set' indicator, we use the following proced
 Prototypes with the same impact receive the same rank.
 %
 \item For each rank $r$, compute $p_{r,k}$ as sum of additive contributions (columns `p class 0', etc.\ in the report) to the probability estimate for class $k$ from the marginal distribution and prototypes up to rank $r$.
-These satisfy $0<\sum_{k=0}^{K_1}p_{r,k}\leq 1$.
+These satisfy $0<\sum_{k=0}^{K-1}p_{r,k}\leq 1$.
 The remainder $t_r:=1-\sum_{k=0}^{K-1}p_{r,k}$ is the total contribution of prototypes with rank greater than $r$.
 %
 \item For each rank $r$, denote by $k_{1,r}$ and $k_{2,r}$ the classes with the largest and second largest value of $p_{r,k}$.

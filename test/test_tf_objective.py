@@ -15,7 +15,8 @@ import proset.shared as shared
 
 # pylint: disable=wrong-import-order
 from test.test_shared_classifier import MockSetManager, _get_consistent_example, FEATURES, TARGET, COUNTS, WEIGHTS, \
-    UNSCALED, SCALE, NUM_CANDIDATES, MAX_FRACTION, LAMBDA_V, LAMBDA_W, ALPHA_V, ALPHA_W, RANDOM_STATE
+    UNSCALED, SCALE, GROUPS, SCALED, NUM_CANDIDATES, MAX_FRACTION, LAMBDA_V, LAMBDA_W, ALPHA_V, ALPHA_W, BETA, \
+    RANDOM_STATE
 
 
 # pylint: disable=missing-function-docstring, protected-access, too-many-public-methods
@@ -34,6 +35,7 @@ class TestTfClassifierObjective(TestCase):
                 features=FEATURES,
                 target=TARGET.astype(float),
                 weights=WEIGHTS,
+                beta=BETA,
                 num_candidates=NUM_CANDIDATES,
                 max_fraction=MAX_FRACTION,
                 set_manager=MockSetManager(),
@@ -52,6 +54,7 @@ class TestTfClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -78,6 +81,7 @@ class TestTfClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=None,  # use unit weights
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -96,6 +100,7 @@ class TestTfClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -110,13 +115,13 @@ class TestTfClassifierObjective(TestCase):
         np.testing.assert_allclose(result["ref_features_squared"].numpy(), FEATURES[reference] ** 2.0)
         ref_target = TARGET[reference]
         np.testing.assert_allclose(result["ref_target"].numpy(), ref_target)
-        class_scales = np.zeros(max(TARGET) + 1, dtype=float)
-        for i in range(class_scales.shape[0]):
-            ix = TARGET == i
-            class_scales[i] = np.sum(WEIGHTS[ix]) / np.sum(WEIGHTS[np.logical_and(ix, reference)])
+        group_scales = np.zeros(max(GROUPS) + 1, dtype=float)
+        for i in range(group_scales.shape[0]):
+            ix = GROUPS == i
+            group_scales[i] = np.sum(WEIGHTS[ix]) / np.sum(WEIGHTS[np.logical_and(ix, reference)])
         ref_weights = WEIGHTS[reference]
-        for i, target in enumerate(ref_target):
-            ref_weights[i] *= class_scales[target]
+        for i, target in enumerate(GROUPS[reference]):
+            ref_weights[i] *= group_scales[target]
         # noinspection PyTypeChecker
         self.assertAlmostEqual(np.sum(ref_weights), np.sum(WEIGHTS), delta=1e-6)
         # check whether reference weights are consistent
@@ -137,16 +142,10 @@ class TestTfClassifierObjective(TestCase):
 
     def test_assign_groups_1(self):
         num_groups, groups = TfClassifierObjective._assign_groups(
-            target=TARGET,
-            unscaled=UNSCALED,
-            scale=SCALE,
-            meta={"num_classes": COUNTS.shape[0]}
+            target=TARGET, beta=BETA, scaled=SCALED, meta={"num_classes": COUNTS.shape[0]}
         )
         self.assertEqual(num_groups, 6)
-        reference = 2 * TARGET
-        prediction = np.argmax(UNSCALED, axis=1)
-        reference[prediction != TARGET] += 1
-        np.testing.assert_allclose(groups, reference)
+        np.testing.assert_allclose(groups, GROUPS)
 
     # method _sample_candidates() already tested by the above or via test_np_objective.py
 
@@ -154,7 +153,7 @@ class TestTfClassifierObjective(TestCase):
 
     # method _get_group_samples() already tested by the above or via test_np_objective.py
 
-    # method _finalize_split() already tested by test_split_samples_1() above
+    # methods _finalize_split() and _adjust_ref_weights() already tested by test_split_samples_1() above
 
     def test_convert_sample_data_1(self):
         vector = np.array([1, 2, 3])
@@ -175,6 +174,7 @@ class TestTfClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -197,6 +197,7 @@ class TestTfClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),
@@ -336,6 +337,7 @@ class TestTfClassifierObjective(TestCase):
             features=FEATURES,
             target=TARGET,
             weights=WEIGHTS,
+            beta=BETA,
             num_candidates=NUM_CANDIDATES,
             max_fraction=MAX_FRACTION,
             set_manager=MockSetManager(),

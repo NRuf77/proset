@@ -16,8 +16,15 @@ from sklearn.neighbors import KernelDensity
 
 print("* Apply user settings")
 input_path = "scripts/results"
-output_path = "scripts/reports"
-input_file = "mnist_pca_10b_model.gz"
+input_files = [
+    "mnist_pca_10b_model.gz",
+    "mnist_pca_10b_beta_50_model.gz"
+]
+print("  Select input file:")
+for i, file_name in enumerate(input_files):
+    print("  {} - {}".format(i, file_name))
+choice = int(input())
+input_file = input_files[choice]
 
 print("* Load model fit results")
 with gzip.open(os.path.join(input_path, input_file), mode="rb") as file:

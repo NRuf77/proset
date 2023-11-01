@@ -117,6 +117,7 @@ probabilities.
 bound on the number of samples per batch, which is more efficient.
 - version 0.3.1: benchmark scripts cleaned up.
 - version 0.4.0: modified the recommended fit strategy to reduce overfitting when using multiple batches.
+- version 0.5.0: modified the strategy for selecting candidates such that it can be extended to regression.
 
 ### Note on performance
 Version 0.2.0 improves compute performance as version 0.1.0 was somewhat unsatisfactory in that regard.

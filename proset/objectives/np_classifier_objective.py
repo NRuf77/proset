@@ -22,6 +22,7 @@ class NpClassifierObjective(NpObjective):
             features,
             target,
             weights,
+            beta,
             num_candidates,
             max_fraction,
             lambda_v,
@@ -34,6 +35,7 @@ class NpClassifierObjective(NpObjective):
         :param features: see docstring of objective.Objective.__init__() for details
         :param target: 1D numpy integer array; class labels encodes as integers from 0 to K - 1
         :param weights: see docstring of objective.Objective.__init__() for details
+        :param beta: see docstring of objective.Objective.__init__() for details
         :param num_candidates: see docstring of objective.Objective.__init__() for details
         :param max_fraction: see docstring of objective.Objective.__init__() for details
         :param lambda_v: see docstring of objective.Objective.__init__() for details
@@ -47,6 +49,7 @@ class NpClassifierObjective(NpObjective):
             features=features,
             target=target,
             weights=weights,
+            beta=beta,
             num_candidates=num_candidates,
             max_fraction=max_fraction,
             lambda_v=lambda_v,
@@ -58,25 +61,26 @@ class NpClassifierObjective(NpObjective):
         return meta
 
     @staticmethod
-    def _assign_groups(target, unscaled, scale, meta):
+    def _assign_groups(target, beta, scaled, meta):
         """Divide training samples into groups for sampling candidates.
 
         :param target: see docstring of _check_init_values() for details
-        :param unscaled: 2D numpy array of type specified by shared.FLOAT_TYPE; unscaled predictions corresponding to
-            the target values
-        :param scale: see docstring of objective.Objective._assign_groups() for details
+        :param beta: see docstring of objective.Objective.__init__() for details
+        :param scaled: see docstring of objective.Objective._assign_groups() for details
         :param meta: dict; must have key 'num_classes' referencing the number of classes
         :return: as return value of objective.Objective._assign_groups()
         """
-        return shared_classifier.assign_groups(target=target, unscaled=unscaled, meta=meta)
+        return shared_classifier.assign_groups(target=target, beta=beta, scaled=scaled, meta=meta)
 
-    @staticmethod
-    def _finalize_split(candidates, features, target, weights, unscaled, scale, meta):
+    @classmethod
+    def _finalize_split(cls, candidates, features, target, num_groups, groups, weights, unscaled, scale, meta):
         """Apply sample split into candidates for prototypes and reference points.
 
         :param candidates: see docstring of np_objective.NpObjective._finalize_split() for details
         :param features: see docstring of np_objective.NpObjective._finalize_split() for details
         :param target: see docstring of _check_init_values() for details
+        :param num_groups: see docstring of np_objective.NpObjective._finalize_split() for details
+        :param groups: see docstring of np_objective.NpObjective._finalize_split() for details
         :param weights: see docstring of np_objective.NpObjective._finalize_split() for details
         :param unscaled: see docstring of np_objective.NpObjective._finalize_split() for details
         :param scale: see docstring of np_objective.NpObjective._finalize_split() for details
@@ -93,13 +97,12 @@ class NpClassifierObjective(NpObjective):
             candidates=candidates,
             features=features,
             target=target,
+            num_groups=num_groups,
+            groups=groups,
             weights=weights,
             unscaled=unscaled,
             scale=scale,
             meta=meta
-        )
-        sample_data["ref_weights"] = shared_classifier.adjust_ref_weights(
-            sample_data=sample_data, candidates=candidates, target=target, weights=weights, meta=meta
         )
         order = np.argsort(sample_data["cand_target"])
         sample_data["cand_features"] = sample_data["cand_features"][order].astype(**shared.FLOAT_TYPE)

@@ -25,6 +25,7 @@ class TfObjective(Objective, metaclass=ABCMeta):
             features,
             target,
             weights,
+            beta,
             num_candidates,
             max_fraction,
             set_manager,
@@ -39,6 +40,7 @@ class TfObjective(Objective, metaclass=ABCMeta):
         :param features: see docstring of objective.Objective.__init__() for details
         :param target: see docstring of objective.Objective.__init__() for details
         :param weights: see docstring of objective.Objective.__init__() for details
+        :param beta: see docstring of objective.Objective.__init__() for details
         :param num_candidates: see docstring of objective.Objective.__init__() for details
         :param max_fraction: see docstring of objective.Objective.__init__() for details
         :param set_manager: see docstring of objective.Objective.__init__() for details
@@ -55,6 +57,7 @@ class TfObjective(Objective, metaclass=ABCMeta):
             features=features,
             target=target,
             weights=weights,
+            beta=beta,
             num_candidates=num_candidates,
             max_fraction=max_fraction,
             set_manager=set_manager,

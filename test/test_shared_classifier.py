@@ -49,6 +49,9 @@ UNSCALED = np.array([
     [1.0, 2.0, 3.0]   # class 2 instead of 1
 ], **shared.FLOAT_TYPE)
 SCALE = np.sum(UNSCALED, axis=1)
+SCALED = (UNSCALED.transpose() / SCALE).transpose()
+GROUPS = np.array([2, 4, 0, 0, 4, 5, 0, 2, 1, 3])
+# the sample with the worst prediction per class is selected to be in the corresponding odd-numbered group
 LARGE_GROUPS = np.hstack([
     np.zeros(1000, dtype=int),
     np.ones(100, dtype=int),
@@ -67,6 +70,7 @@ LAMBDA_V = 1e-2
 LAMBDA_W = 1e-5
 ALPHA_V = 0.95
 ALPHA_W = 0.05
+BETA = 0.1
 RANDOM_STATE = np.random.RandomState(12345)
 
 
@@ -102,6 +106,7 @@ def _get_consistent_example():
         features=FEATURES,
         target=TARGET,
         weights=WEIGHTS,
+        beta=BETA,
         num_candidates=NUM_CANDIDATES,
         max_fraction=MAX_FRACTION,
         set_manager=MockSetManager(),
@@ -188,39 +193,24 @@ class TestSharedClassifier(TestCase):
 
     def test_assign_groups_1(self):
         num_groups, groups = shared_classifier.assign_groups(
-            target=TARGET,
-            unscaled=UNSCALED,
-            meta={"num_classes": COUNTS.shape[0]}
+            target=TARGET, beta=BETA, scaled=SCALED, meta={"num_classes": COUNTS.shape[0]}
         )
         self.assertEqual(num_groups, 6)
-        reference = 2 * TARGET
-        prediction = np.argmax(UNSCALED, axis=1)
-        reference[prediction != TARGET] += 1
-        np.testing.assert_allclose(groups, reference)
+        np.testing.assert_allclose(groups, GROUPS)
 
-    @staticmethod
-    def test_adjust_ref_weights_1():
-        ref_target = TARGET[REFERENCE]
-        cand_target = TARGET[CANDIDATES]
-        ref_weights = WEIGHTS[REFERENCE]
-        cand_weights = WEIGHTS[CANDIDATES]
-        new_weights = shared_classifier.adjust_ref_weights(
-            sample_data={  # include only fields used by the function to be tested
-                "ref_target": ref_target,
-                "ref_weights": ref_weights.copy()
-            },
-            candidates=CANDIDATES,
-            target=TARGET,
-            weights=WEIGHTS,
-            meta={"num_classes": COUNTS.shape[0]}
+    def test_assign_groups_2(self):
+        target = np.hstack([np.zeros(100, dtype=int), np.ones(100, dtype=int)])
+        scaled = np.arange(100, dtype=np.float32) / 100.0
+        scaled = np.vstack([
+            np.hstack([scaled, np.zeros(100, dtype=np.float32)]),
+            np.hstack([np.zeros(100, dtype=np.float32), scaled])
+        ]).transpose()
+        reference = np.hstack([np.ones(25), np.zeros(75), 3 * np.ones(25), 2 * np.ones(75)])
+        num_groups, groups = shared_classifier.assign_groups(
+            target=target, beta=0.25, scaled=scaled, meta={"num_classes": 2}
         )
-        shared.check_float_array(x=new_weights, name="new_weights")
-        for i in range(len(COUNTS)):
-            class_weight = np.sum(WEIGHTS[TARGET == i])
-            candidate_class_weight = np.sum(cand_weights[cand_target == i])
-            correction = class_weight / (class_weight - candidate_class_weight)
-            ref_weights[ref_target == i] *= correction
-        np.testing.assert_array_equal(new_weights, ref_weights)
+        self.assertEqual(num_groups, 4)
+        np.testing.assert_allclose(groups, reference)
 
     def test_find_class_matches_1(self):
         sample_data = {  # include only fields used by the function to be tested

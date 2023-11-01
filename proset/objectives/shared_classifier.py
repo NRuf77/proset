@@ -42,42 +42,23 @@ def _compute_threshold(max_fraction):
     return 2 * int(half_samples) - 1
 
 
-def assign_groups(target, unscaled, meta):
+def assign_groups(target, beta, scaled, meta):
     """Divide training samples into groups for sampling candidates.
 
-    :param target: see docstring of objective.Objective.__init__() for details
-    :param unscaled: 2D numpy array of type specified by shared.FLOAT_TYPE; unscaled predictions corresponding to the
-        target values
+    :param target: see docstring of objective.NpClassifierObjective._check_init_values() for details
+    :param beta: see docstring of objective.Objective.__init__() for details
+    :param scaled: see docstring of objective.Objective._assign_groups() for details
     :param meta: dict; must have key 'num_classes' referencing the number of classes
-    :return: two return values:
-        - integer; total number of groups mandated by hyperparameters
-        - 1D numpy integer array; group assignment to samples as integer from 0 to the number of groups - 1; note
-          that the assignment is not guaranteed to contain all group numbers
+    :return: as return value of objective.Objective._assign_groups()
     """
-    groups = 2 * target  # correctly classified samples are assigned an even group number based on their target
-    groups[target != np.argmax(unscaled, axis=1)] += 1  # incorrectly classified samples are assigned odd numbers
-    # no need to scale as the scales for classification are just the row-sums
+    goodness = np.squeeze(np.take_along_axis(scaled, target[:, None], axis=1))
+    # extract the predicted probability for the true class
+    groups = np.zeros_like(target, dtype=int)
+    for class_ in range(meta["num_classes"]):
+        ix = target == class_
+        groups[ix] = 2 * class_ + (goodness[ix] < np.quantile(a=goodness[ix], q=beta)).astype(int)
+        # assign observations with low goodness to odd groups
     return 2 * meta["num_classes"], groups
-
-
-def adjust_ref_weights(sample_data, candidates, target, weights, meta):
-    """Adjust weights of reference points in sample data for classification.
-
-    :param sample_data: as return value of objective.Objective._finalize_split()
-    :param candidates: as return value of objective.Objective._sample_candidates()
-    :param target: see docstring of objective.Objective.__init__() for details
-    :param weights: see docstring of objective.Objective.__init__() for details
-    :param meta: dict; must have key 'num_classes' referencing the number of classes
-    :return: 1D numpy array with positive values of type specified by shared.FLOAT_TYPE; adjusted reference weights
-    """
-    ref_weights = sample_data["ref_weights"].copy(order="F")  # do not modify original input
-    for i in range(meta["num_classes"]):
-        ix = target == i
-        class_weight = np.sum(weights[ix])
-        class_weight /= class_weight - np.sum(weights[np.logical_and(ix, candidates)])
-        ix = sample_data["ref_target"] == i
-        ref_weights[ix] = ref_weights[ix] * class_weight
-    return ref_weights
 
 
 def find_class_matches(sample_data, meta):
