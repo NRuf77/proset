@@ -44,7 +44,7 @@ def write_report(file_path, report, column_format=None, cell_format=None):  # pr
     """
     column_format = _update_format(format_=column_format, default=COLUMN_FORMAT)
     cell_format = _update_format(format_=cell_format, default=CELL_FORMAT)
-    writer = pd.ExcelWriter(file_path)  # pylint: disable=abstract-class-instantiated
+    writer = pd.ExcelWriter(file_path, engine="xlsxwriter")  # pylint: disable=abstract-class-instantiated
     workbook = writer.book  # pylint: disable=no-member  # noqa
     cell_format = {key: workbook.add_format(value) for key, value in cell_format.items()}
     worksheet = workbook.add_worksheet("export")

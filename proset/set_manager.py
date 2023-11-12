@@ -7,11 +7,11 @@ Released under the MIT license - see LICENSE file for details
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
-import scipy.sparse as sparse
+from scipy import sparse
 from scipy.sparse.csgraph import connected_components
 from sklearn.metrics import pairwise_distances
 
-import proset.shared as shared
+from proset import shared
 
 
 MERGE_TOL = 1e-6
@@ -517,12 +517,12 @@ class SetManager(metaclass=ABCMeta):
         active_features = self.get_active_features()
         if self._meta["num_features"] is None:  # nothing to do as no batches were ever added
             return active_features  # this is a vector of length zero by default
+        # noinspection PyTypedDict
         self._meta["num_features"] = active_features.shape[0]
-        for i in range(len(self._batches)):
-            if self._batches[i] is not None:
-                self._batches[i]["active_features"] = np.searchsorted(
-                    active_features, self._batches[i]["active_features"]
-                )  # locate batch active features among all active features
+        for batch in self._batches:
+            if batch is not None:
+                batch["active_features"] = np.searchsorted(active_features, batch["active_features"])
+                # locate batch active features among all active features
         return active_features
 
 

@@ -14,7 +14,7 @@ import logging
 import numpy as np
 from sklearn.utils.validation import check_array
 
-import proset.shared as shared
+from proset import shared
 
 
 LOGGER = logging.getLogger(__name__)
@@ -401,7 +401,7 @@ class Objective(metaclass=ABCMeta):
                     self._meta["num_parameters"] - self._meta["num_features"], **shared.FLOAT_TYPE
                 )
             ]),
-            tuple([(0.0, np.inf) for _ in range(self._meta["num_parameters"])])
+            tuple([(0.0, np.inf)] * self._meta["num_parameters"])
         )
 
     def evaluate(self, parameter):

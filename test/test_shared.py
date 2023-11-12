@@ -8,7 +8,7 @@ from unittest import TestCase
 
 import numpy as np
 
-import proset.shared as shared
+from proset import shared
 from test.test_set_manager import REFERENCE, PROTOTYPES, FEATURE_WEIGHTS  # pylint: disable=wrong-import-order
 
 
@@ -82,9 +82,23 @@ class TestShared(TestCase):
             shared.check_classifier_target(target=np.array([0, 2]), weights=None)
         except ValueError as ex:
             message = ex.args[0]
-        self.assertEqual(
-            message, "Parameter target must encode classes as integers from 0 to K - 1 and every class must be present."
-        )
+        self.assertEqual(message, " ".join([
+            "Parameter target must encode classes as integers from 0 to K - 1 and every class must be present",
+            "(excluding cases with zero weight)."
+        ]))
+
+    def test_check_classifier_target_fail_8(self):
+        message = ""
+        try:
+            shared.check_classifier_target(
+                target=np.array([0, 1, 2]), weights=np.array([1.0, 0.0, 1.0]).astype(**shared.FLOAT_TYPE)
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, " ".join([
+            "Parameter target must encode classes as integers from 0 to K - 1 and every class must be present",
+            "(excluding cases with zero weight)."
+        ]))
 
     @staticmethod
     def test_check_classifier_target_1():

@@ -5,11 +5,11 @@ Released under the MIT license - see LICENSE file for details
 """
 
 import numpy as np
-import scipy.linalg.blas as blas  # pylint: disable=no-name-in-module
+from scipy.linalg import blas  # pylint: disable=no-name-in-module
 
+from proset import shared
+from proset.objectives import shared_classifier
 from proset.objectives.np_objective import NpObjective
-import proset.objectives.shared_classifier as shared_classifier
-import proset.shared as shared
 
 
 class NpClassifierObjective(NpObjective):

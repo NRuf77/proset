@@ -353,7 +353,7 @@ class ModelPlots(metaclass=ABCMeta):
                 raise ValueError("Parameter highlight must be a 1D array.")
             if highlight.shape[0] != features.shape[0]:
                 raise ValueError("Parameter highlight must have as many elements as features has rows.")
-            if highlight.dtype not in [bool, np.bool]:
+            if highlight.dtype != bool:
                 raise TypeError("Parameter highlight must be of boolean type.")
             if highlight_name is None:
                 raise ValueError("Parameter highlight_name must be provided if highlight is not None.")
@@ -1063,7 +1063,7 @@ class ModelPlots(metaclass=ABCMeta):
             - list of plot handles for creating a matplotlib legend
             - list of strings; legend text
         """
-        NotImplementedError("Abstract method ModelPlots._create_scatter_plot() has no default implementation.")
+        raise NotImplementedError("Abstract method ModelPlots._create_scatter_plot() has no default implementation.")
 
     @classmethod
     @abstractmethod
@@ -1227,14 +1227,14 @@ class ModelPlots(metaclass=ABCMeta):
             x_range=None,
             y_range=None
         )
-        if isinstance(add_jitter, (bool, np.bool)):
+        if isinstance(add_jitter, bool):
             add_jitter = (np.zeros(num_features) * add_jitter).astype(bool)
         else:
             if len(add_jitter.shape) != 1:
                 raise ValueError("Parameter add_jitter must be a boolean value or 1D array.")
             if add_jitter.shape[0] != num_features:
                 raise ValueError(ERROR_MESSAGE_FEATURES.format("add_jitter", num_features))
-            if add_jitter.dtype not in [bool, np.bool]:
+            if add_jitter.dtype != bool:
                 raise ValueError("Parameter add_jitter must be of boolean type.")
         return features, target, highlight, reference, explain_features, explain_target, add_jitter
 

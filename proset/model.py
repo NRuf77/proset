@@ -21,10 +21,10 @@ from sklearn.utils.multiclass import check_classification_targets
 from sklearn.utils.validation import check_array, check_is_fitted, check_random_state
 from statsmodels.distributions.empirical_distribution import ECDF
 
+from proset import shared
 from proset.objectives.np_classifier_objective import NpClassifierObjective
 from proset.objectives.tf_classifier_objective import TfClassifierObjective
 from proset.set_manager import ClassifierSetManager
-import proset.shared as shared
 
 
 LOGGER = logging.getLogger(__name__)

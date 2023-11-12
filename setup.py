@@ -40,10 +40,12 @@ setup(
         "pandas>=1.4.1",
         "scipy>=1.8.0",
         "scikit-learn>=1.0.2",
-        "statsmodels>=0.13.2"
+        "statsmodels>=0.13.2",
+        "xlsxwriter>=3.1.7"
     ],
     extras_require={
         "benchmarks": ["mnist>=0.2.2", "psutil>=5.7.2", "shap>=0.39.0", "xgboost>=1.3.3"],
+        "development": ["coverage>=7.3.2", "ipython>=8.12.2", "pylint>=3.0.2"],
         "tensorflow": ["tensorflow>=2.8.0"]
     },
     exclude_package_data={

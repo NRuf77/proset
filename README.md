@@ -54,6 +54,7 @@ Proset requires Python 3.8 or later with the following packages:
 - scipy >= 1.8.0
 - scikit-learn >= 1.0.2
 - statsmodels >= 0.13.2
+- xlsxwriter >= 3.1.7
 
 Additional packages are required to run the benchmark scripts:
 - mnist >= 0.2.2
@@ -61,12 +62,17 @@ Additional packages are required to run the benchmark scripts:
 - shap >= 0.39.0
 - xgboost >= 1.3.3
 
+Package development relies on the following tools:
+- coverage >= 7.3.2
+- ipython >= 8.12.2
+- pylint >= 3.0.2
+
 To use tensorflow for model fitting, install
 - tensorflow >= 2.8.0
 
 Use this command to install proset with all extras (no space allowed after comma):
 ```
-pip install proset[benchmarks,tensorflow]
+pip install proset[benchmarks,development,tensorflow]
 ```
 
 ## Usage
@@ -118,6 +124,7 @@ bound on the number of samples per batch, which is more efficient.
 - version 0.3.1: benchmark scripts cleaned up.
 - version 0.4.0: modified the recommended fit strategy to reduce overfitting when using multiple batches.
 - version 0.5.0: modified the strategy for selecting candidates such that it can be extended to regression.
+- version 0.5.1: cleaned up minor issues related to package dependencies.
 
 ### Note on performance
 Version 0.2.0 improves compute performance as version 0.1.0 was somewhat unsatisfactory in that regard.

@@ -62,7 +62,7 @@ class ClassifierPlots(ModelPlots):
             raise RuntimeError(
                 "Function ClassifierPlots.plot_surface() does not support classifiers with more than 3 classes."
             )
-        use_proba = kwargs["use_proba"] if "use_proba" in kwargs.keys() else False
+        use_proba = kwargs["use_proba"] if "use_proba" in kwargs else False
         if use_proba:
             plot_settings = {"plot_type": "Probability surface", "interpolation": "lanczos"}
             if compute_familiarity:
@@ -263,7 +263,7 @@ class ClassifierPlots(ModelPlots):
             line_style = "--"
             target = cls._encode_target(model=model, target=target)
         labels = np.unique(target)
-        range_factor = (1.0 + RANGE_DELTA)
+        range_factor = 1.0 + RANGE_DELTA
         y_max /= range_factor  # convert to exact maximum from previous call
         kde = KernelDensity(bandwidth=bandwidth)
         grid = np.reshape(np.linspace(start=x_range[0], stop=x_range[1], num=GRID_STEPS), (GRID_STEPS, 1))

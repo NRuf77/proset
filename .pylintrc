@@ -20,7 +20,8 @@ good-names=d,
 min-similarity-lines=45  # longest block with false positive duplicate-code has 44 lines
 
 [MESSAGES CONTROL]
-disable=logging-format-interpolation,
+disable=consider-using-f-string,
+		logging-format-interpolation,
         too-many-arguments,
         too-many-instance-attributes,
         too-many-locals

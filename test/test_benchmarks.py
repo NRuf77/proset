@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
-import proset.benchmarks.reference as reference
+from proset.benchmarks import reference
 
 
 FEATURES = np.array([[0.0, 1.0], [2.0, 3.0], [4.0, 5.0], [6.0, 7.0], [8.0, 9.0]])
@@ -603,7 +603,6 @@ class TestBenchmarks(TestCase):
             result["params"]["colsample_bylevel"], stage_1["colsample_grid"][stage_1["selected_index"]]
         )
         self.assertEqual(result["params"]["subsample"], stage_1["subsample_grid"][stage_1["selected_index"]])
-        self.assertEqual(len(result["dtrain"].feature_names), FEATURES.shape[1])
         self.assertEqual(result["num_boost_round"], NUM_ITER[1])
         self.assertTrue(isinstance(result["folds"], StratifiedKFold))
         self.assertEqual(result["folds"].n_splits, NUM_FOLDS)

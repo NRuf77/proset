@@ -6,7 +6,7 @@ Released under the MIT license - see LICENSE file for details
 
 import numpy as np
 
-import proset.shared as shared
+from proset import shared
 
 
 def check_classifier_init_values(target, max_fraction):

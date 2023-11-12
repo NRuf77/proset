@@ -10,8 +10,8 @@ try:
 except ImportError:  # pragma: no cover
     tf = None
 
+from proset.objectives import shared_classifier
 from proset.objectives.tf_objective import TfObjective
-import proset.objectives.shared_classifier as shared_classifier
 from proset.shared import LOG_OFFSET
 
 

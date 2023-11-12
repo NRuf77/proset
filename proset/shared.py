@@ -5,7 +5,7 @@ Released under the MIT license - see LICENSE file for details
 """
 
 import numpy as np
-import scipy.linalg.blas as blas  # pylint: disable=no-name-in-module
+from scipy.linalg import blas  # pylint: disable=no-name-in-module
 
 
 FLOAT_TYPE = {"dtype": np.float32, "order": "F"}  # enforce this format for all float arrays
@@ -36,15 +36,16 @@ def check_classifier_target(target, weights):
         if np.any(weights < 0.0):
             raise ValueError("Parameter weights must not contain negative values.")
         check_float_array(x=weights, name="weights")
-        classes = np.unique(target)
+        classes = np.unique(target[weights > 0.0])
         sort_ix = np.argsort(target)
         # np.add.reduceat() requires weights with the same target value to be grouped together
         changes = find_changes(target[sort_ix])
         counts = np.add.reduceat(weights[sort_ix], indices=changes)
     if not np.array_equal(classes, np.arange(classes.shape[0])):
-        raise ValueError(
-            "Parameter target must encode classes as integers from 0 to K - 1 and every class must be present."
-        )
+        raise ValueError(" ".join([
+            "Parameter target must encode classes as integers from 0 to K - 1 and every class must be present",
+            "(excluding cases with zero weight)."
+        ]))
     return counts
 
 

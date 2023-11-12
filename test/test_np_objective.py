@@ -8,10 +8,9 @@ from unittest import TestCase
 
 import numpy as np
 
+from proset import shared
 from proset.objectives.objective import START_FEATURE_WEIGHT, START_PROTOTYPE_WEIGHT
 from proset.objectives.np_classifier_objective import NpClassifierObjective
-import proset.shared as shared
-
 # pylint: disable=wrong-import-order
 from test.test_shared_classifier import MockSetManager, _get_consistent_example, FEATURES, TARGET, COUNTS, \
     COUNTS_BELOW_FIVE, WEIGHTS, UNSCALED, SCALE, SCALED, GROUPS, LARGE_GROUPS, NUM_LARGE_GROUPS, \

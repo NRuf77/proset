@@ -11,9 +11,9 @@ from unittest import TestCase
 
 import numpy as np
 
+from proset import shared
+from proset.objectives import shared_classifier
 from proset.objectives.np_classifier_objective import NpClassifierObjective
-import proset.objectives.shared_classifier as shared_classifier
-import proset.shared as shared
 
 
 # define common objects for testing
@@ -223,7 +223,7 @@ class TestSharedClassifier(TestCase):
             sample_data=sample_data,
             meta={"num_classes": COUNTS.shape[0]}
         )
-        self.assertTrue(class_matches.flags["F_CONTIGUOUS"])
+        self.assertTrue(class_matches.flags["F_CONTIGUOUS"])  # pylint: disable=unsubscriptable-object
         class_matches_reference = np.zeros(
             (sample_data["ref_features"].shape[0], sample_data["cand_features"].shape[0]), dtype=bool
         )

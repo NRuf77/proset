@@ -14,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
 from proset import ClassifierModel
-import proset.utility.fit as fit
+from proset.utility import fit
 from test.test_np_objective import FEATURES, TARGET, WEIGHTS  # pylint: disable=wrong-import-order
 
 

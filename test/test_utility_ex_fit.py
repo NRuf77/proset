@@ -10,8 +10,7 @@ import numpy as np
 
 from proset import ClassifierModel
 from proset.shared import check_feature_names
-import proset.utility.other as other
-import proset.utility.write as write
+from proset.utility import other, write
 from test.test_np_objective import FEATURES, TARGET  # pylint: disable=wrong-import-order
 
 

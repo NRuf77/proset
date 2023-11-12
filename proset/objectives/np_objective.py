@@ -8,8 +8,8 @@ from abc import ABCMeta, abstractmethod
 
 import numpy as np
 
+from proset import shared
 from proset.objectives.objective import Objective
-import proset.shared as shared
 
 
 SPARSE_THRESHOLD_FEATURES = 0.7
