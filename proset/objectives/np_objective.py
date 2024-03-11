@@ -172,15 +172,15 @@ class NpObjective(Objective, metaclass=ABCMeta):
         :return: a float value and two 1D numpy arrays of type specified by shared.FLOAT_TYPE; penalty value, penalty
             gradient for feature weights, and penalty gradient for prototype weights
         """
-        scaled_feature_weights = alpha_v * feature_weights
-        scaled_prototype_weights = alpha_w * prototype_weights
+        scaled_feature_weights = (1.0 - alpha_v) * feature_weights
+        scaled_prototype_weights = (1.0 - alpha_w) * prototype_weights
         penalty = lambda_v * np.sum(
             0.5 * feature_weights * scaled_feature_weights + feature_weights - scaled_feature_weights
         ) + lambda_w * np.sum(
             0.5 * prototype_weights * scaled_prototype_weights + prototype_weights - scaled_prototype_weights
-        )  # no need to use np.abs() for the l1 penalty as weights are constrained to be non-negative
-        feature_gradient = lambda_v * (scaled_feature_weights + 1 - alpha_v)
-        prototype_gradient = lambda_w * (scaled_prototype_weights + 1 - alpha_w)
+        )  # no need to use np.abs() for the L1 penalty as weights are constrained to be non-negative
+        feature_gradient = lambda_v * (scaled_feature_weights + alpha_v)
+        prototype_gradient = lambda_w * (scaled_prototype_weights + alpha_w)
         return penalty, feature_gradient, prototype_gradient
 
     @staticmethod

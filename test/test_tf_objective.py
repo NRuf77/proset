@@ -279,7 +279,7 @@ class TestTfClassifierObjective(TestCase):
                 delta.transpose() * impact[:, i] * example["sample_data"]["ref_weights"] / scale, axis=1
             )
         reference *= example["feature_weights"] / example["total_weight"]
-        reference += LAMBDA_V * (ALPHA_V * example["feature_weights"] + (1 - ALPHA_V))
+        reference += LAMBDA_V * ((1.0 - ALPHA_V) * example["feature_weights"] + ALPHA_V)
         np.testing.assert_allclose(gradient[0].numpy(), reference, atol=1e-6)
         reference = (
             np.sum(example["similarity"].transpose() * example["sample_data"]["ref_weights"] / scale, axis=1) -
@@ -288,7 +288,7 @@ class TestTfClassifierObjective(TestCase):
                 example["sample_data"]["ref_weights"] / ref_unscaled, axis=1
             )
         ) / example["total_weight"]
-        reference += LAMBDA_W * (ALPHA_W * example["prototype_weights"] + (1 - ALPHA_W))
+        reference += LAMBDA_W * ((1.0 - ALPHA_W) * example["prototype_weights"] + ALPHA_W)
         np.testing.assert_allclose(gradient[1].numpy(), reference, atol=1e-6)
 
     @staticmethod
@@ -325,9 +325,9 @@ class TestTfClassifierObjective(TestCase):
             alpha_w=ALPHA_W
         )
         ref_value = LAMBDA_V * (
-            ALPHA_V * np.sum(feature_weights ** 2.0) / 2.0 + (1 - ALPHA_V) * np.sum(feature_weights)
+                (1.0 - ALPHA_V) * np.sum(feature_weights ** 2.0) / 2.0 + ALPHA_V * np.sum(feature_weights)
         ) + LAMBDA_W * (
-            ALPHA_W * np.sum(prototype_weights ** 2.0) / 2.0 + (1 - ALPHA_W) * np.sum(prototype_weights)
+            (1.0 - ALPHA_W) * np.sum(prototype_weights ** 2.0) / 2.0 + ALPHA_W * np.sum(prototype_weights)
         )
         self.assertAlmostEqual(value.numpy(), ref_value)  # scalar tensor evaluates to float
 

@@ -660,7 +660,7 @@ def _make_final_model(settings, search, features, target, weights):
     :param weights: see docstring of select_hyperparameters() for details
     :return: two return values:
         - machine learning model; if settings["transform"] is None, returns settings["model"] after fitting; else,
-          returns ans sklearn Pipeline object containing the fitted transform and model
+          returns an sklearn Pipeline object containing the fitted transform and model
         - list of 1D numpy integer arrays or None; list of index vectors for subsampling at each stage; None if no
           subsampling was used
     """

@@ -1,5 +1,5 @@
 # Python package proset
-proset copyright 2022 by Nikolaus Ruf
+proset copyright 2022-2024 by Nikolaus Ruf
 
 Released under the MIT license - see LICENSE file for details
 
@@ -47,28 +47,29 @@ If you are interested in these, please clone or download the full source code fr
 [> proset on GitHub](https://github.com/NRuf77/proset)
 
 ### Dependencies
-Proset requires Python 3.8 or later with the following packages:
-- matplotlib >= 3.5.1
-- numpy >= 1.22.3
-- pandas >= 1.4.1
-- scipy >= 1.8.0
-- scikit-learn >= 1.0.2
-- statsmodels >= 0.13.2
-- xlsxwriter >= 3.1.7
+Proset requires Python 3.10 or later with the following packages:
+- matplotlib >= 3.8.3
+- numpy >= 1.26.4
+- pandas >= 2.2.1
+- scipy >= 1.12.0
+- scikit-learn >= 1.4.1.post1
+- statsmodels >= 0.14.1
+- xlsxwriter >= 3.1.9
 
 Additional packages are required to run the benchmark scripts:
 - mnist >= 0.2.2
-- psutil >= 5.7.2
-- shap >= 0.39.0
-- xgboost >= 1.3.3
+- psutil >= 5.9.8
+- shap >= 0.44.0
+- xgboost >= 2.0.3
 
 Package development relies on the following tools:
-- coverage >= 7.3.2
-- ipython >= 8.12.2
-- pylint >= 3.0.2
+- coverage >= 7.4.3
+- ipython >= 8.22.1
+- pylint >= 3.0.4
+- twine >= 5.0.0
 
 To use tensorflow for model fitting, install
-- tensorflow >= 2.8.0
+- tensorflow >= 2.15.0
 
 Use this command to install proset with all extras (no space allowed after comma):
 ```
@@ -125,6 +126,8 @@ bound on the number of samples per batch, which is more efficient.
 - version 0.4.0: modified the recommended fit strategy to reduce overfitting when using multiple batches.
 - version 0.5.0: modified the strategy for selecting candidates such that it can be extended to regression.
 - version 0.5.1: cleaned up minor issues related to package dependencies.
+- version 0.6.0: updated requirements to Python 3.10 and compatible packages; changed the definition of the alpha
+parameters to match the literature (large values indicate dominant L1 penalty).
 
 ### Note on performance
 Version 0.2.0 improves compute performance as version 0.1.0 was somewhat unsatisfactory in that regard.

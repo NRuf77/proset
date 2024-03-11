@@ -31,13 +31,12 @@ This method is implemented as R package \texttt{glmnet} \cite{Friedman_10} for a
 In each case, a functional like this is minimized to determine model coefficients (with optional observation weights):\par
 %
 \begin{equation}
-f_{\alpha,\lambda}\left(\beta\left|\{(x_i,y_i)\}_i\right.\right):=\frac{1}{N}\sum_{i=1}^Nl(y_i,\beta_0+\beta^Tx_i)+\lambda\left(\frac{\alpha}{2}\sum_{j=1}^d\beta_j^2+(1-\alpha)\sum_{j=1}^d|\beta_j|\right)\label{eq_regularization}
+f_{\alpha,\lambda}\left(\beta\left|\{(x_i,y_i)\}_i\right.\right):=\frac{1}{N}\sum_{i=1}^Nl(y_i,\beta_0+\beta^Tx_i)+\lambda\left(\frac{1-\alpha}{2}\sum_{j=1}^d\beta_j^2+\alpha\sum_{j=1}^d|\beta_j|\right)\label{eq_regularization}
 \end{equation}
 %
 Here, $(x_i,y_i)$ are $N\gg1$ observations with feature vectors $x_i\in\R^d$ and associated targets $y_i\in\R$, or some suitable subset thereof, e.g., the integers from $0$ to $K-1$ in case of classification with $K>1$ classes.
 The link function $l$ is the negative log-likelihood for target $y_i$ conditional on a linear combination of $x_i$ with coefficients $\beta\in\R^d$ and intercept $\beta_0\in\R$.
-Penalty weights $\lambda\geq0$ and $\alpha\in[0,1]$ determine the overall magnitude of the elastic net penalty and the relative importance of the $L_1$- and $L_2$-terms.
-Note that the we have reversed the role of $\alpha$ compared to the formulation used in \cite{Friedman_10}, i.e., $\alpha=1$ is pure $L_2$-regularization.\par
+Penalty weights $\lambda\geq0$ and $\alpha\in[0,1]$ determine the overall magnitude of the elastic net penalty and the relative importance of the $L_1$- and $L_2$-terms.\par
 %
 Feature selection via $L_1$-penalty is a powerful technique.
 It allows the user to evaluate a large number of potential input variables without having to worry about overfitting.
@@ -219,6 +218,9 @@ on the number of samples per batch, which is more efficient.
 \item[0.5.0:] modified the strategy for selecting candidates such that it can be extended to regression.
 %
 \item[0.5.1:] cleaned up minor issues related to package dependencies.
+%
+\item[0.6.0:] updated requirements to Python 3.10 and compatible packages;
+changed the definition of the $\alpha$ parameters to match the literature (large values indicate dominant $L_1$ penalty).
 \end{description}
 %
 \endinput

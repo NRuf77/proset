@@ -884,7 +884,7 @@ class TestNpClassifierObjective(TestCase):
         self.assertAlmostEqual(value, ref_value_1 + ref_value_2)
         self.assertEqual(gradient.dtype, np.float64)  # solver expects 64bit
         np.testing.assert_allclose(gradient, np.hstack([
-            LAMBDA_V * (1.0 - ALPHA_V) * np.ones(dimensions[0]),
+            LAMBDA_V * ALPHA_V * np.ones(dimensions[0]),
             ref_prototype_gradient_1 + ref_prototype_gradient_2
         ]), atol=1e-6)
 
@@ -919,15 +919,15 @@ class TestNpClassifierObjective(TestCase):
             alpha_w=ALPHA_W
         )
         ref_value = LAMBDA_V * (
-                0.5 * ALPHA_V * np.sum(feature_weights ** 2.0) + (1 - ALPHA_V) * np.sum(feature_weights)) + \
+                0.5 * (1.0 - ALPHA_V) * np.sum(feature_weights ** 2.0) + ALPHA_V * np.sum(feature_weights)) + \
             LAMBDA_W * (
-                0.5 * ALPHA_W * np.sum(prototype_weights ** 2.0) + (1 - ALPHA_W) * np.sum(prototype_weights))
+                0.5 * (1.0 - ALPHA_W) * np.sum(prototype_weights ** 2.0) + ALPHA_W * np.sum(prototype_weights))
         self.assertAlmostEqual(value, ref_value)
         shared.check_float_array(x=feature_grad, name="feature_grad")
-        ref_feature_grad = LAMBDA_V * (ALPHA_V * feature_weights + 1 - ALPHA_V)
+        ref_feature_grad = LAMBDA_V * ((1.0 - ALPHA_V) * feature_weights + ALPHA_V)
         np.testing.assert_allclose(feature_grad, ref_feature_grad)
         shared.check_float_array(x=prototype_grad, name="prototype_grad")
-        ref_prototype_grad = LAMBDA_W * (ALPHA_W * prototype_weights + 1 - ALPHA_W)
+        ref_prototype_grad = LAMBDA_W * ((1.0 - ALPHA_W) * prototype_weights + ALPHA_W)
         np.testing.assert_allclose(prototype_grad, ref_prototype_grad)
 
     def test_shrink_sample_data_1(self):

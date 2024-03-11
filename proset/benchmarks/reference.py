@@ -67,7 +67,7 @@ def fit_knn_classifier(
     search = GridSearchCV(
         estimator=model,
         param_grid={para_name: k_grid},
-        scoring=make_scorer(score_func=log_loss, greater_is_better=False, needs_proba=True),
+        scoring=make_scorer(score_func=log_loss, response_method="predict_proba", greater_is_better=False),
         cv=StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=random_state),
         refit=False
     )
@@ -265,7 +265,7 @@ def _check_ratios(ratios, parameter_name, check_order):
     else:
         if len(ratios) != 2:
             raise ValueError("Parameter {} must have length 2 if passing a tuple.".format(parameter_name))
-        if not(0.0 < ratios[0] <= 1.0 and 0.0 < ratios[1] <= 1.0):
+        if not (0.0 < ratios[0] <= 1.0 and 0.0 < ratios[1] <= 1.0):
             raise ValueError("Parameter {} must have both elements in (0.0, 1.0] if passing a tuple.".format(
                 parameter_name
             ))
@@ -288,7 +288,7 @@ def _fit_xgb_classifier_stage_1(features, labels, settings):  # pragma: no cover
         estimator=xgb.XGBClassifier(**fixed_para),
         param_distributions=search_para,
         n_iter=settings["stage_1_trials"],
-        scoring=make_scorer(score_func=log_loss, greater_is_better=False, needs_proba=True),
+        scoring=make_scorer(score_func=log_loss, response_method="predict_proba", greater_is_better=False),
         cv=settings["splitter"],
         refit=False,
         random_state=settings["random_state"]

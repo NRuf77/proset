@@ -55,8 +55,8 @@ class Model(BaseEstimator, metaclass=ABCMeta):
             n_iter=1,
             lambda_v=1e-3,
             lambda_w=1e-8,
-            alpha_v=0.95,
-            alpha_w=0.95,
+            alpha_v=0.05,
+            alpha_w=0.05,
             beta=0.1,
             num_candidates=1000,
             max_fraction=0.5,
@@ -69,10 +69,10 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         :param n_iter: non-negative integer; number of batches of prototypes to fit
         :param lambda_v: non-negative float; penalty weight for the feature weights
         :param lambda_w: non-negative float; penalty weight for the prototype weights
-        :param alpha_v: float in [0.0, 1.0]; fraction of lambda_v assigned as l2 penalty weight to feature weights; the
-            remainder is assigned as l1 penalty weight
-        :param alpha_w: float in [0.0, 1.0]; fraction of lambda_w assigned as l2 penalty weight to prototype weights;
-            the remainder is assigned as l1 penalty weight
+        :param alpha_v: float in [0.0, 1.0]; fraction of lambda_v assigned as L1 penalty weight to feature weights; the
+            remainder is assigned as L2 penalty weight
+        :param alpha_w: float in [0.0, 1.0]; fraction of lambda_w assigned as L1 penalty weight to prototype weights;
+            the remainder is assigned as L2 penalty weight
         :param beta: float in (0.0, 0.5]; assign observations to groups for sampling candidates such that half of them
             are drawn from the 100 * beta percent where the current prediction is worst
         :param num_candidates: positive integer; number of candidates for prototypes to try for each batch
@@ -98,6 +98,12 @@ class Model(BaseEstimator, metaclass=ABCMeta):
         self.random_state = random_state
         self.use_tensorflow = use_tensorflow
         self.solver_factr = solver_factr
+
+    def _more_tags(self):
+        return {"_xfail_checks": {"check_sample_weights_invariance": " ".join([
+            "Since proset splits its training data randomly,",
+            "setting sample weights to zero does not yield the same result as removing the corresponding rows."
+        ])}}
 
     def fit(self, X, y, sample_weight=None, warm_start=False):
         """Fit proset model to data.
@@ -700,7 +706,8 @@ class Model(BaseEstimator, metaclass=ABCMeta):
     ):  # pragma: no cover
         """Format properties of baseline estimator for explain().
 
-        :param X: 2D numpy array of type specified by shared.FLOAT_TYPE; feature matrix
+        :param X: 2D numpy array of type specified by shared.FLOAT_TYPE; feature matrix having a single row; sparse
+            matrices or infinite/missing values not supported
         :param y: see docstring of explain() for details
         :param n_iter: see docstring of explain() for details
         :param familiarity: see docstring of explain() for details
@@ -985,7 +992,7 @@ class ClassifierModel(Model):
             column_name = "p class {}".format(i)
             new_column = np.zeros(self.classes_.shape[0] + 1, **shared.FLOAT_TYPE)
             new_column[0] = probabilities[0, i]
-            new_column[i + 1] = self.set_manager_.marginals[i] / (sample_familiarity + 1.0)
+            new_column[i + 1] = self.set_manager_.marginals[i] / (sample_familiarity[0] + 1.0)
             report[column_name] = new_column
             columns.append(column_name)
         if include_features:

@@ -63,10 +63,10 @@ class Objective(metaclass=ABCMeta):
         :param set_manager: an instance of a subclass of abstract class proset.set_manager.SetManager
         :param lambda_v: non-negative float; penalty weight for the feature weights
         :param lambda_w: non-negative float; penalty weight for the prototype weights
-        :param alpha_v: float in [0.0, 1.0]; fraction of lambda_v assigned to the l2 penalty for feature weights; the
-            complementary fraction (1 - alpha_v) of lambda_v is assigned to the l1 penalty
-        :param alpha_w: float in [0.0, 1.0]; fraction of lambda_w assigned to the l2 penalty for prototype weights; the
-            complementary fraction (1 - alpha_w) of lambda_w is assigned to the l1 penalty
+        :param alpha_v: float in [0.0, 1.0]; fraction of lambda_v assigned to the L1 penalty for feature weights; the
+            complementary fraction (1 - alpha_v) of lambda_v is assigned to the L2 penalty
+        :param alpha_w: float in [0.0, 1.0]; fraction of lambda_w assigned to the L1 penalty for prototype weights; the
+            complementary fraction (1 - alpha_w) of lambda_w is assigned to the L2 penalty
         :param random_state: an instance of np.random.RandomState
         """
         if weights is None:

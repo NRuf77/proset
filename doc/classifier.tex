@@ -126,16 +126,21 @@ The likelihood function shown below was modified in version 0.5.0 of the algorit
 See Section \ref{sec_updated_candidate_sampling} `Updated candidate sampling' for details.
 }}\end{center}
 %
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+Before version 0.6.0 of the algorithm, the role of each $\alpha$ was reversed, i.e., a large value indicated a dominant $L_2$ penalty.
+This has been changed throughout the source code and documentation to be consistent with the reference literature.
+}}\end{center}
+%
 Given the first $c-1$ batches, the parameters for batch $c>0$ are chosen to minimize the following function, which is the negative log-likelihood with regularization as per (\ref{eq_regularization}) and reweighting as discussed above:
 %
 \begin{align}
 f\left(v_c,\{w_{c,j}\}_j|\{x_n\}_n\right)
 &=-\frac{1}{N}\sum_{k=0}^{K-1}\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
 \1_{\{k\}}(y_n)\log(\hat{p}_{c,k}(x_n))\label{eq_log_likelihood}\\
-&+\lambda_v\left(\frac{\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2
-+(1-\alpha_v)\sum_{d=1}^D|v_{c,d}|\right)\notag\\
-&+\lambda_w\left(\frac{\alpha_w}{2}\sum_{j=1}^{J_c}w_{c,j}^2
-+(1-\alpha_w)\sum_{j=1}^{J_c}|w_{c,j}|\right)\notag
+&+\lambda_v\left(\frac{1-\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2
++\alpha_v\sum_{d=1}^D|v_{c,d}|\right)\notag\\
+&+\lambda_w\left(\frac{1-\alpha_w}{2}\sum_{j=1}^{J_c}w_{c,j}^2
++\alpha_w\sum_{j=1}^{J_c}|w_{c,j}|\right)\notag
 \end{align}
 %
 The following expressions still need to be defined:
@@ -152,9 +157,9 @@ is the number of all candidates in batch $c>0$ that have class $k$.
 %
 \item $\lambda_w\geq0$ is the weight for the elastic net penalty applied to prototype weights.
 %
-\item $\alpha_v\in[0,1]$ is the portion of $\lambda_v$ assigned to the $L_2$ penalty for feature weights.
+\item $\alpha_v\in[0,1]$ is the portion of $\lambda_v$ assigned to the $L_1$ penalty for feature weights.
 %
-\item $\alpha_w\in[0,1]$ is the portion of $\lambda_w$ assigned to the $L_2$ penalty for prototype weights.
+\item $\alpha_w\in[0,1]$ is the portion of $\lambda_w$ assigned to the $L_1$ penalty for prototype weights.
 \end{itemize}
 %
 Given a set of prototypes $S_c$, the objective function (\ref{eq_log_likelihood}) is maximized subject to $v_{c,d}\geq0$ and $w_{c,j}\geq0$.
@@ -211,12 +216,12 @@ The partial derivatives of the objective function on the first orthant are
 &=-\frac{1}{N}\sum_{k=0}^{K-1}\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
 \1_{\{k\}}(y_n)\frac{\partial}{\partial v_{c,d}}\log(\hat{p}_{c,k}(x_n))
 \label{eq_l_partial_v}\\
-&+\lambda(\alpha_v v_{c,d}+(1-\alpha_v))\notag\\
+&+\lambda((1-\alpha_v)v_{c,d}+\alpha_v)\notag\\
 \frac{\partial}{\partial w_{c,j}}f(v_c,\{w_{c,j}\}_j|\{x_n\}_n)
 &=-\frac{1}{N}\sum_{k=0}^{K-1}\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
 \1_{\{k\}}(y_n)\frac{\partial}{\partial w_{c,j}}\log(\hat{p}_{c,k}(x_n))
 \label{eq_l_partial_w}\\
-&+\lambda\beta(\alpha_w w_{c,j}+(1-\alpha_w))\notag
+&+\lambda((1-\alpha_w)w_{c,j}+\alpha_w)\notag
 \end{align}
 %
 \begin{center}\fbox{\parbox{0.95\textwidth}{\small
@@ -349,9 +354,9 @@ Fitting a proset classifier is controlled by seven hyperparameters:
 %
 \item The penalty term $\lambda_w$ for the prototype weights.
 %
-\item The ratio $\alpha_v$ of $\lambda_v$ assigned as $L_2$ penalty term.
+\item The ratio $\alpha_v$ of $\lambda_v$ assigned as $L_1$ penalty term.
 %
-\item The ratio $\alpha_w$ of $\lambda_w$ assigned as $L_2$ penalty term.
+\item The ratio $\alpha_w$ of $\lambda_w$ assigned as $L_1$ penalty term.
 \end{itemize}
 %
 One goal of the case studies in this section is to identify good default values and indicate which parameters are worthwhile to tune.
@@ -392,9 +397,18 @@ This is desirable to some degree for avoiding overfitting.\par
 In the case study for the classifier, good values lie in the range from $10^{-9}$ to $10^{-4}$.
 Choosing $10^{-8}$ as default works for all cases.
 %
-\item A dominant $L_2$-penalty ($\alpha_v$ and $\alpha_w$ close to 1.0) yields slightly better results in the case study than either a dominant $L_1$- or balanced penalty.
-The default values recommended for the algorithm are $\alpha_v=\alpha_w=0.95$.
+\item A dominant $L_2$-penalty ($\alpha_v$ and $\alpha_w$ close to 0.0) yields slightly better results in the case study than either a dominant $L_1$- or balanced penalty.
+The default values recommended for the algorithm are $\alpha_v=\alpha_w=0.05$.
 \end{enumerate}
+%
+\begin{center}\fbox{\parbox{0.95\textwidth}{\small
+Further experimentation with larger data sets showed that there is a tradeoff between $\lambda_v$ and $B$.
+Optimizing $\lambda_v$ for a single batch and then adding more batches can lead to modest overfitting.
+Thus, if we choose $B$ after the penalty as proposed below, cross-validation is likely to select a single batch even if multiple batches would yield a better model.
+To avoid this, we implemented a different fit strategy starting with version 0.4.0 of the algorithm.
+This focuses on jointly optimizing $\lambda_v$ and $B$ while keeping all other parameters at the recommended defaults.
+See Section \ref{sec_updated_fit} `Updated fit strategy' for details.
+}}\end{center}
 %
 The case study uses the following procedure for hyperparameter search, subject to small variations described later:
 %
@@ -504,7 +518,7 @@ Features for all benchmark data sets are centered and scaled before fitting a pr
 The first three experiments consider the impact of $\alpha_v$ and $\alpha_w$ on model behavior.
 Proset classifiers are fitted to all six data sets with fixed $M=1,000$ and $\eta=0.5$.
 Penalty weights are sampled from the ranges $\lambda_v\in(10^{-6},10^{-1})$ and $\lambda_w\in(10^{-9},10^{-4})$, while the number of batches is allowed to vary between 0 and 10.
-The first experiment uses a dominant $L_1$-penalty ($\alpha_v=\alpha_w=0.05$), the second uses balanced penalties ($\alpha_v=\alpha_w=0.50$), and the third a dominant $L_2$-penalty ($\alpha_v=\alpha_w=0.95$).\par
+The first experiment uses a dominant $L_1$-penalty ($\alpha_v=\alpha_w=0.95$), the second uses balanced penalties ($\alpha_v=\alpha_w=0.50$), and the third a dominant $L_2$-penalty ($\alpha_v=\alpha_w=0.05$).\par
 %
 \begin{figure}
 \caption{[E1] Parameter search for Iris 2F data}
@@ -547,7 +561,7 @@ The reported score is the unweighted average of the correct classification rates
 \end{description}
 %
 \begin{table}
-\caption{[E1] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}
+\caption{[E1] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}
 \label{tab_e1}
 %
 \begin{center}
@@ -631,7 +645,7 @@ Balanced acc.&0.73&0.93&0.95&0.97&0.95&0.72\\
 \end{table}
 %
 \begin{table}
-\caption{[E3] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}
+\caption{[E3] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}
 \label{tab_e3}
 %
 \begin{center}
@@ -677,11 +691,11 @@ Balanced acc.&0.71&0.98&0.98&0.97&0.95&0.72\\
 In the experiments, a dominant $L_1$-penalty yields slightly worse results than balanced penalties or a dominant $L_2$-penalty.
 Also, we have occasionally observed (not in the results reported here) that a dominant $L_1$-penalty causes too few features to be selected for the final model.
 This happens even though models created during cross-validation do not underfit.
-The likely reason is that random candidate selection for small sample size can result in a set of candidates hat does not fully represent the data.
-Since a dominant $L_2$-penalty slightly outperforms the balanced case in the trials, we recommend $\alpha_v=\alpha_w=0.95$ as default values.\par
+The likely reason is that random candidate selection for small sample size can result in a set of candidates that does not fully represent the data.
+Since a dominant $L_2$-penalty slightly outperforms the balanced case in the trials, we recommend $\alpha_v=\alpha_w=0.05$ as default values.\par
 %
 \begin{table}
-\caption{[E4] Use optimal hyperparameters ($\alpha_v=\alpha_w=0.95$)}
+\caption{[E4] Use optimal hyperparameters ($\alpha_v=\alpha_w=0.05$)}
 \label{tab_e4}
 %
 \begin{center}
@@ -748,7 +762,7 @@ This is due to the layering of kernels with different bandwidths in a model with
 \clearpage
 %
 \begin{table}
-\caption{[E5] Grid search for $\lambda_v$ ($\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.95$)}
+\caption{[E5] Grid search for $\lambda_v$ ($\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.05$)}
 \label{tab_e5}
 %
 \begin{center}
@@ -797,7 +811,7 @@ Therefore, $\lambda_w=10^{-8}$ is the recommended default for the proset classif
 \clearpage
 %
 \begin{table}
-\caption{[E6] Stage 2 only ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}
+\caption{[E6] Stage 2 only ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.05$)}
 \label{tab_e6}
 %
 \begin{center}
@@ -846,7 +860,7 @@ Based on this finding, we recommend $\lambda_w=10^{-3}$ as default for the class
 \hline
 &\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
 &\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
-\multicolumn{7}{|l|}{\textbf{[E1] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}}\\
+\multicolumn{7}{|l|}{\textbf{[E1] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
 Active features&2&6&3&19&2&6\\
 Prototypes&34&43&24&546&257&309\\
 Log-loss&0.62&0.14&0.13&0.15&0.17&0.55\\
@@ -860,28 +874,28 @@ Log-loss&0.49&0.20&0.13&0.18&\textbf{0.16}&0.53\\
 Threshold stage 2&0.49&0.16&0.14&0.19&0.19&0.55\\
 ROC-AUC&0.90&0.98&0.99&1.00&0.99&0.82\\
 Balanced acc.&0.73&0.93&0.95&0.97&0.95&0.72\\
-\multicolumn{7}{|l|}{\textbf{[E3] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+\multicolumn{7}{|l|}{\textbf{[E3] Randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}}\\
 Active features&2&7&4&30&2&6\\
 Prototypes&49&52&56&861&328&413\\
 Log-loss&\textbf{0.43}&0.14&0.13&0.15&0.18&0.52\\
 Threshold stage 2&0.57&0.17&0.14&0.17&0.20&0.53\\
 ROC-AUC&0.91&1.00&0.99&1.00&0.99&0.82\\
 Balanced acc.&0.71&0.98&0.98&0.97&0.95&0.72\\
-\multicolumn{7}{|l|}{\textbf{[E4] Use optimal hyperparameters ($\alpha_v=\alpha_w=0.95$)}}\\
+\multicolumn{7}{|l|}{\textbf{[E4] Use optimal hyperparameters ($\alpha_v=\alpha_w=0.05$)}}\\
 Active features&2&11&3&41&2&6\\
 Prototypes&65&204&93&3,053&595&403\\
 Log-loss&0.48&\textbf{0.05}&\textbf{0.11}&0.13&\textbf{0.16}&0.52\\
 Threshold stage 2&0.57&0.17&0.14&0.17&0.20&0.53\\
 ROC-AUC&0.87&1.00&0.99&1.00&0.99&0.83\\
 Balanced acc.&0.69&0.98&0.95&0.97&0.94&0.74\\
-\multicolumn{7}{|l|}{\textbf{[E5] Grid search for $\lambda_v$ ($\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.95$)}}\\
+\multicolumn{7}{|l|}{\textbf{[E5] Grid search for $\lambda_v$ ($\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.05$)}}\\
 Active features&2&4&3&18&2&6\\
 Prototypes&25&25&69&410&409&421\\
 Log-loss&0.47&0.12&0.13&0.18&0.17&0.53\\
 Threshold stage 2&0.71&0.21&0.15&0.26&0.19&0.53\\
 ROC-AUC&0.90&1.00&0.99&1.00&0.99&0.81\\
 Balanced acc.&0.73&0.97&0.96&0.97&0.95&0.71\\
-\multicolumn{7}{|l|}{\textbf{[E6] Stage 2 only  ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}}\\
+\multicolumn{7}{|l|}{\textbf{[E6] Stage 2 only  ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.05$)}}\\
 Active features&2&7&4&34&2&6\\
 Prototypes&82&72&149&1,270&2527&1,261\\
 Log-loss&0.45&0.16&0.13&\textbf{0.12}&0.18&\textbf{0.49}\\
@@ -896,7 +910,7 @@ Balanced acc.&0.76&0.95&0.95&0.98&0.95&0.75\\
 \clearpage
 %
 \begin{table}
-\caption{[E7] Stage 2, vary candidates ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.95$)}
+\caption{[E7] Stage 2, vary candidates ($\lambda_v=10^{-3}$, $\lambda_w=10^{-8}$, and $\alpha_v=\alpha_w=0.05$)}
 \label{tab_e7}
 %
 \begin{center}
@@ -1114,7 +1128,7 @@ Balanced acc.&0.69&0.97&0.96&0.98&0.98&0.50\\
 \hline
 &\multicolumn{6}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
 &\textbf{Iris 2f}&\textbf{Wine}&\textbf{Cancer}&\textbf{Digits}&\textbf{Checker}&\textbf{XOR 6f}\\
-\multicolumn{7}{|l|}{\textbf{[E3] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+\multicolumn{7}{|l|}{\textbf{[E3] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}}\\
 Active features&2&7&4&30&2&6\\
 Log-loss&\textbf{0.43}&0.14&0.13&0.15&0.18&\textbf{0.52}\\
 Threshold stage 2&0.57&0.17&0.14&0.17&0.20&0.53\\
@@ -1142,7 +1156,7 @@ The structure of the tables and reported metrics are essentially the same as for
 For XGBoost, the number of active features reported is the number of features with positive importance score using the method's built-in scoring.\par
 %
 Table \ref{tab_e3_e8_e9} summarizes the performance of all three models.
-For proset, reference values are taken from the full parameters search using $\alpha_v=\alpha_w=0.95$ (see Table \ref{tab_e3}).\par
+For proset, reference values are taken from the full parameters search using $\alpha_v=\alpha_w=0.05$ (see Table \ref{tab_e3}).\par
 %
 \begin{enumerate}
 \item\textbf{Iris 2f:} proset is best with kNN equivalent and XGBoost worse.
@@ -1339,7 +1353,7 @@ Balanced acc.&0.95&0.97&0.94&0.60&0.50\\
 \hline
 &\multicolumn{5}{c|}{\textbf{\hrulefill\ Data set \hrulefill}}\\
 &\textbf{Checker rot}&\textbf{XOR 3f}&\textbf{XOR 4f}&\textbf{XOR 5f}&\textbf{XOR 6+6f}\\
-\multicolumn{6}{|l|}{\textbf{[E10] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+\multicolumn{6}{|l|}{\textbf{[E10] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}}\\
 Active features&2&3&4&5&6\\
 Log-loss&0.18&0.17&0.28&\textbf{0.39}&\textbf{0.56}\\
 Threshold stage 2&0.20&0.23&0.33&0.40&0.57\\
@@ -1437,7 +1451,7 @@ In the following, we consider a value of $\text{factr}=10^{10}$ as an alternativ
 Note that L-BFGS-B also stops if the gradient has a small norm or an upper bound on the number of iterations is reached, but these criteria do not allow us to exploit the observed behavior.\par
 %
 Our first experiment [E13] for evaluating the changes is to repeat the model fit for the iris 2f, wine, cancer, digits, and checker data of Section \ref{sec_classifier_benchmarks} with different settings.
-Model hyperparameters are those from experiment [E3], i.e., $\alpha_v=\alpha_w=0.95$ with cross-validated search for $\lambda_v$ and $\lambda_w$ in stage 1 and the number of batches in stage 2.
+Model hyperparameters are those from experiment [E3], i.e., $\alpha_v=\alpha_w=0.05$ with cross-validated search for $\lambda_v$ and $\lambda_w$ in stage 1 and the number of batches in stage 2.
 The goal is to show that measures 1.\ and 2.\ reduce computation time and measure 5.\ does not unduly increase it.
 As the data sets are fairly small, we only include timings for \texttt{tensorflow} with GPU support for the digits and checker cases.
 Likewise, training data is never broken up into chunks as memory requirements are modest.
@@ -1644,7 +1658,7 @@ This results in a feature vector of length 2,048.
 All models use the following hyperparameters, which reflect lessons learned from previous experiments:
 %
 \begin{itemize}
-\item $L_2$-penalty is dominant with $\alpha_v=\alpha_w=0.95$ (cp.\ [E3]).
+\item $L_2$-penalty is dominant with $\alpha_v=\alpha_w=0.05$ (cp.\ [E3]).
 %
 \item Vary $\lambda_v$ on a grid with 11 points logarithmically spaced between $10^{-6}$ and $10^{-1}$ but fix $\lambda_w=10^{-8}$ (cp.\ [E5]).
 %
@@ -1691,7 +1705,7 @@ This is based on a single trial and rounded to the closest 15 minutes.
 \end{description}
 %
 \begin{table}
-\caption{[E14] Larger benchmark cases (fix $\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.95$)}
+\caption{[E14] Larger benchmark cases (fix $\lambda_w=10^{-8}$ and $\alpha_v=\alpha_w=0.05$)}
 \label{tab_e14}
 %
 \begin{center}
@@ -1874,7 +1888,7 @@ In case of multiple candidates, take the one with the smallest number of batches
 \end{enumerate}
 \end{algorithm}
 %
-Python package \texttt{proset} uses default parameters $M=1,000$, $\eta=0.5$, $\alpha_v=\alpha_w=0.95$ and $\lambda_w=10^{-8}$.
+Python package \texttt{proset} uses default parameters $M=1,000$, $\eta=0.5$, $\alpha_v=\alpha_w=0.05$ and $\lambda_w=10^{-8}$.
 The grid for $\lambda_v$ has 11 logarithmically spaced values from $10^{-6}$ to $10^{-1}$, $B_U$ is set to 10.
 These settings apply to all experiments except where noted.\par
 %
@@ -1930,7 +1944,7 @@ Log-loss&0.61&0.19&\textbf{0.12}&0.13&0.17&\textbf{0.50}\\
 Threshold&0.67&0.09&0.13&0.17&0.17&0.52\\
 ROC-AUC&0.83&0.99&0.99&1.00&0.99&0.83\\
 Balanced acc.&0.69&0.95&0.97&0.98&0.94&0.74\\
-\multicolumn{7}{|l|}{\textbf{[E3] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+\multicolumn{7}{|l|}{\textbf{[E3] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}}\\
 Active features&2&7&4&30&2&6\\
 Log-loss&\textbf{0.43}&0.14&0.13&0.15&0.18&0.52\\
 Threshold stage 2&0.57&0.17&0.14&0.17&0.20&0.53\\
@@ -2013,7 +2027,7 @@ Log-loss&0.16&0.18&0.28&\textbf{0.38}&\textbf{0.53}\\
 Threshold&0.17&0.21&0.29&0.41&0.56\\
 ROC-AUC&0.99&0.98&0.96&0.91&0.80\\
 Balanced acc.&0.95&0.93&0.87&0.81&0.72\\
-\multicolumn{6}{|l|}{\textbf{[E10] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.95$)}}\\
+\multicolumn{6}{|l|}{\textbf{[E10] Proset with randomized search for $\lambda_v$ and $\lambda_w$ ($\alpha_v=\alpha_w=0.05$)}}\\
 Active features&2&3&4&5&6\\
 Log-loss&0.18&0.17&0.28&0.39&0.56\\
 Threshold stage 2&0.20&0.23&0.33&0.40&0.57\\

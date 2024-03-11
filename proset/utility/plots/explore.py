@@ -549,7 +549,7 @@ class ModelPlots(metaclass=ABCMeta):
         plt.xlim(x_range)
         plt.ylim(y_range)
         plt.gca().set_aspect(0.66 * np.diff(x_range) / np.diff(y_range))
-        plt.grid("on")
+        plt.grid(True)
         plt.xlabel(feature_names[0])
         plt.ylabel(feature_names[1])
         if len(legend) > 0:
@@ -1017,7 +1017,7 @@ class ModelPlots(metaclass=ABCMeta):
             )
         plt.xlim(x_range)
         plt.ylim(y_range)
-        plt.grid("on")
+        plt.grid(True)
         plt.xlabel("First PC")
         plt.ylabel("Second PC")
         if len(legend) > 0:
@@ -1606,7 +1606,7 @@ class ModelPlots(metaclass=ABCMeta):
             legend_text.append("to explain")
         plt.xlim(x_range)
         plt.ylim(y_range)
-        plt.grid("on")
+        plt.grid(True)
         cls._add_labels(
             x_label=x_label,
             y_label="kernel density" if show_y_axis != "no" else None,
@@ -1788,7 +1788,7 @@ class ModelPlots(metaclass=ABCMeta):
             )
         plt.xlim(x_range)
         plt.ylim(y_range)
-        plt.grid("on")
+        plt.grid(True)
         cls._add_labels(
             x_label=x_label,
             y_label=y_label,

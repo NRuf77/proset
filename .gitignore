@@ -2,9 +2,12 @@
 .idea/*
 build/*
 dist/*
-doc/*.log
-doc/*.pdf
+doc/*.aux
 doc/*.gz
+doc/*.log
+doc/*.out
+doc/*.pdf
+doc/*.toc
 proset/__pycache__/*
 proset/benchmarks/__pycache__/*
 proset/objectives/__pycache__/*

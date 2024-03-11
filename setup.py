@@ -33,20 +33,20 @@ setup(
         "Programming Language :: Python :: 3",
         "Topic :: Scientific/Engineering :: Artificial Intelligence"
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     install_requires=[
-        "matplotlib>=3.5.1",
-        "numpy>=1.22.3",
-        "pandas>=1.4.1",
-        "scipy>=1.8.0",
-        "scikit-learn>=1.0.2",
-        "statsmodels>=0.13.2",
-        "xlsxwriter>=3.1.7"
+        "matplotlib>=3.8.3",
+        "numpy>=1.26.4",
+        "pandas>=2.2.1",
+        "scipy>=1.12.0",
+        "scikit-learn>=1.4.1.post1",
+        "statsmodels>=0.14.1",
+        "xlsxwriter>=3.1.9"
     ],
     extras_require={
-        "benchmarks": ["mnist>=0.2.2", "psutil>=5.7.2", "shap>=0.39.0", "xgboost>=1.3.3"],
-        "development": ["coverage>=7.3.2", "ipython>=8.12.2", "pylint>=3.0.2"],
-        "tensorflow": ["tensorflow>=2.8.0"]
+        "benchmarks": ["mnist>=0.2.2", "psutil>=5.9.8", "shap>=0.44.0", "xgboost>=2.0.3"],
+        "development": ["coverage>=7.4.3", "ipython>=8.22.1", "pylint>=3.0.4", "twine>=5.0.0"],
+        "tensorflow": ["tensorflow>=2.15.0"]
     },
     exclude_package_data={
         "proset": ["__pycache__"],

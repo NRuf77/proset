@@ -160,13 +160,13 @@ class TfObjective(Objective, metaclass=ABCMeta):
         :param alpha_w: see docstring of objective.Objective.__init__() for details
         :return: scalar tensor
         """
-        scaled_feature_weights = alpha_v * feature_weights
-        scaled_prototype_weights = alpha_w * prototype_weights
+        scaled_feature_weights = (1.0 - alpha_v) * feature_weights
+        scaled_prototype_weights = (1.0 - alpha_w) * prototype_weights
         return lambda_v * tf.reduce_sum(
             0.5 * feature_weights * scaled_feature_weights + feature_weights - scaled_feature_weights
         ) + lambda_w * tf.reduce_sum(
             0.5 * prototype_weights * scaled_prototype_weights + prototype_weights - scaled_prototype_weights
-        )  # no need to use np.abs() for the l1 penalty as weights are constrained to be non-negative
+        )  # no need to use np.abs() for the L1 penalty as weights are constrained to be non-negative
 
     def get_batch_info(self, parameter):
         """Provide information on batch of prototypes that can be passed to an appropriate instance of SetManager.

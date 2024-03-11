@@ -5,7 +5,6 @@ Released under the MIT license - see LICENSE file for details
 """
 
 from unittest import TestCase
-from warnings import warn
 
 import numpy as np
 import pandas as pd
@@ -23,25 +22,6 @@ from test.test_set_manager import BATCH_INFO  # pylint: disable=wrong-import-ord
 
 MARGINALS = COUNTS / np.sum(COUNTS)
 LOG_PROBABILITY = np.log(MARGINALS[TARGET] + shared.LOG_OFFSET)
-EXEMPT_CHECKS = [
-    # messages from sklearn estimator checks that fail for proset so the exception is converted to a warning
-    "For ClassifierModel, a zero sample_weight is not equivalent to removing the sample"
-    # proset splits training data randomly, which means behavior depends on the order of samples even if the random seed
-    # is fixed; the sklearn check does not provide samples in a consistent order for the two estimators being compared
-]
-EXEMPT_WARNING = "The sklearn estimator checks trigger an exception that proset cannot avoid:\n'{}'"
-
-
-def _check_message_exempt(message):
-    """Check whether an exception raised by sklearn estimator checks in the list of exceptions proset cannot avoid.
-
-    :param message: string
-    :return: boolean; whether the message is in the EXEMPT_CHECKS list
-    """
-    for reference in EXEMPT_CHECKS:
-        if reference in message:
-            return True
-    return False  # pragma: no cover
 
 
 # pylint: disable=missing-function-docstring, protected-access, too-many-public-methods
@@ -53,29 +33,11 @@ class TestClassifierModel(TestCase):
 
     @staticmethod
     def test_estimator_1():
-        checks = check_estimator(ClassifierModel(), generate_only=True)
-        for estimator, check in checks:
-            try:
-                check(estimator)
-            except AssertionError as ex:
-                message = ex.args[0]
-                if _check_message_exempt(message):
-                    warn(EXEMPT_WARNING.format(message))
-                else:
-                    raise ex  # pragma: no cover
+        check_estimator(ClassifierModel())
 
     @staticmethod
     def test_estimator_2():
-        checks = check_estimator(ClassifierModel(use_tensorflow=True), generate_only=True)
-        for estimator, check in checks:
-            try:
-                check(estimator)
-            except AssertionError as ex:
-                message = ex.args[0]
-                if _check_message_exempt(message):
-                    warn(EXEMPT_WARNING.format(message))
-                else:
-                    raise ex  # pragma: no cover
+        check_estimator(ClassifierModel(use_tensorflow=True))
 
     # no test for __init__() which only assigns public properties
 
