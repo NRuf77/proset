@@ -562,6 +562,7 @@ class ModelPlots(metaclass=ABCMeta):
             plt.title("Contour lines for quantiles of familiarity: {}".format(
                 ", ".join(["{:.2f}".format(q) for q in quantiles])
             ))
+        plt.show(block=False)
 
     @classmethod
     def _reduce_features(cls, scale, offset, feature_names, features, plot_index, reference, explain_features):
@@ -1033,6 +1034,7 @@ class ModelPlots(metaclass=ABCMeta):
                 plt.title("Marker area proportional to prototype impact")
         else:
             plt.title("Large markers = prototypes / small markers = additional samples")
+        plt.show(block=False)
 
     @staticmethod
     def _get_marker_size(plot_weights, show_features):
@@ -1489,6 +1491,7 @@ class ModelPlots(metaclass=ABCMeta):
             if comment is not None:
                 supertitle += " ({})".format(comment)
             plt.suptitle(supertitle)
+        plt.show(block=False)
 
     @staticmethod
     def _get_titles(batch, model_name, comment, is_density, make_single_figure, has_features):

@@ -39,6 +39,7 @@ def plot_select_results(result, model_name):
         x_key="lambda_v",
         x_grid=lambda_v_grid,
         x_values=(best_lambda_v, selected_lambda_v),
+        x_is_log=True,
         line_key="num_batches",
         line_grid=num_batch_grid,
         line_values=(best_batches, selected_batches),
@@ -47,13 +48,13 @@ def plot_select_results(result, model_name):
         scores=(best_score, selected_score),
         threshold=threshold
     )
-    plt.xscale("log")
     plt.subplot(122)
     _make_subplot(
         cv_results=cv_results,
         x_key="num_batches",
         x_grid=num_batch_grid,
         x_values=(best_batches, selected_batches),
+        x_is_log=False,
         line_key="lambda_v",
         line_grid=lambda_v_grid,
         line_values=(best_lambda_v, selected_lambda_v),
@@ -63,6 +64,7 @@ def plot_select_results(result, model_name):
         threshold=threshold
     )
     plt.suptitle("Hyperparameter search for {}".format(model_name))
+    plt.show(block=False)
 
 
 def _make_subplot(
@@ -70,6 +72,7 @@ def _make_subplot(
         x_key,
         x_grid,
         x_values,
+        x_is_log,
         line_key,
         line_grid,
         line_values,
@@ -85,6 +88,7 @@ def _make_subplot(
     :param x_key: string; name of x-axis parameter as column name in cv_results
     :param x_grid: 1D numpy float array; x-axis grid
     :param x_values: tuple of two floats; best and selected parameter value on x-axis
+    :param x_is_log: boolean; whether the x-axis should use a log scale
     :param line_key: string; name of parameter used to distinguish lines as column name in cv_results
     :param line_grid: 1D numpy float array; parameter values for distinct lines
     :param line_values: tuple of two floats; best and selected parameter value for distinct lines
@@ -94,7 +98,7 @@ def _make_subplot(
     :param threshold: float; upper bound on log-loss used to selected model parameters
     :return: no return value; plot generated
     """
-    x_range = np.array([x_grid[0], x_grid[-1]])
+    x_range = make_plot_range(values=x_grid, is_log=x_is_log)
     handle = None
     for value in line_grid:
         if value not in line_values:
@@ -120,6 +124,8 @@ def _make_subplot(
     plt.gca().set_xticks(x_grid)
     plt.xlim(x_range)
     plt.ylim(y_range)
+    if x_is_log:
+        plt.xscale("log")
     plt.xlabel(x_key)
     plt.ylabel("Log-loss")
     plt.legend(legend, legend_text, loc="upper center")

@@ -11,18 +11,24 @@ RANGE_DELTA = 0.05
 MIN_MARGIN = 1e-3
 
 
-def make_plot_range(values, delta=RANGE_DELTA, min_margin=MIN_MARGIN):
+def make_plot_range(values, delta=RANGE_DELTA, min_margin=MIN_MARGIN, is_log=False):
     """Compute plot range from vector.
 
     :param values: 1D numpy float array; values for one plot axis
     :param delta: non-negative float; fraction of value range to add as margin on both sides
     :param min_margin: positive float; minimum margin used if plot range is very small or zero
+    :param is_log: boolean; whether to compute the range for a log-scaled plot
     :return: 1D numpy float array with 2 elements; minimum and maximum value for plots
     """
+    if is_log:
+        values = np.log(values)
     min_value = np.min(values)
     max_value = np.max(values)
     margin = max((max_value - min_value) * delta, min_margin)
-    return np.array([min_value - margin, max_value + margin])
+    range_ = np.array([min_value - margin, max_value + margin])
+    if is_log:
+        range_ = np.exp(range_)
+    return range_
 
 
 def check_plot_range(plot_range, parameter_name):

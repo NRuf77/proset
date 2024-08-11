@@ -128,6 +128,7 @@ bound on the number of samples per batch, which is more efficient.
 - version 0.5.1: cleaned up minor issues related to package dependencies.
 - version 0.6.0: updated requirements to Python 3.10 and compatible packages; changed the definition of the alpha
 parameters to match the literature (large values indicate dominant L1 penalty).
+- version 0.6.1: minor updates to plot functions.
 
 ### Note on performance
 Version 0.2.0 improves compute performance as version 0.1.0 was somewhat unsatisfactory in that regard.
