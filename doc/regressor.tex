@@ -1,5 +1,49 @@
 \chapter{Prototype set regressor}
 \label{ch_regressors}
 %
-The regression model will be implemented in a later release of the software.
+The classifier model (\ref{eq_pkx}) is constructed using marginal probabilities as baseline and indicator functions as kernels on the target space.
+If we replace these by probability density functions, we obtain a locally weighted regressor.
+For our implementation, we rely entirely on Gaussians.
+%
+\section{Definition}
+\label{sec_regressor_definition}
+%
+To derive the regression model, we follow the notation introduced in Section \ref{sec_classifier_definition} as far as possible.
+The first major difference is that the random variables $Y_n$ are now presumed to be real-valued.
+Our baseline distribution is defined in terms of the first two sample moments:
+%
+\begin{align}
+\bar{y}_N&:=\frac{1}{N}\sum_{n=1}^Ny_n&
+\hat{s}^2_N&:=\frac{1}{N-1}\sum_{n=1}^N(y_n-\bar{y}_N)^2
+\label{eq_y_moments}
+\end{align}
+%
+As kernel on the target space, we use the univariate Gaussian density parameterized in terms of its inverse standard deviation:
+%
+\begin{equation}
+H_u(z):\R\rightarrow(0,\infty),z\mapsto H_u(z):=\frac{u}{\sqrt{2\pi}}\exp\left(-\frac{(uz)^2}{2}\right)\label{eq_kernel_2}
+\end{equation}
+%
+In analogy to (\ref{eq_pkx}), we estimate the density of $Y$ conditional on $X$ as
+%
+\begin{equation}
+f(Y=y|X=x)\approx\hat{f}(y|x):=
+\frac{H_{\hat{s}^{-1}_N}(y-\bar{y}_N)+\sum_{b=1}^B\sum_{j=1}^{J_b}H_{u_b}(y-y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
+{1+\sum_{b=1}^B\sum_{j=1}^{J_b}w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
+\label{eq_fyx}
+\end{equation}
+%
+Here, we introduce an additional set of parameters $u_b>0$, $b\in\{1,\dots,B\}$, that control the smoothness of the density for each batch.
+As we do not want these terms to vanish, the fitting procedure applies an $L_2$-penalty to the $u_b$, not elastic net regularization.
+%
+\begin{remark}
+\begin{enumerate}
+\item Unlike most regression algorithms that estimate a conditional mean, the proset regressor estimates a complete distribution.
+It can capture properties like heteroskedasticity, multimodality, or skewness.
+For any particular value of $x$, the model is equivalent to a Gaussian mixture.
+%
+\item A batch with $v_b\equiv0$ (independent of $x$) can still provide meaningful information on $Y$, effectively updating the baseline to be non-Gaussian.
+\end{enumerate}
+\end{remark}
+%
 \endinput
