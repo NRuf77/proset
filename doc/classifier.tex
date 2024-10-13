@@ -37,7 +37,7 @@ The unnormalized Gaussian kernel $G_v$ with feature weights (inverse bandwidths)
 %
 \begin{equation}
 G_v:\R^D\rightarrow(0,1],
-z\mapsto G_v(z):=\exp\left(-\frac{1}{2}\sum_{d=1}^D(v_dx_d)^2\right)\label{eq_kernel}
+z\mapsto G_v(z):=\exp\left(-\frac{1}{2}\sum_{d=1}^D(v_dz_d)^2\right)\label{eq_kernel}
 \end{equation}
 %
 We associate each batch $b$ with a vector $v_b\in\R^D$, $v_{b,d}\geq0$, and each prototype with a weight $w_{b,j}>0$ to estimate the conditional distribution as
