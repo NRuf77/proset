@@ -2146,8 +2146,8 @@ Different versions of \texttt{proset} or the underlying compute libraries may yi
 }}\end{center}
 %
 The strategy for choosing candidates proposed in Section \ref{sec_classifier_definition} divides the samples for each class into two groups based on whether or not the true class is assigned the largest probability.
-To generalize this approach to regression, we need to choose a data-adaptive threshold on the absolute residual.
-For a more consistent procedure, we apply a similar idea to classification as well:
+To generalize this approach to regression, we want to choose a data-adaptive threshold on the likelihood (predicted density at the candidate point).
+For a more consistent procedure, we apply a similar idea to classification:
 training samples are ranked in order of the predicted probability for the true class and half of the candidates for each class drawn from the worst cases.
 `Worst' means that the predicted probability for a class is below the $\beta$-quantile of all predictions for that class, where $\beta\in(0.0,0.5]$ is a new hyperparameter.
 Setting $\beta=0.5$ is `indifferent' sampling as we select half of the candidates below the median and the other half above.
