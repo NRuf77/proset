@@ -46,4 +46,24 @@ For any particular value of $x$, the model is equivalent to a Gaussian mixture.
 \end{enumerate}
 \end{remark}
 %
+As for the classifier, we derive equations for the iterative fitting procedure in terms of non-normalized partial sums for $c\geq0$:
+%
+\begin{equation}
+\hat{q}_c(y|x):=H_{\hat{s}^{-1}_N}(y-\bar{y}_N)+\sum_{b=1}^c\sum_{j=1}^{J_b}H_{u_b}(y-y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})\label{eq_hatqcxy}
+\end{equation}
+%
+The corresponding normalization factor is
+%
+\begin{equation}
+\hat{r}_c(y|x):=1+\sum_{b=1}^c\sum_{j=1}^{J_b}w_{b,j}G_{v_b}(x-x_{s_{b,j}})\label{eq_hatrcxy}
+\end{equation}
+%
+Thus, the estimator consisting of contributions up to batch $c$ is
+%
+\begin{equation}
+\hat{p}_c(y|x):=\frac{\hat{q}_c(y|x)}{\hat{r}_c(y|x)}\label{eq_hatpcxy}
+\end{equation}
+%
+In particular, $\hat{p}_0(y|x)=H_{\hat{s}^{-1}_N}(y-\bar{y}_N)$ and $\hat{p}_B(y|x)=\hat{p}(y|x)$.
+%
 \endinput
