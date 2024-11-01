@@ -9,14 +9,8 @@ For our implementation, we rely entirely on Gaussians.
 \label{sec_regressor_definition}
 %
 To derive the regression model, we follow the notation introduced in Section \ref{sec_classifier_definition} as far as possible.
-The first major difference is that the random variables $Y_n$ are now presumed to be real-valued.
-Our baseline distribution is defined in terms of the first two sample moments:
-%
-\begin{align}
-\bar{y}_N&:=\frac{1}{N}\sum_{n=1}^Ny_n&
-\hat{s}^2_N&:=\frac{1}{N-1}\sum_{n=1}^N(y_n-\bar{y}_N)^2
-\label{eq_y_moments}
-\end{align}
+The first major difference is that the random variables $Y_n$ are now real-valued and we presume w.l.o.g.\ that they have mean zero and variance one.
+The implemented algorithm applies centering and scaling before fitting and inverts the transform when serving predictions.\par
 %
 As kernel on the target space, we use the univariate Gaussian density parameterized in terms of its inverse standard deviation:
 %
@@ -28,28 +22,30 @@ In analogy to (\ref{eq_pkx}), we estimate the density of $Y$ conditional on $X$ 
 %
 \begin{equation}
 p(Y=y|X=x)\approx\hat{p}(y|x):=
-\frac{H_{\hat{s}^{-1}_N}(y-\bar{y}_N)+\sum_{b=1}^B\sum_{j=1}^{J_b}H_{u_b}(y-y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
+\frac{H_1(y)+\sum_{b=1}^B\sum_{j=1}^{J_b}H_{u_b}(y-y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
 {1+\sum_{b=1}^B\sum_{j=1}^{J_b}w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
 \label{eq_fyx}
 \end{equation}
 %
 Here, we introduce an additional set of parameters $u_b>0$, $b\in\{1,\dots,B\}$, that control the smoothness of the density for each batch.
-As we do not want these terms to vanish, the fitting procedure applies an $L_2$-penalty to the $u_b$, not elastic net regularization.
+As we do not want these terms to vanish, the fitting procedure applies an $L_2$-penalty to the $u_b$ instead of elastic net regularization.
 %
 \begin{remark}
 \begin{enumerate}
-\item Unlike most regression algorithms that estimate a conditional mean, the proset regressor estimates a complete distribution.
-It can capture properties like heteroskedasticity, multimodality, or skewness.
-For any particular value of $x$, the model is equivalent to a Gaussian mixture.
+\item The baseline distribution to which the model reduces in case no prototypes are selected is now the standard normal. 
 %
 \item A batch with $v_b\equiv0$ (independent of $x$) can still provide meaningful information on $Y$, effectively updating the baseline to be non-Gaussian.
+%
+\item Unlike most regression algorithms that estimate a conditional mean, the proset regressor estimates a complete distribution.
+It can capture properties like heteroskedasticity, multimodality, or skewness.
+For fixed $x$, the model is a Gaussian mixture.
 \end{enumerate}
 \end{remark}
 %
 As for the classifier, we derive equations for the iterative fitting procedure in terms of non-normalized partial sums for $c\geq0$:
 %
 \begin{equation}
-\hat{q}_c(y|x):=H_{\hat{s}^{-1}_N}(y-\bar{y}_N)+\sum_{b=1}^c\sum_{j=1}^{J_b}H_{u_b}(y-y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})\label{eq_hatqcxy}
+\hat{q}_c(y|x):=H_1(y)+\sum_{b=1}^c\sum_{j=1}^{J_b}H_{u_b}(y-y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})\label{eq_hatqcxy}
 \end{equation}
 %
 The corresponding normalization factor is
@@ -64,6 +60,6 @@ Thus, the estimator consisting of contributions up to batch $c$ is
 \hat{p}_c(y|x):=\frac{\hat{q}_c(y|x)}{\hat{r}_c(y|x)}\label{eq_hatpcxy}
 \end{equation}
 %
-In particular, $\hat{p}_0(y|x)=H_{\hat{s}^{-1}_N}(y-\bar{y}_N)$ and $\hat{p}_B(y|x)=\hat{p}(y|x)$.
+In particular, $\hat{p}_0(y|x)=H_1(y)$ and $\hat{p}_B(y|x)=\hat{p}(y|x)$.
 %
 \endinput
