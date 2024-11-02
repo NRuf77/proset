@@ -93,6 +93,23 @@ The following expressions still need to be defined:
 \item $\lambda_u\geq0$ is the $L_2$-penalty weight used for smoothing the density estimator.
 \end{itemize}
 %
-
-
+...\par
+%
+The partial derivatives of the objective function on the first orthant are:
+%
+\begin{align}
+\frac{\partial}{\partial u_c}f(u_c,v_c,\{w_{c,j}\}_j|\{(x_n,y_n)\}_n)&=
+-\frac{1}{N}\sum_{h=0}^1\frac{N_h}{N_h-J_{c,h}}\sum_{n\in T_{c,h}}\frac{\partial}{\partial u_c}\log(\hat{p}_c(y_n|x_n))
+\label{eq_l_partial_u_reg}\\
+&+\lambda_uu_c\notag\\
+\frac{\partial}{\partial v_{c,d}}f(u_c,v_c,\{w_{c,j}\}_j|\{(x_n,y_n)\}_n)&=
+-\frac{1}{N}\sum_{h=0}^1\frac{N_h}{N_h-J_{c,h}}\sum_{n\in T_{c,h}}\frac{\partial}{\partial v_{c,d}}\log(\hat{p}_c(y_n|x_n))
+\label{eq_l_partial_v_reg}\\
+&+\lambda_v((1-\alpha_v)v_{c,d}+\alpha_v)\notag\\
+\frac{\partial}{\partial w_{c,j}}f(u_c,v_c,\{w_{c,j}\}_j|\{(x_n,y_n)\}_n)&=
+-\frac{1}{N}\sum_{h=0}^1\frac{N_h}{N_h-J_{c,h}}\sum_{n\in T_{c,h}}\frac{\partial}{\partial w_{c,j}}\log(\hat{p}_c(y_n|x_n))
+\label{eq_l_partial_w_reg}\\
+&+\lambda_w((1-\alpha_w)w_{c,j}+\alpha_w)\notag
+\end{align}
+%
 \endinput
