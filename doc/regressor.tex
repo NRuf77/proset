@@ -74,7 +74,7 @@ This includes sample weights that compensate for the change in relative frequenc
 f(u_c,v_c,\{w_{c,j}\}_j|\{(x_n,y_n)\}_n)&
 =-\frac{1}{N}\sum_{h=0}^1\frac{N_h}{N_h-J_{c,h}}\sum_{n\in T_{c,h}}\log(\hat{p}_c(y_n|x_n))
 \label{eq_nll_regressor}\\
-&+\lambda_uu_c^2\notag\\
+&+\frac{\lambda_u}{2}u_c^2\notag\\
 &+\lambda_v\left(\frac{1-\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2+\alpha_v\sum_{d=1}^D|v_{c,d}|\right)\notag\\
 &+\lambda_w\left(\frac{1-\alpha_w}{2}\sum_{j=1}^{J_c}w_{c,j}^2+\alpha_w\sum_{j=1}^{J_c}|w_{c,j}|\right)\notag
 \end{align}
@@ -93,4 +93,6 @@ The following expressions still need to be defined:
 \item $\lambda_u\geq0$ is the $L_2$-penalty weight used for smoothing the density estimator.
 \end{itemize}
 %
+
+
 \endinput
