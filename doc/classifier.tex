@@ -134,9 +134,9 @@ This has been changed throughout the source code and documentation to be consist
 Given the first $c-1$ batches, the parameters for batch $c>0$ are chosen to minimize the following function, which is the negative log-likelihood with regularization as per (\ref{eq_regularization}) and reweighting as discussed above:
 %
 \begin{align}
-f\left(v_c,\{w_{c,j}\}_j|\{x_n\}_n\right)
+f\left(v_c,\{w_{c,j}\}_j|\{(x_n,y_n)\}_n\right)
 &=-\frac{1}{N}\sum_{k=0}^{K-1}\frac{N_k}{N_k-J_{c,k}}\sum_{n\in T_c}
-\1_{\{k\}}(y_n)\log(\hat{p}_{c,k}(x_n))\label{eq_log_likelihood}\\
+\1_{\{k\}}(y_n)\log(\hat{p}_{c,k}(x_n))\label{eq_nll_classifier}\\
 &+\lambda_v\left(\frac{1-\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2
 +\alpha_v\sum_{d=1}^D|v_{c,d}|\right)\notag\\
 &+\lambda_w\left(\frac{1-\alpha_w}{2}\sum_{j=1}^{J_c}w_{c,j}^2
