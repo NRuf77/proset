@@ -9,8 +9,8 @@ For our implementation, we rely entirely on Gaussians.
 \label{sec_regressor_definition}
 %
 To derive the regression model, we follow the notation introduced in Section \ref{sec_classifier_definition} as far as possible.
-The first major difference is that the random variables $Y_n$ are now real-valued and we presume w.l.o.g.\ that they have mean zero and variance one.
-The implemented algorithm applies centering and scaling before fitting and inverts the transform when serving predictions.\par
+The main difference is that the random variables $Y_n$ are now real-valued and we presume w.l.o.g.\ that they have mean zero and variance one.
+The implemented algorithm applies centering and scaling before fitting and reverts these when serving predictions.\par
 %
 As kernel on the target space, we use the univariate Gaussian density parameterized in terms of its inverse standard deviation:
 %
@@ -32,13 +32,11 @@ As we do not want these terms to vanish, the fitting procedure applies an $L_2$-
 %
 \begin{remark}
 \begin{enumerate}
-\item The baseline distribution to which the model reduces in case no prototypes are selected is now the standard normal. 
+\item In case no prototypes are selected for the model, it reverts to the standard normal. 
+However, batch with $v_b\equiv0$ (independent of $x$) can still capture meaningful information on $Y$, effectively updating the baseline to be non-Gaussian.
 %
-\item A batch with $v_b\equiv0$ (independent of $x$) can still provide meaningful information on $Y$, effectively updating the baseline to be non-Gaussian.
-%
-\item Unlike most regression algorithms that estimate a conditional mean, the proset regressor estimates a complete distribution.
+\item Unlike most regression algorithms that estimate a conditional mean, the proset regressor estimates the complete conditional distribution via approximation by Gaussian mixture.
 It can capture properties like heteroskedasticity, multimodality, or skewness.
-For fixed $x$, the model is a Gaussian mixture.
 \end{enumerate}
 \end{remark}
 %
