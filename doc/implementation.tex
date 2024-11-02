@@ -196,7 +196,7 @@ The solver is algorithm L-BFGS-B \cite{Byrd_95} from Python package \texttt{scip
 Computes scaled and unscaled versions of estimators like (\ref{eq_pkx}).
 %
 \item[\texttt{Objective:}] computes the objective function value and gradient for fitting an additional batch of prototypes to an existing proset model.
-See (\ref{eq_log_likelihood}), (\ref{eq_l_partial_v}), and (\ref{eq_l_partial_w}) for the expressions belonging to the proset classifier.
+See (\ref{eq_nll_classifier}), (\ref{eq_l_partial_v}), and (\ref{eq_l_partial_w}) for the expressions belonging to the proset classifier.
 The objective relies on an instance of class \texttt{SetManager} to provide distribution estimates for batches that have already been fitted.
 \end{description}
 %
@@ -204,7 +204,7 @@ The implementation relies on Python package \texttt{numpy} \cite{Harris_20} for 
 It also uses some problem-specific solutions to speed up computation:
 %
 \begin{enumerate}
-\item To evaluate the objective function (\ref{eq_log_likelihood}), we need to compute the squared weighted Euclidean distance between every pair of points where one is a sample reserved for scoring and the other a potential prototype.
+\item To evaluate the objective function (\ref{eq_nll_classifier}), we need to compute the squared weighted Euclidean distance between every pair of points where one is a sample reserved for scoring and the other a potential prototype.
 These distances can be computed using vector-matrix operations as follows:\par
 %
 Let $X_0\in\R^{N_0\times D}$ and $X_1\in\R^{N_1\times D}$, $N_1,N_2>0$, be the feature matrices corresponding to the points, and let $v\in\R^d$, $v_d\geq0$, be the vector of feature weights.

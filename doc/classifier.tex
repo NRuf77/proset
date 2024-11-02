@@ -162,7 +162,7 @@ is the number of all candidates in batch $c>0$ that have class $k$.
 \item $\alpha_w\in[0,1]$ is the portion of $\lambda_w$ assigned to the $L_1$ penalty for prototype weights.
 \end{itemize}
 %
-Given a set of prototypes $S_c$, the objective function (\ref{eq_log_likelihood}) is maximized subject to $v_{c,d}\geq0$ and $w_{c,j}\geq0$.
+Given a set of prototypes $S_c$, the objective function (\ref{eq_nll_classifier}) is maximized subject to $v_{c,d}\geq0$ and $w_{c,j}\geq0$.
 Note that we permit $w_{c,j}=0$ as solution of the optimization problem which contradicts our earlier definition.
 However, since assigning zero weight to a point is equivalent to excluding it from the model, this does not cause any issues.\par
 %
@@ -172,12 +172,12 @@ In fact, we can simply replace the absolute value with the identity function and
 \begin{remark}
 Python package \texttt{proset} accepts optional sample weights for training.
 These determine the multiplicity of an observation, e.g., a sample with weight 2.0 is treated like two separate observations with identical features.
-This means that the sum of terms in (\ref{eq_log_likelihood}) is replaced by a weighted sum normalized by total weights instead of observation counts.
+This means that the sum of terms in (\ref{eq_nll_classifier}) is replaced by a weighted sum normalized by total weights instead of observation counts.
 The marginal probabilities are also computed as weighted averages (as of package version 0.2.1).
 The selection of candidates for prototypes discussed below is not affected by the weights.
 \end{remark}
 %
-To gain the full advantage of using L-BFGS-B, we need to compute the gradient of (\ref{eq_log_likelihood}) analytically.
+To gain the full advantage of using L-BFGS-B, we need to compute the gradient of (\ref{eq_nll_classifier}) analytically.
 The partial derivatives of $\log(\hat{p}_{c,k}(x))$, $c>0$, are:
 %
 \begin{align}
@@ -2163,7 +2163,7 @@ With the new approach, the former can be prioritized if they rank among the wors
 \item We can now analyze the impact of doing preferential sampling at all and possibly tune the rate for better performance.
 \end{enumerate}
 %
-Another change implemented as part of this update is how re-weighting of samples in the likelihood function (\ref{eq_log_likelihood}) is handled.
+Another change implemented as part of this update is how re-weighting of samples in the likelihood function (\ref{eq_nll_classifier}) is handled.
 The original implementation assigns weights to the reference samples per class to compensate for the change in proportions caused by removing the candidates.
 In the new version, the weights are computed separately for each of the $2K$ sampling groups.
 This is done to further minimize the distortion introduced by the non-stratified candidate selection.\par
