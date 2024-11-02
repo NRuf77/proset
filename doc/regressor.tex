@@ -60,6 +60,39 @@ Thus, the estimator consisting of contributions up to batch $c$ is
 \hat{p}_c(y|x):=\frac{\hat{q}_c(y|x)}{\hat{r}_c(y|x)}\label{eq_hatpcxy}
 \end{equation}
 %
-In particular, $\hat{p}_0(y|x)=H_1(y)$ and $\hat{p}_B(y|x)=\hat{p}(y|x)$.
+In particular, $\hat{p}_0(y|x)=H_1(y)$ and $\hat{p}_B(y|x)=\hat{p}(y|x)$.\par
+%
+The regressor is grown from the baseline distribution by adding batches in an iterative, greedy manner.
+In each step, the training data is split into a set of candidates for prototypes and a set of reference points.
+To choose candidates, we adapt the strategy described in Section \ref{sec_updated_candidate_sampling}.
+Instead of the probability assigned to the true class, we take the density at the target value as a measure of how well the current model fits the data.
+We derive the empirical distribution of these values and use its $\beta$-quantile to separate training samples into `easy' and `hard' cases.
+As for the classifier, half of the candidates for a new batch are sampled from each group.\par
+%
+Parameters for batch $c$ given batches up to $c-1$ are computed by minimizing a modified version of the negative log-likelihood for the reference points.
+This includes sample weights that compensate for the change in relative frequency between `easy' and `hard' cases due to candidate selection, as well as penalty terms for regularization: 
+%
+\begin{align}
+f(u_c,v_c,\{w_{c,j}\}_j|\{(x_n,y_n)\}_n)&
+=-\frac{1}{N}\sum_{h=0}^1\frac{N_h}{N_h-J_{c,h}}\sum_{n\in T_{c,h}}\log(\hat{p}_c(y_n|x_n))
+\label{eq_nll_regressor}\\
+&+\lambda_uu_c^2\notag\\
+&+\lambda_v\left(\frac{1-\alpha_v}{2}\sum_{d=1}^Dv_{c,d}^2+\alpha_v\sum_{d=1}^D|v_{c,d}|\right)\notag\\
+&+\lambda_w\left(\frac{1-\alpha_w}{2}\sum_{j=1}^{J_c}w_{c,j}^2+\alpha_w\sum_{j=1}^{J_c}|w_{c,j}|\right)\notag
+\end{align}
+%
+This is similar to the negative log-likelihood for the classifier (\ref{eq_nll_classifier}).
+However, note that it already includes the differentiated re-weighting introduced in Section \ref{sec_updated_candidate_sampling}.
+The following expressions still need to be defined:
+%
+\begin{itemize}
+\item $N_h$, $h\in\{0,1\}$, are the numbers of `easy' ($h=0$) and `hard' ($h=1$) cases in the training data, i.e., $N=N_0+N_1$.
+%
+\item $J_{c,h}$, $h\in\{0,1\}$, are the numbers of `easy' and `hard' candidates selected.
+%
+\item $T_{c,h}$, $h\in\{0,1\}$, are the sets of `easy' and `hard' reference points.
+%
+\item $\lambda_u\geq0$ is the $L_2$-penalty weight used for smoothing the density estimator.
+\end{itemize}
 %
 \endinput
