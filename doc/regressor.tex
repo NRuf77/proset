@@ -93,9 +93,39 @@ The following expressions still need to be defined:
 \item $\lambda_u\geq0$ is the $L_2$-penalty weight used for smoothing the density estimator.
 \end{itemize}
 %
-...\par
+We express the partial derivatives of $f$ in terms of the partial derivatives of $\log(\hat{p}_c(y|x))$:
 %
-The partial derivatives of the objective function on the first orthant are:
+\begin{align}
+\frac{\partial}{\partial u_c}\log(\hat{p}_c(y|x))&=\frac{
+\frac{\partial}{\partial u_c}\sum_{j=1}^{J_c}H_{u_c}(y-y_{s_{c,j}})w_{c,j}G_{v_c}(x-x_{s_{c,j}})
+}{\hat{q}_c(y|x)}\label{p_partial_u_reg}\\
+&=\frac{
+u_c^{-1}\sum_{j=1}^{J_c}H_{u_c}(y-y_{s_{c,j}})w_{c,j}G_{v_c}(x-x_{s_{c,j}})
+}{\hat{q}_c(y|x)}\notag\\
+&-\frac{
+u_c\sum_{j=1}^{J_c}H_{u_c}(y-y_{s_{c,j}})(y-y_{s_{c,j}})^2w_{c,j}G_{v_c}(x-x_{s_{c,j}})
+}{\hat{q}_c(y|x)}\notag\\
+\frac{\partial}{\partial v_{c,d}}\log(\hat{p}_c(y|x))&=\frac{
+\frac{\partial}{\partial v_{c,d}}\sum_{j=1}^{J_c}H_{u_c}(y-y_{s_{c,j}})w_{c,j}G_{v_c}(x-x_{s_{c,j}})
+}{\hat{q}_c(y|x)}\label{p_partial_v_reg}\\
+&-\frac{\frac{\partial}{\partial v_{c,d}}\sum_{j=1}^{J_c}w_{c,j}G_{v_c}(x-x_{s_{c,j}})
+}{\hat{r}_c(y|x)}\notag\\
+&=v_{c,d}\left(\frac{
+\sum_{j=1}^{J_c}w_{c,j}(x_d-x_{s_{c,j},d})^2G_{v_c}(x-x_{s_{c,j}})
+}{\hat{r}_c(y|x)}\right.\notag\\
+&-\left.\frac{
+\sum_{j=1}^{J_c}H_{u_c}(y-y_{s_{c,j}})w_{c,j}(x_d-x_{s_{c,j},d})^2G_{v_c}(x-x_{s_{c,j}})
+}{\hat{q}_c(y|x)}\right)\notag\\
+\frac{\partial}{\partial w_{c,i}}\log(\hat{p}_c(y|x))&=\frac{
+\frac{\partial}{\partial w_{c,i}}\left(H_{u_c}(y-y_{s_{c,i}})w_{c,i}G_{v_c}(x-x_{s_{c,i}})\right)
+}{\hat{q}_c(y|x)}\label{p_partial_v_reg}\\
+&-\frac{\frac{\partial}{\partial w_{c,i}}\left(w_{c,i}G_{v_c}(x-x_{s_{c,i}})\right)
+}{\hat{r}_c(y|x)}\notag\\
+&=\frac{H_{u_c}(y-y_{s_{c,i}})G_{v_c}(x-x_{s_{c,i}})}{\hat{q}_c(y|x)}
+-\frac{G_{v_c}(x-x_{s_{c,i}})}{\hat{r}_c(y|x)}\notag
+\end{align}
+%
+Thus, the partial derivatives of the objective function itself on the first orthant are:
 %
 \begin{align}
 \frac{\partial}{\partial u_c}f(u_c,v_c,\{w_{c,j}\}_j|\{(x_n,y_n)\}_n)&=
