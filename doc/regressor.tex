@@ -142,4 +142,36 @@ Thus, the partial derivatives of the objective function itself on the first orth
 &+\lambda_w((1-\alpha_w)w_{c,j}+\alpha_w)\notag
 \end{align}
 %
+Apart from the differences outlined above, the proset regressor is fitted in the same way as the classifier.
+%
+\subsection{Inference}
+\label{sec_inference}
+%
+Most regression algorithms only estimate the conditional mean, often under the assumption of homoskedastic Gaussian residuals.
+Proset approximates the conditional density as a Gaussian mixture, which allows us to infer several quantities of interest from a single model.
+In particular, we gain quantile regression `for free', although we need to ensure efficient computation.\par
+%
+In this section, we consider how to derive relevant quantities from a Gaussian mixture.
+We disregard the precise form of the model to simplify notation and just presume a conditional density of the form
+%
+\begin{equation}
+g(y):=\sum_{j=1}^J\alpha_jjH_{u_j}(y-m_j)\label{eq_mixture}
+\end{equation}
+%
+with mixture weights $\alpha_j\in(0,1)$, $\sum_{j=^1}^J\alpha_j=1$, inverse scales $u_j>0$, and centers $m_j\in\R$.\par
+%
+As the standard normal density is available as a mathematical function, typically via a look-up table with interpolation, $g(y)$ can be efficiently evaluated at arbitrary points.
+The same goes for the cumulative distribution, where w substitute the standard normal CDF for $H_u$ in (\ref{eq_mixture}).\par
+%
+The conditional mean and variance are likewise easy to derive from the additive form.
+Let $Y$ be a random variable with density $g(y)$, then
+%
+\begin{align}
+\E(Y)&=\sum_{j=1}^J\alpha_jm_j&
+\Var(Y)&=\E(Y^2)-\E(Y)^2=\sum_{j=1}^J\alpha_j\left(u_j^{-2}+m_j^2\right)-\E(Y)^2\label{eq_moments}
+\end{align}
+%
+Unfortunately, there is no closed-form expression for the quantile function, which is the inverse of the CDF.
+
+
 \endinput
