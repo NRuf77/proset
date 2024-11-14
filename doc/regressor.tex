@@ -155,23 +155,38 @@ In this section, we consider how to derive relevant quantities from a Gaussian m
 We disregard the precise form of the model to simplify notation and just presume a conditional density of the form
 %
 \begin{equation}
-g(y):=\sum_{j=1}^J\alpha_jjH_{u_j}(y-m_j)\label{eq_mixture}
+m(y):=\sum_{j=1}^J\alpha_jH_{u_j}(y-y_j)\label{eq_mixture_pdf}
 \end{equation}
 %
-with mixture weights $\alpha_j\in(0,1)$, $\sum_{j=^1}^J\alpha_j=1$, inverse scales $u_j>0$, and centers $m_j\in\R$.\par
+with weights $\alpha_j\in(0,1)$, $\sum_{j=^1}^J\alpha_j=1$, inverse standard deviations $u_j>0$, and centers $y_j\in\R$.\par
 %
-As the standard normal density is available as a mathematical function, typically via a look-up table with interpolation, $g(y)$ can be efficiently evaluated at arbitrary points.
-The same goes for the cumulative distribution, where w substitute the standard normal CDF for $H_u$ in (\ref{eq_mixture}).\par
+As the standard normal density is available as a mathematical function, typically via a look-up table with interpolation, $m(y)$ can be efficiently evaluated at arbitrary points.
+The same goes for the cumulative distribution, which can be expressed via the standard normal CDF $\Phi$ as
+%
+\begin{equation}
+M(y):=\sum_{j=1}^J\alpha_j\Phi(u_j(y-y_j))\label{eq_mixture_cdf}
+\end{equation}
 %
 The conditional mean and variance are likewise easy to derive from the additive form.
-Let $Y$ be a random variable with density $g(y)$, then
+Let $Y$ be a random variable with density $m(y)$, then
 %
 \begin{align}
-\E(Y)&=\sum_{j=1}^J\alpha_jm_j&
-\Var(Y)&=\E(Y^2)-\E(Y)^2=\sum_{j=1}^J\alpha_j\left(u_j^{-2}+m_j^2\right)-\E(Y)^2\label{eq_moments}
+\E(Y)&=\sum_{j=1}^J\alpha_jy_j&
+\Var(Y)&=\E(Y^2)-\E(Y)^2=\sum_{j=1}^J\alpha_j\left(u_j^{-2}+y_j^2\right)-\E(Y)^2\label{eq_moments}
 \end{align}
 %
-Unfortunately, there is no closed-form expression for the quantile function, which is the inverse of the CDF.
-
-
+Unfortunately, there is no closed-form expression for the quantile function, which is the inverse of (\ref{eq_mixture_cdf}).
+We approximate it by constructing a sequence of nested intervals via linear interpolation.
+Let $q\in\R$ denote the desired quantile of the mixture and $p\in(0,1)$ the associated probability, i.e., $M(q)=p$.
+Using the corresponding quantile $\tilde{q}$ of the standard normal distribution, we derive bounds on $q$ as
+%
+\begin{align}
+l_q&:=\min\{y_j+\tilde{q}u_j^{-1}:j\in\{1,\dots,J\}\}&
+u_q&:=\max\{y_j+\tilde{q}u_j^{-1}:j\in\{1,\dots,J\}\}
+\label{eq_quantile_bounds}
+\end{align}
+%
+By definition, $\Phi(u_j(l_q-y_j))\leq p$ for all $j$, so that $M(l_q)\leq p\iff l_q\leq M^{-1}(p)=q$.
+A similar argument shows that $u_q\geq q$.
+%
 \endinput
