@@ -24,7 +24,7 @@ In analogy to (\ref{eq_pkx}), we estimate the density of $Y$ conditional on $X$ 
 p(Y=y|X=x)\approx\hat{p}(y|x):=
 \frac{H_1(y)+\sum_{b=1}^B\sum_{j=1}^{J_b}H_{u_b}(y-y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
 {1+\sum_{b=1}^B\sum_{j=1}^{J_b}w_{b,j}G_{v_b}(x-x_{s_{b,j}})}
-\label{eq_fyx}
+\label{eq_pyx}
 \end{equation}
 %
 Here, we introduce an additional set of parameters $u_b>0$, $b\in\{1,\dots,B\}$, that control the smoothness of the density for each batch.
@@ -33,14 +33,14 @@ As we do not want these terms to vanish, the fitting procedure applies an $L_2$-
 \begin{remark}
 \begin{enumerate}
 \item In case no prototypes are selected for the model, it reverts to the standard normal. 
-However, batch with $v_b\equiv0$ (independent of $x$) can still capture meaningful information on $Y$, effectively updating the baseline to be non-Gaussian.
+However, a batch with $v_b\equiv0$ (independent of $x$) can still capture meaningful information on $Y$, effectively updating the baseline to be non-Gaussian.
 %
 \item Unlike most regression algorithms that estimate a conditional mean, the proset regressor estimates the complete conditional distribution via approximation by Gaussian mixture.
 It can capture properties like heteroskedasticity, multimodality, or skewness.
 \end{enumerate}
 \end{remark}
 %
-As for the classifier, we derive equations for the iterative fitting procedure in terms of non-normalized partial sums for $c\geq0$:
+As for the classifier, we derive equations for the iterative fitting procedure in terms of non-normalized partial sums up to batch $c\geq0$:
 %
 \begin{equation}
 \hat{q}_c(y|x):=H_1(y)+\sum_{b=1}^c\sum_{j=1}^{J_b}H_{u_b}(y-y_{s_{b,j}})w_{b,j}G_{v_b}(x-x_{s_{b,j}})\label{eq_hatqcxy}
@@ -52,7 +52,7 @@ The corresponding normalization factor is
 \hat{r}_c(y|x):=1+\sum_{b=1}^c\sum_{j=1}^{J_b}w_{b,j}G_{v_b}(x-x_{s_{b,j}})\label{eq_hatrcxy}
 \end{equation}
 %
-Thus, the estimator consisting of contributions up to batch $c$ is
+Thus, the density estimator consisting of contributions up to batch $c$ is
 %
 \begin{equation}
 \hat{p}_c(y|x):=\frac{\hat{q}_c(y|x)}{\hat{r}_c(y|x)}\label{eq_hatpcxy}
@@ -125,7 +125,7 @@ u_c\sum_{j=1}^{J_c}H_{u_c}(y-y_{s_{c,j}})(y-y_{s_{c,j}})^2w_{c,j}G_{v_c}(x-x_{s_
 -\frac{G_{v_c}(x-x_{s_{c,i}})}{\hat{r}_c(y|x)}\notag
 \end{align}
 %
-Thus, the partial derivatives of the objective function itself on the first orthant are:
+Thus, the partial derivatives of the objective function on the first orthant are:
 %
 \begin{align}
 \frac{\partial}{\partial u_c}f(u_c,v_c,\{w_{c,j}\}_j|\{(x_n,y_n)\}_n)&=
@@ -142,7 +142,7 @@ Thus, the partial derivatives of the objective function itself on the first orth
 &+\lambda_w((1-\alpha_w)w_{c,j}+\alpha_w)\notag
 \end{align}
 %
-Apart from the differences outlined above, the proset regressor is fitted in the same way as the classifier.
+Apart from changes outlined above, the proset regressor is fitted in the same way as the classifier.
 %
 \subsection{Inference}
 \label{sec_inference}
@@ -151,8 +151,8 @@ Most regression algorithms only estimate the conditional mean, often under the a
 Proset approximates the conditional density as a Gaussian mixture, which allows us to infer several quantities of interest from a single model.
 In particular, we gain quantile regression `for free', although we need to ensure efficient computation.\par
 %
-In this section, we consider how to derive relevant quantities from a Gaussian mixture.
-We disregard the precise form of the model to simplify notation and just presume a conditional density of the form
+Below, we consider how to derive relevant quantities from a Gaussian mixture.
+To simplify notation, we disregard the precise expression (\ref{eq_pyx}) and just presume a density of the form
 %
 \begin{equation}
 m(y):=\sum_{j=1}^J\alpha_jH_{u_j}(y-y_j)\label{eq_mixture_pdf}
@@ -160,8 +160,8 @@ m(y):=\sum_{j=1}^J\alpha_jH_{u_j}(y-y_j)\label{eq_mixture_pdf}
 %
 with weights $\alpha_j\in(0,1)$, $\sum_{j=^1}^J\alpha_j=1$, inverse standard deviations $u_j>0$, and centers $y_j\in\R$.\par
 %
-As the standard normal density is available as a mathematical function, typically via a look-up table with interpolation, $m(y)$ can be efficiently evaluated at arbitrary points.
-The same goes for the cumulative distribution, which can be expressed via the standard normal CDF $\Phi$ as
+Since the standard normal density is available as a mathematical function, typically via a look-up table with interpolation, $m(y)$ can be efficiently evaluated at arbitrary points.
+The same goes for the cumulative distribution, which is expressed via the standard normal CDF $\Phi$ as
 %
 \begin{equation}
 M(y):=\sum_{j=1}^J\alpha_j\Phi(u_j(y-y_j))\label{eq_mixture_cdf}
@@ -178,15 +178,50 @@ Let $Y$ be a random variable with density $m(y)$, then
 Unfortunately, there is no closed-form expression for the quantile function, which is the inverse of (\ref{eq_mixture_cdf}).
 We approximate it by constructing a sequence of nested intervals via linear interpolation.
 Let $q\in\R$ denote the desired quantile of the mixture and $p\in(0,1)$ the associated probability, i.e., $M(q)=p$.
-Using the corresponding quantile $\tilde{q}$ of the standard normal distribution, we derive bounds on $q$ as
+Using the $p$-quantile $\tilde{q}$ of the standard normal distribution, we derive bounds
 %
 \begin{align}
-l_q&:=\min\{y_j+\tilde{q}u_j^{-1}:j\in\{1,\dots,J\}\}&
-u_q&:=\max\{y_j+\tilde{q}u_j^{-1}:j\in\{1,\dots,J\}\}
+q_L&:=\min\{y_j+\tilde{q}u_j^{-1}:j\in\{1,\dots,J\}\}&
+q_U&:=\max\{y_j+\tilde{q}u_j^{-1}:j\in\{1,\dots,J\}\}
 \label{eq_quantile_bounds}
 \end{align}
 %
-By definition, $\Phi(u_j(l_q-y_j))\leq p$ for all $j$, so that $M(l_q)\leq p\iff l_q\leq M^{-1}(p)=q$.
-A similar argument shows that $u_q\geq q$.
+By definition, $\Phi(u_j(q_L-y_j))\leq p$ for all $j$, so that $M(q_L)\leq p\iff q_L\leq M^{-1}(p)=q$.
+A similar argument shows that $q_U\geq q$.
+We use these bounds to initialize an iterative algorithm:
 %
+\begin{samepage}
+\begin{algorithm}[Quantile approximation]~
+\label{alg_quantile}
+%
+\begin{description}
+\item{[1]} Assign $q_{L,0}\leftarrow q_L$, $q_{U,0}\leftarrow q_U$, $p_{L,0}\leftarrow M(q_L)$, and $p_{U,0}\leftarrow M(q_U)$.
+Choose a small $\delta>0$ as tolerance for convergence.
+The iteration counter is $i=1$.
+%
+\item{[2]} Compute $q_i\leftarrow q_{L,i-1}+(q_{U,i-1}-q_{L,i-1})\frac{p-p_{L,i-1}}{p_{U,i-1}-p_{L,i-1}}$ and $p_i\leftarrow M(q_i)$.
+%
+\item{[3]} If $\left|\log\left(\frac{p_i}{1-p_i}\right)-\log\left(\frac{p}{1-p}\right)\right|\leq\delta$ then \textbf{STOP} and report $q_i$ as approximate $p$-quantile.
+%
+\item{[4]} Update the bounds:
+\begin{itemize}
+\item If $p_i\leq p$: $q_{L,i}\leftarrow q_i$, $q_{U,i}\leftarrow q_{U,i-1}$, $p_{L,i}\leftarrow p_i$, and $p_{U,i}\leftarrow p_{U,i-1}$.
+%
+\item If $p_i>p$: $q_{L,i}\leftarrow q_{L,i-1}$, $q_{U,i}\leftarrow q_i$, $p_{L,i}\leftarrow p_{L,i-1}$, and $p_{U,i}\leftarrow p_i$.
+\end{itemize}
+%
+\item{[5]} Set  $i\leftarrow i+1$ and continue with [2].
+\end{description}
+\end{algorithm}
+\end{samepage}
+%
+\begin{remark}
+\begin{enumerate}
+\item Steps [1] and [4] guarantee that $q_{L,i}\leq q\leq q_{U,i}$ and $p_{L,i}\leq p\leq p_{U,i}$ for all $i$.
+%
+\item Step [2] computes the linear approxiation to $M^{-1}(p)$ between $p_{L,i}$ and $p_{U,i}$.
+%
+\item The convergence criterion in step [3] compares the log-odds to ensure that quantiles for $p$ close to 0 or 1 are still approximated with adequate precision.
+\end{enumerate}
+\end{remark}
 \endinput
