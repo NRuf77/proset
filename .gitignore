@@ -10,6 +10,7 @@ doc/*.pdf
 doc/*.toc
 proset/__pycache__/*
 proset/benchmarks/__pycache__/*
+proset/models/__pycache__/*
 proset/objectives/__pycache__/*
 proset/utility/__pycache__/*
 proset/utility/plots/__pycache__/*
