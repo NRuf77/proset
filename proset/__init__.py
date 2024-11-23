@@ -4,7 +4,7 @@ Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """
 
-from proset.models.classifier_model import ClassifierModel
+from proset.models.classifier_model import ClassifierModel as ClassifierModel
 
 
 __version__ = "0.7.0"
