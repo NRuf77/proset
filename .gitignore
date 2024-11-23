@@ -14,6 +14,7 @@ proset/objectives/__pycache__/*
 proset/utility/__pycache__/*
 proset/utility/plots/__pycache__/*
 proset.egg-info/*
+proset/set_managers/__pycache__/*
 test/.pytest_cache/*
 test/__pycache__/*
 scripts/data/*.gz

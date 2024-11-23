@@ -9,7 +9,7 @@ from unittest import TestCase
 import numpy as np
 
 from proset import shared
-from proset.set_manager import ClassifierSetManager
+from proset.set_managers.classifier_set_manager import ClassifierSetManager
 
 
 # define common objects for testing

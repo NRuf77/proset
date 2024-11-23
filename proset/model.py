@@ -24,7 +24,7 @@ from statsmodels.distributions.empirical_distribution import ECDF
 from proset import shared
 from proset.objectives.np_classifier_objective import NpClassifierObjective
 from proset.objectives.tf_classifier_objective import TfClassifierObjective
-from proset.set_manager import ClassifierSetManager
+from proset.set_managers.classifier_set_manager import ClassifierSetManager
 
 
 LOGGER = logging.getLogger(__name__)
