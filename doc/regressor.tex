@@ -149,10 +149,10 @@ Apart from changes outlined above, the proset regressor is fitted in the same wa
 %
 Most regression algorithms only estimate the conditional mean, often under the assumption of homoskedastic Gaussian residuals.
 Proset approximates the conditional density as a Gaussian mixture, which allows us to infer several quantities of interest from a single model.
-In particular, we gain quantile regression `for free', although we need to ensure efficient computation.\par
+In particular, we gain quantile regression `for free', except for the need to ensure efficient computation.\par
 %
 Below, we consider how to derive relevant quantities from a Gaussian mixture.
-To simplify notation, we disregard the precise expression (\ref{eq_pyx}) and just presume a density of the form
+To simplify notation, we disregard (\ref{eq_pyx}) and just presume a density of the form
 %
 \begin{equation}
 m(y):=\sum_{j=1}^J\alpha_jH_{u_j}(y-y_j)\label{eq_mixture_pdf}
@@ -176,7 +176,7 @@ Let $Y$ be a random variable with density $m(y)$, then
 \end{align}
 %
 Unfortunately, there is no closed-form expression for the quantile function, which is the inverse of (\ref{eq_mixture_cdf}).
-We approximate it by constructing a sequence of nested intervals via linear interpolation.
+We approximate it by constructing a sequence of nested intervals via binary search.
 Let $q\in\R$ denote the desired quantile of the mixture and $p\in(0,1)$ the associated probability, i.e., $M(q)=p$.
 Using the $p$-quantile $\tilde{q}$ of the standard normal distribution, we derive bounds
 %
@@ -188,7 +188,7 @@ q_U&:=\max\{y_j+\tilde{q}u_j^{-1}:j\in\{1,\dots,J\}\}
 %
 By definition, $\Phi(u_j(q_L-y_j))\leq p$ for all $j$, so that $M(q_L)\leq p\iff q_L\leq M^{-1}(p)=q$.
 A similar argument shows that $q_U\geq q$.
-We use these bounds to initialize an iterative algorithm:
+We use these bounds to initialize an iterative search:
 %
 \begin{samepage}
 \begin{algorithm}[Quantile approximation]~
@@ -199,7 +199,7 @@ We use these bounds to initialize an iterative algorithm:
 Choose a small $\delta>0$ as tolerance for convergence.
 The iteration counter is $i=1$.
 %
-\item{[2]} Compute $q_i\leftarrow q_{L,i-1}+(q_{U,i-1}-q_{L,i-1})\frac{p-p_{L,i-1}}{p_{U,i-1}-p_{L,i-1}}$ and $p_i\leftarrow M(q_i)$.
+\item{[2]} Compute $q_i\leftarrow\frac{q_{L,i-1}+q_{U,i-1}}{2}$ and $p_i\leftarrow M(q_i)$.
 %
 \item{[3]} If $\left|\log\left(\frac{p_i}{1-p_i}\right)-\log\left(\frac{p}{1-p}\right)\right|\leq\delta$ then \textbf{STOP} and report $q_i$ as approximate $p$-quantile.
 %
@@ -218,8 +218,6 @@ The iteration counter is $i=1$.
 \begin{remark}
 \begin{enumerate}
 \item Steps [1] and [4] guarantee that $q_{L,i}\leq q\leq q_{U,i}$ and $p_{L,i}\leq p\leq p_{U,i}$ for all $i$.
-%
-\item Step [2] estimates $q$ by linearly approximating $M^{-1}$ between $p_{L,i}$ and $p_{U,i}$.
 %
 \item The convergence criterion in step [3] compares the log-odds to ensure that quantiles for $p$ close to 0 or 1 are still approximated with adequate precision.
 \end{enumerate}
