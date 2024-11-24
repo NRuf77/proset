@@ -24,8 +24,6 @@ class SetManager(metaclass=ABCMeta):
     """Abstract base class for set managers.
     """
 
-    _target_type = None  # data type of target depends on subclass
-
     def __init__(self, target, weights):
         """Initialize set manager.
 

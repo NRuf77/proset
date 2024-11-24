@@ -81,7 +81,6 @@ class TestClassifierSetManager(TestCase):
 
     def test_init_1(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
-        self.assertEqual(manager._target_type, {"dtype": int})
         self.assertEqual(manager.num_batches, 0)
         self.assertEqual(manager.num_features, None)
         shared.check_float_array(x=manager.marginals, name="manager.marginals")
@@ -91,7 +90,6 @@ class TestClassifierSetManager(TestCase):
 
     def test_init_2(self):
         manager = ClassifierSetManager(target=TARGET, weights=np.ones_like(TARGET, **shared.FLOAT_TYPE))
-        self.assertEqual(manager._target_type, {"dtype": int})
         self.assertEqual(manager.num_batches, 0)
         self.assertEqual(manager.num_features, None)
         shared.check_float_array(x=manager.marginals, name="manager.marginals")

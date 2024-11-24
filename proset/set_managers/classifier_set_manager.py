@@ -11,10 +11,8 @@ from proset.set_managers.set_manager import SetManager
 
 
 class ClassifierSetManager(SetManager):
-    """Set manager class for proset classifier
+    """Set manager class for proset classifier.
     """
-
-    _target_type = {"dtype": int}
 
     @staticmethod
     def _get_baseline_distribution(target, weights):
