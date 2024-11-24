@@ -29,13 +29,7 @@ def check_classifier_target(target, weights):
         classes, counts = np.unique(target, return_counts=True)
         counts = counts.astype(**FLOAT_TYPE)
     else:
-        if len(weights.shape) != 1:
-            raise ValueError("Parameter weights must be a 1D array.")
-        if weights.shape[0] != target.shape[0]:
-            raise ValueError("Parameter weights must have as many elements as target.")
-        if np.any(weights < 0.0):
-            raise ValueError("Parameter weights must not contain negative values.")
-        check_float_array(x=weights, name="weights")
+        check_weights(weights=weights, num_samples=target.shape[0])
         classes = np.unique(target[weights > 0.0])
         sort_ix = np.argsort(target)
         # np.add.reduceat() requires weights with the same target value to be grouped together
@@ -47,6 +41,44 @@ def check_classifier_target(target, weights):
             "(excluding cases with zero weight)."
         ]))
     return counts
+
+
+def check_weights(weights, num_samples):
+    """Check whether sample weights are encoded correctly.
+
+    :param weights: see docstring of check_classifier_target() for details
+    :param num_samples: positive integer; number of samples
+    :return: no return value; raises a ValueError if an issue is found
+    """
+    if len(weights.shape) != 1:
+        raise ValueError("Parameter weights must be a 1D array.")
+    if weights.shape[0] != num_samples:
+        raise ValueError("Parameter weights must have as many elements as target.")
+    if np.any(weights < 0.0):
+        raise ValueError("Parameter weights must not contain negative values.")
+    check_float_array(x=weights, name="weights")
+
+
+def check_regressor_target(target, weights):
+    """Check whether target for regression is encoded correctly.
+
+    :param target:1D numpy array of type specified by FLOAT_TYPE; regression target
+    :param weights: 1D numpy array with non-negative values of type specified by FLOAT_TYPE or None; sample weights to
+        be used in the likelihood function; pass None to use unit weights
+    :return: two floats; weighted mean and standard deviation of the target
+    """
+    if len(target.shape) != 1:
+        raise ValueError("Parameter target must be a 1D array.")
+    check_float_array(x=target, name="target")
+    if weights is None:
+        mean = target.mean()
+        std = target.std(ddof=0)  # ddof=0 is consistent with weighted calculation below for unit weights
+    else:
+        check_weights(weights=weights, num_samples=target.shape[0])
+        total_weight = np.sum(weights)
+        mean = np.sum(weights * target) / total_weight
+        std = np.sqrt(np.sum(weights * (target - mean) ** 2.0) / total_weight)
+    return mean, std
 
 
 def find_changes(x):
