@@ -40,7 +40,7 @@ class ClassifierSetManager(SetManager):
     def _check_batch(batch_info, meta):
         """Check batch definition for consistent dimensions.
 
-        :param batch_info: see docstring of SetManager._check_batch() for details
+        :param batch_info: see docstring of SetManager.add_batch() for details
         :param meta: dict; must have key 'num_features' but can store None value if not determined yet; must have key
             'marginals' containing a 1D numpy array of type specified by shared.FLOAT_TYPE with the marginal
             distribution of the classes
@@ -52,11 +52,13 @@ class ClassifierSetManager(SetManager):
             raise ValueError("Parameter target must encode the classes as integers from 0 to K - 1.")
         return SetManager._check_batch(batch_info=batch_info, meta=meta)
 
+    # pylint: disable=unused-argument
     @staticmethod
-    def _get_baseline(num_samples, meta):
+    def _get_baseline(num_samples, prediction_type, meta):
         """Provide unscaled estimate and scaling for a model with zero batches.
 
-        :param num_samples: positive integer; number of samples
+        :param num_samples: see docstring of SetManager._get_baseline() for details
+        :prediction_type: see docstring of SetManager.evaluate_unscaled() for details; not used by this implementation
         :param meta: dict; must have key 'marginals' referencing the marginal distribution of classes
         :return: two numpy arrays as a single pair of return values from evaluate_unscaled(); unscaled predictions from
             ClassifierSetManager have a 2D array in first place
@@ -65,11 +67,13 @@ class ClassifierSetManager(SetManager):
             np.ones(num_samples, **shared.FLOAT_TYPE)
 
     @classmethod
-    def _get_batch_contribution(cls, features, batch, meta):
+    def _get_batch_contribution(cls, features, batch, prediction_type, meta):
         """Compute contribution of a single batch to the prediction for one set of features.
 
-        :param features: see docstring of evaluate_unscaled() for details
+        :param features: see docstring of SetManager.evaluate_unscaled() for details
         :param batch: as return value of _process_batch(); None not allowed
+        :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details; not used by this
+            implementation
         :param meta: dict; must have the following keys:
             - num_features: referencing the expected number of input features
             - marginals: 1D numpy array of floats in [0.0, 1.0); marginal distributions of the classes

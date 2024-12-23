@@ -64,7 +64,10 @@ class ClassifierModel(Model):
         :return: as return value of Model._compute_prediction()
         """
         prediction = self.set_manager_.evaluate(
-            features=X, num_batches=n_iter, compute_familiarity=compute_familiarity
+            features=X,
+            num_batches=n_iter,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=compute_familiarity
         )
         if compute_familiarity:
             familiarity = prediction[1]
@@ -92,6 +95,7 @@ class ClassifierModel(Model):
         prediction = self.set_manager_.evaluate(
             features=X,
             num_batches=n_iter,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
             compute_familiarity=False
         )
         prediction = [np.squeeze(np.take_along_axis(p, y[:, None], axis=1)) for p in prediction]
@@ -123,7 +127,10 @@ class ClassifierModel(Model):
         check_is_fitted(self, attributes="set_manager_")
         # noinspection PyUnresolvedReferences
         prediction = self.set_manager_.evaluate(
-            features=check_array(X, **shared.FLOAT_TYPE), num_batches=n_iter, compute_familiarity=compute_familiarity
+            features=check_array(X, **shared.FLOAT_TYPE),
+            num_batches=n_iter,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=compute_familiarity
         )
         if isinstance(n_iter, np.ndarray):
             if compute_familiarity:

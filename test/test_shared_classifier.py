@@ -81,7 +81,7 @@ class MockSetManager:
 
     # noinspection PyUnusedLocal
     @staticmethod
-    def evaluate_unscaled(features, num_batches):
+    def evaluate_unscaled(features, num_batches, prediction_type):
         """Return constants for interface test.
 
         :param features: not used

@@ -583,7 +583,11 @@ class TestClassifierSetManager(TestCase):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
-            manager.evaluate_unscaled(features=REFERENCE[:, 0], num_batches=None)
+            manager.evaluate_unscaled(
+                features=REFERENCE[:, 0],
+                num_batches=None,
+                prediction_type=shared.PredictionType.LIKELIHOOD
+            )
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter features must be a 2D array.")
@@ -593,7 +597,11 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         message = ""
         try:
-            manager.evaluate_unscaled(features=np.zeros((3, 3), **shared.FLOAT_TYPE), num_batches=None)
+            manager.evaluate_unscaled(
+                features=np.zeros((3, 3), **shared.FLOAT_TYPE),
+                num_batches=None,
+                prediction_type=shared.PredictionType.LIKELIHOOD
+            )
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter features has 3 columns but {} are expected.".format(PROTOTYPES.shape[1]))
@@ -603,23 +611,49 @@ class TestClassifierSetManager(TestCase):
         manager.add_batch(BATCH_INFO)
         message = ""
         try:  # trigger one check from shared.check_float_array() to ensure it is called
-            manager.evaluate_unscaled(features=REFERENCE.astype(np.float64), num_batches=None)
+            manager.evaluate_unscaled(
+                features=REFERENCE.astype(np.float64),
+                num_batches=None,
+                prediction_type=shared.PredictionType.LIKELIHOOD
+            )
         except TypeError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter features must be an array of type float32.")
 
     def test_evaluate_unscaled_fail_4(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
+        manager.add_batch(BATCH_INFO)
+        message = ""
+        try:
+            manager.evaluate_unscaled(
+                features=REFERENCE,
+                num_batches=None,
+                prediction_type=shared.PredictionType.CDF
+            )
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Class ClassifierSetManager does not support prediction type CDF.")
+
+    def test_evaluate_unscaled_fail_5(self):
+        manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:  # trigger one check from _check_num_batches() to ensure it is called
-            manager.evaluate_unscaled(features=REFERENCE, num_batches=np.array([-1]))
+            manager.evaluate_unscaled(
+                features=REFERENCE,
+                num_batches=np.array([-1]),
+                prediction_type=shared.PredictionType.LIKELIHOOD
+            )
         except ValueError as ex:
             message = ex.args[0]
         self.assertEqual(message, "Parameter num_batches must not contain negative values if passing an array.")
 
     def test_evaluate_unscaled_1(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
-        unscaled = manager.evaluate_unscaled(features=REFERENCE, num_batches=None)
+        unscaled = manager.evaluate_unscaled(
+            features=REFERENCE,
+            num_batches=None,
+            prediction_type=shared.PredictionType.LIKELIHOOD
+        )
         # no batches means marginal distribution is returned
         self.assertEqual(len(unscaled), 1)
         shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
@@ -631,7 +665,11 @@ class TestClassifierSetManager(TestCase):
     def test_evaluate_unscaled_2(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)  # batch with no prototypes has no impact on the model
-        unscaled = manager.evaluate_unscaled(features=REFERENCE, num_batches=0)
+        unscaled = manager.evaluate_unscaled(
+            features=REFERENCE,
+            num_batches=0,
+            prediction_type=shared.PredictionType.LIKELIHOOD
+        )
         self.assertEqual(len(unscaled), 1)
         shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
         ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
@@ -642,7 +680,11 @@ class TestClassifierSetManager(TestCase):
     def test_evaluate_unscaled_3(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
-        unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=np.array([0]))  # evaluate marginals only
+        unscaled = manager.evaluate_unscaled(
+            REFERENCE,
+            num_batches=np.array([0]),  # evaluate marginals only
+            prediction_type=shared.PredictionType.LIKELIHOOD
+        )
         self.assertEqual(len(unscaled), 1)
         shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
         ref_unscaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
@@ -653,13 +695,22 @@ class TestClassifierSetManager(TestCase):
     def test_evaluate_unscaled_4(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
-        unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=None)
+        unscaled = manager.evaluate_unscaled(
+            REFERENCE,
+            num_batches=None,
+            prediction_type=shared.PredictionType.LIKELIHOOD
+        )
         self.assertEqual(len(unscaled), 1)
         shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
         meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
-        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(
+            num_samples=REFERENCE.shape[0], prediction_type=shared.PredictionType.LIKELIHOOD, meta=meta
+        )
         ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
-            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
+            features=REFERENCE,
+            batch=ClassifierSetManager._process_batch(BATCH_INFO),
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta=meta
         )
         ref_unscaled += base_unscaled
         ref_scale += base_scale
@@ -671,13 +722,22 @@ class TestClassifierSetManager(TestCase):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         manager.add_batch(BATCH_INFO)
-        unscaled = manager.evaluate_unscaled(REFERENCE, num_batches=np.array([0, 2]))
+        unscaled = manager.evaluate_unscaled(
+            REFERENCE,
+            num_batches=np.array([0, 2]),
+            prediction_type=shared.PredictionType.LIKELIHOOD
+        )
         self.assertEqual(len(unscaled), 2)
         shared.check_float_array(x=unscaled[0][0], name="unscaled[0][0]")
         meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
-        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(
+            num_samples=REFERENCE.shape[0], prediction_type=shared.PredictionType.LIKELIHOOD,meta=meta
+        )
         ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
-            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
+            features=REFERENCE,
+            batch=ClassifierSetManager._process_batch(BATCH_INFO),
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta=meta
         )
         ref_unscaled = base_unscaled + 2.0 * ref_unscaled
         ref_scale = base_scale + 2.0 * ref_scale
@@ -703,7 +763,11 @@ class TestClassifierSetManager(TestCase):
 
     @staticmethod
     def test_get_baseline_1():
-        unscaled, scale = ClassifierSetManager._get_baseline(num_samples=10, meta={"marginals": MARGINALS})
+        unscaled, scale = ClassifierSetManager._get_baseline(
+            num_samples=10,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta={"marginals": MARGINALS}
+        )
         shared.check_float_array(x=unscaled, name="unscaled")
         np.testing.assert_array_equal(unscaled, np.vstack([MARGINALS] * 10))
         shared.check_float_array(x=scale, name="scale")
@@ -713,7 +777,10 @@ class TestClassifierSetManager(TestCase):
     def test_get_batch_contribution_1():
         batch = ClassifierSetManager._process_batch(BATCH_INFO)
         unscaled, scale = ClassifierSetManager._get_batch_contribution(
-            features=REFERENCE, batch=batch, meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+            features=REFERENCE,
+            batch=batch,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
         )
         shared.check_float_array(x=unscaled, name="unscaled")
         scaled_reference = REFERENCE[:, batch["active_features"]] * batch["feature_weights"]
@@ -734,7 +801,10 @@ class TestClassifierSetManager(TestCase):
     def test_get_batch_contribution_2():
         batch = ClassifierSetManager._process_batch(BATCH_INFO_NO_FEATURES)
         unscaled, scale = ClassifierSetManager._get_batch_contribution(
-            features=REFERENCE, batch=batch, meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+            features=REFERENCE,
+            batch=batch,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
         )
         shared.check_float_array(x=unscaled, name="unscaled")
         scaled_reference = REFERENCE[:, batch["active_features"]] * batch["feature_weights"]
@@ -755,7 +825,10 @@ class TestClassifierSetManager(TestCase):
     def test_get_batch_contribution_3():
         batch = ClassifierSetManager._process_batch(BATCH_INFO_ALL_FEATURES)
         unscaled, scale = ClassifierSetManager._get_batch_contribution(
-            features=REFERENCE, batch=batch, meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
+            features=REFERENCE,
+            batch=batch,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta={"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
         )
         shared.check_float_array(x=unscaled, name="unscaled")
         scaled_reference = REFERENCE[:, batch["active_features"]] * batch["feature_weights"]
@@ -774,8 +847,12 @@ class TestClassifierSetManager(TestCase):
 
     def test_evaluate_1(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
-        scaled = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=False)
-        # check default values for set manager with no data
+        scaled = manager.evaluate(
+            features=REFERENCE,
+            num_batches=None,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=False
+        )  # check default values for set manager with no data
         self.assertEqual(len(scaled), 1)
         shared.check_float_array(x=scaled[0], name="scaled[0]")
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
@@ -783,8 +860,12 @@ class TestClassifierSetManager(TestCase):
 
     def test_evaluate_2(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
-        scaled, familiarity = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=True)
-        # check default values for set manager with no data
+        scaled, familiarity = manager.evaluate(
+            features=REFERENCE,
+            num_batches=None,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=True
+        )  # check default values for set manager with no data
         self.assertEqual(len(scaled), 1)
         self.assertEqual(len(familiarity), 1)
         shared.check_float_array(x=scaled[0], name="scaled[0]")
@@ -796,7 +877,12 @@ class TestClassifierSetManager(TestCase):
     def test_evaluate_3(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO_NO_PROTOTYPES)  # batch with no prototypes has no impact on the model
-        scaled = manager.evaluate(features=REFERENCE, num_batches=0, compute_familiarity=False)
+        scaled = manager.evaluate(
+            features=REFERENCE,
+            num_batches=0,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=False
+        )
         self.assertEqual(len(scaled), 1)
         shared.check_float_array(x=scaled[0], name="scaled[0]")
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
@@ -805,8 +891,12 @@ class TestClassifierSetManager(TestCase):
     def test_evaluate_4(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
-        scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0]), compute_familiarity=False)
-        # evaluate marginals only
+        scaled = manager.evaluate(
+            features=REFERENCE,
+            num_batches=np.array([0]),
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=False
+        )  # evaluate marginals only
         self.assertEqual(len(scaled), 1)
         shared.check_float_array(x=scaled[0], name="scaled[0]")
         ref_scaled = np.tile(MARGINALS, (REFERENCE.shape[0], 1))
@@ -815,13 +905,23 @@ class TestClassifierSetManager(TestCase):
     def test_evaluate_5(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
-        scaled = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=False)
+        scaled = manager.evaluate(
+            features=REFERENCE,
+            num_batches=None,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=False
+        )
         self.assertEqual(len(scaled), 1)
         shared.check_float_array(x=scaled[0], name="scaled[0]")
         meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
-        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(
+            num_samples=REFERENCE.shape[0], prediction_type=shared.PredictionType.LIKELIHOOD, meta=meta
+        )
         ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
-            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
+            features=REFERENCE,
+            batch=ClassifierSetManager._process_batch(BATCH_INFO),
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta=meta
         )
         ref_unscaled += base_unscaled
         ref_scale += base_scale
@@ -831,14 +931,24 @@ class TestClassifierSetManager(TestCase):
     def test_evaluate_6(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
-        scaled, familiarity = manager.evaluate(features=REFERENCE, num_batches=None, compute_familiarity=True)
+        scaled, familiarity = manager.evaluate(
+            features=REFERENCE,
+            num_batches=None,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=True
+        )
         self.assertEqual(len(scaled), 1)
         self.assertEqual(len(familiarity), 1)
         shared.check_float_array(x=scaled[0], name="scaled[0]")
         meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
-        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(
+            num_samples=REFERENCE.shape[0], prediction_type=shared.PredictionType.LIKELIHOOD, meta=meta
+        )
         ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
-            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
+            features=REFERENCE,
+            batch=ClassifierSetManager._process_batch(BATCH_INFO),
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta=meta
         )
         ref_unscaled += base_unscaled
         ref_scale += base_scale
@@ -851,13 +961,25 @@ class TestClassifierSetManager(TestCase):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         manager.add_batch(BATCH_INFO)
         manager.add_batch(BATCH_INFO)
-        scaled = manager.evaluate(features=REFERENCE, num_batches=np.array([0, 2]), compute_familiarity=False)
+        scaled = manager.evaluate(
+            features=REFERENCE,
+            num_batches=np.array([0, 2]),
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            compute_familiarity=False
+        )
         self.assertEqual(len(scaled), 2)
         shared.check_float_array(x=scaled[0], name="scaled[0]")
         meta = {"num_features": REFERENCE.shape[1], "marginals": MARGINALS}
-        base_unscaled, base_scale = ClassifierSetManager._get_baseline(num_samples=REFERENCE.shape[0], meta=meta)
+        base_unscaled, base_scale = ClassifierSetManager._get_baseline(
+            num_samples=REFERENCE.shape[0],
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta=meta
+        )
         ref_unscaled, ref_scale = ClassifierSetManager._get_batch_contribution(
-            features=REFERENCE, batch=ClassifierSetManager._process_batch(BATCH_INFO), meta=meta
+            features=REFERENCE,
+            batch=ClassifierSetManager._process_batch(BATCH_INFO),
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            meta=meta
         )
         ref_unscaled = base_unscaled + 2.0 * ref_unscaled
         ref_scale = base_scale + 2.0 * ref_scale

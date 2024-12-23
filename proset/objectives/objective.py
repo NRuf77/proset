@@ -201,7 +201,9 @@ class Objective(metaclass=ABCMeta):
               have single feature values so any ambiguities caused by, e.g., censoring are resolved during splitting
             - cand_index: 1D numpy array; index vector indicating the training samples used as candidates
         """
-        unscaled, scale = set_manager.evaluate_unscaled(features=features, num_batches=None)[0]
+        unscaled, scale = set_manager.evaluate_unscaled(
+            features=features, num_batches=None, prediction_type=shared.PredictionType.LIKELIHOOD
+        )[0]
         num_groups, groups = cls._assign_groups(
             target=target, beta=beta, scaled=(unscaled.transpose() / scale).transpose(), meta=meta
         )

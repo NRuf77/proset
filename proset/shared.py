@@ -4,12 +4,23 @@ Copyright by Nikolaus Ruf
 Released under the MIT license - see LICENSE file for details
 """
 
+from enum import Enum
+
 import numpy as np
 from scipy.linalg import blas  # pylint: disable=no-name-in-module
 
 
 FLOAT_TYPE = {"dtype": np.float32, "order": "F"}  # enforce this format for all float arrays
 LOG_OFFSET = 1e-10  # add to small numbers before taking the logarithm
+
+
+class PredictionType(Enum):
+    """Enumerate prediction types.
+    """
+    LIKELIHOOD = 0  # class probabilities for classification, density for regression
+    CDF = 1  # cumulative density for regression only
+    MEAN = 2  # mean for regression only
+    MEAN_VAR = 3  # mean and variance for regression only
 
 
 def check_classifier_target(target, weights):
