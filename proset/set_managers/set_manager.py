@@ -527,7 +527,7 @@ class SetManager(metaclass=ABCMeta):
                 num_batches=num_batches,
                 num_batches_actual=num_batches_actual,
                 prediction_type=shared.PredictionType.LIKELIHOOD,
-                grid=None,
+                grid=cls._make_dummy_grid(),
                 permit_array=False,
                 meta=meta
             )
@@ -535,6 +535,14 @@ class SetManager(metaclass=ABCMeta):
                 raise ValueError("Parameter features must have exactly one row.")
             features = np.squeeze(features)
         return num_batches, features
+
+    @staticmethod
+    def _make_dummy_grid():
+        """Create dummy grid argumet for _check_evaluate_input().
+
+        :return: default implementation returns None
+        """
+        return None
 
     @staticmethod
     def _compute_feature_similarities(prototypes, features, feature_weights):
