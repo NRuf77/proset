@@ -5,6 +5,7 @@ Released under the MIT license - see LICENSE file for details
 """
 
 import numpy as np
+from scipy import stats
 
 from proset import shared
 from proset.set_managers.set_manager import SetManager
@@ -32,17 +33,115 @@ class RegressorSetManager(SetManager):
 
         :return: two float values; mean and standard deviation
         """
-        # noinspection PyUnresolvedReferences
         return self._meta["mean"], self._meta["std"]
-
 
     @staticmethod
     def _check_batch(batch_info, meta):
         """Check batch definition for consistent dimensions.
 
-        :param batch_info: see docstring of SetManager._check_batch() for details
+        :param batch_info: see docstring of SetManager._check_batch() for details; must have one additional field:
+            - target_weight: positive float; inverse bandwidth for kernel on target space
         :param meta: dict; must have key 'num_features' but can store None value if not determined yet
         :return: as return value of SetManager._check_batch()
         """
         shared.check_float_array(x=batch_info["target"], name="batch_info['target']")
+        if batch_info["target_weight"] <= 0.0:
+            raise ValueError("Parameter target_weight must be strictly positive.")
         return SetManager._check_batch(batch_info=batch_info, meta=meta)
+
+    @staticmethod
+    def _process_batch(batch_info):
+        """Process batch information.
+
+        :param batch_info: see docstring of SetManager.add_batch() for details
+        :return: as return value of SetManager._process_batch() with one additional field:
+            - target_weight: positive float; inverse bandwidth for kernel on target space
+        """
+        batch = SetManager._process_batch(batch_info)
+        batch["target_weight"] = batch_info["target_weight"]
+        return batch
+
+    @classmethod
+    def _check_evaluate_input(
+        cls, features, num_batches, num_batches_actual, prediction_type, grid, permit_array, meta
+    ):
+        """Check whether input to evaluate_unscaled() is consistent.
+
+        :param features: see docstring of SetManager.evaluate_unscaled() for details
+        :param num_batches: see docstring of SetManager.evaluate_unscaled() for details
+        :param num_batches_actual: see docstring of SetManager.evaluate_unscaled() for details
+        :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details
+        :param grid: see docstring of SetManager.evaluate_unscaled() for details
+        :param permit_array: see docstring of SetManager.evaluate_unscaled() for details
+        :param meta: see docstring of SetManager.evaluate_unscaled() for details
+        :return: as SetManager._check_evaluate_input()
+        """
+        if prediction_type in [shared.PredictionType.LIKELIHOOD, shared.PredictionType.CDF]:
+            if grid is None:
+                raise ValueError("Class RegressorSetManager requires parameter grid for prediction type {}.".format(
+                    prediction_type.name
+                ))
+        else:
+            if grid is not None:
+                raise ValueError(
+                    "Class RegressorSetManager does not support parameter grid for prediction type {}.".format(
+                        prediction_type.name
+                    )
+                )
+        return SetManager._check_evaluate_input(
+            features, num_batches, num_batches_actual, prediction_type, grid, permit_array, meta
+        )
+
+    @staticmethod
+    def _get_baseline(num_samples, prediction_type, grid, meta):
+        """Provide unscaled estimate and scaling for a model with zero batches.
+
+        :param num_samples: see docstring of SetManager._get_baseline() for details
+        :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details
+        :param grid: see docstring of SetManager.evaluate_unscaled() for details
+        :param meta: dict; see docstring of SetManager.evaluate_unscaled() for details; not used by this implementation
+        :return: two numpy arrays as a single pair of return values from evaluate_unscaled():
+            - depending on prediction type:
+              - LIKELIHOOD: 2D array; standard normal density evaluated on the grid
+              - CDF: 2D array; standard normal cumulative density evaluated on the grid
+              - MEAN: 1D array of zeros; baseline mean
+              - MEAN_VAR: 2D array; first column is all zeros, second column is all ones; baseline mean and variance
+            - 1D array of ones with the same length as the first dimension of the output
+        """
+        if prediction_type in [shared.PredictionType.LIKELIHOOD, shared.PredictionType.CDF]:
+            if prediction_type == shared.PredictionType.LIKELIHOOD:
+                unscaled = stats.norm.pdf(grid).astype(**shared.FLOAT_TYPE)
+            else:
+                unscaled = stats.norm.cdf(grid).astype(**shared.FLOAT_TYPE)
+            if len(grid.shape) == 1:
+                unscaled = unscaled[None, :]
+                unscaled = np.tile(unscaled, (num_samples, 1))
+        elif prediction_type == shared.PredictionType.MEAN:
+            unscaled = np.zeros(num_samples, **shared.FLOAT_TYPE)
+        else:
+            unscaled = np.zeros((num_samples, 2), **shared.FLOAT_TYPE)
+            unscaled[:, 1] = 1.0
+        return unscaled, np.ones(num_samples, **shared.FLOAT_TYPE)
+
+    @classmethod
+    def _get_batch_contribution(cls, features, batch, prediction_type, grid, meta):
+        """Compute contribution of a single batch to the prediction for one set of features.
+
+        :param features: see docstring of SetManager.evaluate_unscaled() for details
+        :param batch: as return value of _process_batch(); None not allowed
+        :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details
+        :param grid: see docstring of SetManager.evaluate_unscaled() for details
+        :param meta: dict; content depends on subclass implementation
+        :return: two numpy arrays as a single pair of return values from evaluate_unscaled()
+        """
+        pass  # TODO
+
+    # TODO: adapt get_batches() so it can include parameter 'target_weight' for regression
+
+    @staticmethod
+    def _make_dummy_grid():
+        """Create dummy grid argumet for _check_evaluate_input().
+
+        :return: returns an 1D array containing a single zero of type specified by shared.FLOAT_TYPE
+        """
+        return np.zeros(1, **shared.FLOAT_TYPE)
