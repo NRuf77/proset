@@ -32,8 +32,6 @@ class Objective(metaclass=ABCMeta):
     """Abstract base class for proset objective functions.
     """
 
-    evaluate_uses_grid=False
-
     def __init__(
             self,
             features,
@@ -203,12 +201,11 @@ class Objective(metaclass=ABCMeta):
               have single feature values so any ambiguities caused by, e.g., censoring are resolved during splitting
             - cand_index: 1D numpy array; index vector indicating the training samples used as candidates
         """
-        if cls.evaluate_uses_grid:
-            grid = target[:, None]
-        else:
-            grid = None
         unscaled, scale = set_manager.evaluate_unscaled(
-            features=features, num_batches=None, prediction_type=shared.PredictionType.LIKELIHOOD, grid=grid
+            features=features,
+            num_batches=None,
+            prediction_type=shared.PredictionType.LIKELIHOOD,
+            grid=cls._make_grid(target)
         )[0]
         num_groups, groups = cls._assign_groups(
             target=target, beta=beta, scaled=(unscaled.transpose() / scale).transpose(), meta=meta
@@ -232,6 +229,16 @@ class Objective(metaclass=ABCMeta):
             scale=scale,
             meta=meta
         )
+
+    # pylint: disable=unused-argument
+    @staticmethod
+    def _make_grid(target):
+        """Create grid argument for evaluating current model state.
+
+        :param target: see docstring of __init__() for details; not used by the default implementation
+        :return: default implementation returns None
+        """
+        return None
 
     # noinspection PyUnusedLocal
     @staticmethod
