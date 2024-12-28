@@ -23,7 +23,6 @@ MAX_SAMPLES_FOR_SCORING = 10000  # score no more than this many samples at a tim
 class SetManager(metaclass=ABCMeta):
     """Abstract base class for set managers.
     """
-    _prediction_types = {shared.PredictionType.LIKELIHOOD}
 
     def __init__(self, target, weights):
         """Initialize set manager.
@@ -256,7 +255,7 @@ class SetManager(metaclass=ABCMeta):
             "sample_index": sample_index
         }
 
-    def evaluate_unscaled(self, features, num_batches, prediction_type):
+    def evaluate_unscaled(self, features, num_batches, prediction_type, grid):
         """Compute unscaled predictions and scaling vector.
 
         :param features: 2D numpy array of type specified by shared.FLOAT_TYPE; feature matrix for which to compute
@@ -265,6 +264,10 @@ class SetManager(metaclass=ABCMeta):
             None; number of batches to use for evaluation; pass None for all batches; pass an array to evaluate for
             multiple values of num_batches at once
         :param prediction_type: an element of shared.PredictionType determining what kind of prediction is requested
+        :param grid: numpy array of type specified by shared.FLOAT_TYPE or None; grid for evaluating a probability
+            density or cumulative density function; must be provided with appropriate prediction types, None otherwise;
+            if grid is a 1D array, the same grid is used for evaluation of each sample; if grid is a 2D array, the first
+            dimension must match the first dimension of features, so that each sample has an individual grid
         :return: list of tuples; each tuple consists of two numpy arrays of type specified by shared.FLOAT_TYPE; the
             first array is either 1D or 2D and has the same first dimension as features; it represents the unscaled
             predictions; the second array is the corresponding scaling vector; if an integer is passed for num_batches,
@@ -275,6 +278,7 @@ class SetManager(metaclass=ABCMeta):
             num_batches=num_batches,
             num_batches_actual=self.num_batches,
             prediction_type=prediction_type,
+            grid=grid,
             permit_array=True,
             meta=self._meta
         )
@@ -282,7 +286,7 @@ class SetManager(metaclass=ABCMeta):
             num_batches = np.array([num_batches])
         ranges = self._get_sample_ranges(features.shape[0])
         unscaled, scale = self._get_baseline(
-            num_samples=features.shape[0], prediction_type=prediction_type,  meta=self._meta
+            num_samples=features.shape[0], prediction_type=prediction_type, grid=grid, meta=self._meta
         )
         result_unscaled = []
         result_scale = []
@@ -298,6 +302,7 @@ class SetManager(metaclass=ABCMeta):
                         features=features[ranges[j]:ranges[j + 1], :],
                         batch=self._batches[i],
                         prediction_type=prediction_type,
+                        grid=grid,
                         meta=self._meta,
                     )
                     new_unscaled.append(range_unscaled)
@@ -309,14 +314,19 @@ class SetManager(metaclass=ABCMeta):
                 result_scale.append(scale)
         return [(result_unscaled[i], result_scale[i]) for i in range(len(result_unscaled))]
 
+    # pylint: disable=unused-argument
     @classmethod
-    def _check_evaluate_input(cls, features, num_batches, num_batches_actual, prediction_type, permit_array, meta):
+    def _check_evaluate_input(
+        cls, features, num_batches, num_batches_actual, prediction_type, grid, permit_array, meta
+    ):
         """Check whether input to evaluate_unscaled() is consistent.
 
         :param features: see docstring of evaluate_unscaled() for details
         :param num_batches: see docstring of evaluate_unscaled() for details
         :param num_batches_actual: non-negative integer; actual number of batches
-        :param prediction_type: see docstring of evaluate_unscaled() for details
+        :param prediction_type: see docstring of evaluate_unscaled() for details; the base class implementation does not
+            check this parameter but subclasses may
+        :param grid: see docstring of evaluate_unscaled() for details
         :param permit_array: boolean; whether passing an array for num_batches is permissible
         :param meta: dict; must have key 'num_features' but can store None value if not determined yet
         :return: num_batches or num_batches_actual if the former is None; raises an error if a check fails
@@ -329,8 +339,13 @@ class SetManager(metaclass=ABCMeta):
                 features.shape[1], meta["num_features"]
             ))
         shared.check_float_array(x=features, name="features")
-        if prediction_type not in cls._prediction_types:
-            raise ValueError("Class {} does not support prediction type {}.".format(cls.__name__, prediction_type.name))
+        if grid is not None:
+            if len(grid.shape) == 2 and grid.shape[0] != features.shape[0]:
+                raise ValueError(" ".join([
+                    "If passing a 2D array as parameter grid, the first dimension must match",
+                    "the first dimension of parameter features."
+                ]))
+            shared.check_float_array(x=grid, name="grid")
         return cls._check_num_batches(
             num_batches=num_batches, num_batches_actual=num_batches_actual, permit_array=permit_array
         )
@@ -348,11 +363,12 @@ class SetManager(metaclass=ABCMeta):
 
     @staticmethod
     @abstractmethod
-    def _get_baseline(num_samples, prediction_type, meta):  # pragma: no cover
+    def _get_baseline(num_samples, prediction_type, grid, meta):  # pragma: no cover
         """Provide unscaled estimate and scaling for a model with zero batches.
 
         :param num_samples: positive integer; number of samples
         :param prediction_type: see docstring of evaluate_unscaled() for details
+        :param grid: see docstring of evaluate_unscaled() for details
         :param meta: dict; content depends on subclass implementation
         :return: two numpy arrays as a single pair of return values from evaluate_unscaled()
         """
@@ -362,12 +378,13 @@ class SetManager(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def _get_batch_contribution(cls, features, batch, prediction_type, meta):  # pragma: no cover
+    def _get_batch_contribution(cls, features, batch, prediction_type, grid, meta):  # pragma: no cover
         """Compute contribution of a single batch to the prediction for one set of features.
 
         :param features: see docstring of evaluate_unscaled() for details
         :param batch: as return value of _process_batch(); None not allowed
         :param prediction_type: see docstring of evaluate_unscaled() for details
+        :param grid: see docstring of evaluate_unscaled() for details
         :param meta: dict; content depends on subclass implementation
         :return: two numpy arrays as a single pair of return values from evaluate_unscaled()
         """
@@ -375,7 +392,7 @@ class SetManager(metaclass=ABCMeta):
             "Abstract base class SetManager has no default implementation for method _get_batch_contribution()."
         )
 
-    def evaluate(self, features, num_batches, prediction_type, compute_familiarity):
+    def evaluate(self, features, num_batches, prediction_type, grid, compute_familiarity):
         """Compute scaled predictions.
 
         :param features: 2D numpy array of type specified by shared.FLOAT_TYPE; feature matrix for which to compute
@@ -384,6 +401,10 @@ class SetManager(metaclass=ABCMeta):
             None; number of batches to use for evaluation; pass None for all batches; pass an array to evaluate for
             multiple values of num_batches at once
         :param prediction_type: an element of shared.PredictionType determining what kind of prediction is requested
+        :param grid: numpy array of type specified by shared.FLOAT_TYPE or None; grid for evaluating a probability
+            density or cumulative density function; must be provided with appropriate prediction types, None otherwise;
+            if grid is a 1D array, the same grid is used for evaluation of each sample; if grid is a 2D array, the first
+            dimension must match the first dimension of features, so that each sample has an individual grid
         :param compute_familiarity: boolean; whether to compute the familiarity for each sample
         :return: one or two lists of numpy arrays of type specified by shared.FLOAT_TYPE; in the first list, each array
             is either 1D or 2D with the same first dimension as features and contains predictions; if an integer is
@@ -391,7 +412,9 @@ class SetManager(metaclass=ABCMeta):
             the second list is only generated if compute_familiarity = True and contains 1D arrays with familiarity
             scores matching the predictions in the first list
         """
-        unscaled = self.evaluate_unscaled(features=features, num_batches=num_batches, prediction_type=prediction_type)
+        unscaled = self.evaluate_unscaled(
+            features=features, num_batches=num_batches, prediction_type=prediction_type, grid=grid
+        )
         scaled = [(pair[0].transpose() / pair[1]).transpose() for pair in unscaled]
         # transpose to broadcast scale over columns in case unscaled is 2D
         if compute_familiarity:
@@ -501,6 +524,7 @@ class SetManager(metaclass=ABCMeta):
                 num_batches=num_batches,
                 num_batches_actual=num_batches_actual,
                 prediction_type=shared.PredictionType.LIKELIHOOD,
+                grid=None,
                 permit_array=False,
                 meta=meta
             )

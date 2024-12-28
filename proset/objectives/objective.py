@@ -32,6 +32,8 @@ class Objective(metaclass=ABCMeta):
     """Abstract base class for proset objective functions.
     """
 
+    evaluate_uses_grid=False
+
     def __init__(
             self,
             features,
@@ -201,8 +203,12 @@ class Objective(metaclass=ABCMeta):
               have single feature values so any ambiguities caused by, e.g., censoring are resolved during splitting
             - cand_index: 1D numpy array; index vector indicating the training samples used as candidates
         """
+        if cls.evaluate_uses_grid:
+            grid = target[:, None]
+        else:
+            grid = None
         unscaled, scale = set_manager.evaluate_unscaled(
-            features=features, num_batches=None, prediction_type=shared.PredictionType.LIKELIHOOD
+            features=features, num_batches=None, prediction_type=shared.PredictionType.LIKELIHOOD, grid=grid
         )[0]
         num_groups, groups = cls._assign_groups(
             target=target, beta=beta, scaled=(unscaled.transpose() / scale).transpose(), meta=meta

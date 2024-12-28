@@ -67,6 +67,7 @@ class ClassifierModel(Model):
             features=X,
             num_batches=n_iter,
             prediction_type=shared.PredictionType.LIKELIHOOD,
+            grid=None,
             compute_familiarity=compute_familiarity
         )
         if compute_familiarity:
@@ -96,6 +97,7 @@ class ClassifierModel(Model):
             features=X,
             num_batches=n_iter,
             prediction_type=shared.PredictionType.LIKELIHOOD,
+            grid=None,
             compute_familiarity=False
         )
         prediction = [np.squeeze(np.take_along_axis(p, y[:, None], axis=1)) for p in prediction]
@@ -130,6 +132,7 @@ class ClassifierModel(Model):
             features=check_array(X, **shared.FLOAT_TYPE),
             num_batches=n_iter,
             prediction_type=shared.PredictionType.LIKELIHOOD,
+            grid=None,
             compute_familiarity=compute_familiarity
         )
         if isinstance(n_iter, np.ndarray):

@@ -52,13 +52,40 @@ class ClassifierSetManager(SetManager):
             raise ValueError("Parameter target must encode the classes as integers from 0 to K - 1.")
         return SetManager._check_batch(batch_info=batch_info, meta=meta)
 
+    @classmethod
+    def _check_evaluate_input(
+        cls, features, num_batches, num_batches_actual, prediction_type, grid, permit_array, meta
+    ):
+        """Check whether input to evaluate_unscaled() is consistent.
+
+        :param features: see docstring of SetManager.evaluate_unscaled() for details
+        :param num_batches: see docstring of SetManager.evaluate_unscaled() for details
+        :param num_batches_actual: see docstring of SetManager.evaluate_unscaled() for details
+        :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details
+        :param grid: see docstring of SetManager.evaluate_unscaled() for details
+        :param permit_array: see docstring of SetManager.evaluate_unscaled() for details
+        :param meta: see docstring of SetManager.evaluate_unscaled() for details
+        :return: as SetManager._check_evaluate_input()
+        """
+        if prediction_type != shared.PredictionType.LIKELIHOOD:
+            raise ValueError(
+                "Class ClassifierSetManager does not support prediction type {}.".format(prediction_type.name)
+            )
+        if grid is not None:
+            raise ValueError("Class ClassifierSetManager does not support evaluation on a grid.")
+        return SetManager._check_evaluate_input(
+            features, num_batches, num_batches_actual, prediction_type, grid, permit_array, meta
+        )
+
     # pylint: disable=unused-argument
     @staticmethod
-    def _get_baseline(num_samples, prediction_type, meta):
+    def _get_baseline(num_samples, prediction_type, grid, meta):
         """Provide unscaled estimate and scaling for a model with zero batches.
 
         :param num_samples: see docstring of SetManager._get_baseline() for details
-        :prediction_type: see docstring of SetManager.evaluate_unscaled() for details; not used by this implementation
+        :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details; not used by this
+            implementation
+        :param grid: see docstring of SetManager.evaluate_unscaled() for details; not used by this implementation
         :param meta: dict; must have key 'marginals' referencing the marginal distribution of classes
         :return: two numpy arrays as a single pair of return values from evaluate_unscaled(); unscaled predictions from
             ClassifierSetManager have a 2D array in first place
@@ -67,13 +94,14 @@ class ClassifierSetManager(SetManager):
             np.ones(num_samples, **shared.FLOAT_TYPE)
 
     @classmethod
-    def _get_batch_contribution(cls, features, batch, prediction_type, meta):
+    def _get_batch_contribution(cls, features, batch, prediction_type, grid, meta):
         """Compute contribution of a single batch to the prediction for one set of features.
 
         :param features: see docstring of SetManager.evaluate_unscaled() for details
         :param batch: as return value of _process_batch(); None not allowed
         :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details; not used by this
             implementation
+        :param grid: see docstring of SetManager.evaluate_unscaled() for details; not used by this implementation
         :param meta: dict; must have the following keys:
             - num_features: referencing the expected number of input features
             - marginals: 1D numpy array of floats in [0.0, 1.0); marginal distributions of the classes
