@@ -143,7 +143,8 @@ class Model(BaseEstimator, metaclass=ABCMeta):
                 maxiter=LIMITED_MAXITER,
                 maxls=LIMITED_MAXLS
             )
-            batch_info = objective.get_batch_info(solution[0])  # solution[0] is the parameter vector
+            batch_info = objective.get_batch_info(np.maximum(solution[0], 0.0))
+            # solution[0] is the parameter vector; guard against minor constraint violations
             self.set_manager_.add_batch(batch_info)
             if LOGGER.isEnabledFor(logging.INFO):  # pragma: no cover
                 LOGGER.info(LOG_RESULT_BATCHES.format(i + 1))
