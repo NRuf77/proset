@@ -475,6 +475,8 @@ class SetManager(metaclass=ABCMeta):
             - sample_index: 1D numpy integer array; sample indices for prototypes
             - similarities: 2D numpy array; per-feature similarities between the input features and each prototype; one
               row per prototype and one column per active feature; this field is not included if features is None
+            Note: subclasses may track additional parameters, check whether they overwrite _check_batch() or
+            _process_batch().
         """
         num_batches, features = self._check_get_batches_input(
             features=features,
