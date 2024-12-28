@@ -377,6 +377,21 @@ class TestClassifierSetManager(TestCase):
     def test_add_batch_fail_11(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
+        try:
+            manager.add_batch({
+                "prototypes": PROTOTYPES,
+                "target": TARGET,
+                "feature_weights": -1.0 * FEATURE_WEIGHTS,
+                "prototype_weights": PROTOTYPE_WEIGHTS,
+                "sample_index": SAMPLE_INDEX
+            })
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter feature_weights must have non-negative elements.")
+
+    def test_add_batch_fail_12(self):
+        manager = ClassifierSetManager(target=TARGET, weights=None)
+        message = ""
         try:  # trigger one check from shared.check_float_array() to ensure it is called
             manager.add_batch({
                 "prototypes": PROTOTYPES,
@@ -389,7 +404,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter feature_weights must be an array of type float32.")
 
-    def test_add_batch_fail_12(self):
+    def test_add_batch_fail_13(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
@@ -404,7 +419,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter prototype_weights must be a 1D array.")
 
-    def test_add_batch_fail_13(self):
+    def test_add_batch_fail_14(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
@@ -419,7 +434,22 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter prototype_weights must have as many elements as prototypes has rows.")
 
-    def test_add_batch_fail_14(self):
+    def test_add_batch_fail_15(self):
+        manager = ClassifierSetManager(target=TARGET, weights=None)
+        message = ""
+        try:
+            manager.add_batch({
+                "prototypes": PROTOTYPES,
+                "target": TARGET,
+                "feature_weights": FEATURE_WEIGHTS,
+                "prototype_weights": -1.0 * PROTOTYPE_WEIGHTS,
+                "sample_index": SAMPLE_INDEX
+            })
+        except ValueError as ex:
+            message = ex.args[0]
+        self.assertEqual(message, "Parameter prototype_weights must have non-negative elements.")
+
+    def test_add_batch_fail_16(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:  # trigger one check from shared.check_float_array() to ensure it is called
@@ -434,7 +464,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter prototype_weights must be an array of type float32.")
 
-    def test_add_batch_fail_15(self):
+    def test_add_batch_fail_17(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
@@ -449,7 +479,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter sample_index must be a 1D array.")
 
-    def test_add_batch_fail_16(self):
+    def test_add_batch_fail_18(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:
@@ -464,7 +494,7 @@ class TestClassifierSetManager(TestCase):
             message = ex.args[0]
         self.assertEqual(message, "Parameter sample_index must be an integer array.")
 
-    def test_add_batch_fail_17(self):
+    def test_add_batch_fail_19(self):
         manager = ClassifierSetManager(target=TARGET, weights=None)
         message = ""
         try:

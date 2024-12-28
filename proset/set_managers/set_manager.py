@@ -39,7 +39,6 @@ class SetManager(metaclass=ABCMeta):
             # information
             "num_features": None  # set when adding batches
         }
-        # noinspection PyTypeChecker
         self._meta.update(self._get_baseline_distribution(target=target, weights=weights))
 
     @staticmethod
@@ -185,11 +184,15 @@ class SetManager(metaclass=ABCMeta):
             raise ValueError("Parameter feature_weights must be a 1D array.")
         if batch_info["feature_weights"].shape[0] != batch_info["prototypes"].shape[1]:
             raise ValueError("Parameter feature_weights must have as many elements as prototypes has columns.")
+        if np.any(batch_info["feature_weights"] < 0.0):
+            raise ValueError("Parameter feature_weights must have non-negative elements.")
         shared.check_float_array(x=batch_info["feature_weights"], name="feature_weights")
         if len(batch_info["prototype_weights"].shape) != 1:
             raise ValueError("Parameter prototype_weights must be a 1D array.")
         if batch_info["prototype_weights"].shape[0] != batch_info["prototypes"].shape[0]:
             raise ValueError("Parameter prototype_weights must have as many elements as prototypes has rows.")
+        if np.any(batch_info["prototype_weights"] < 0.0):
+            raise ValueError("Parameter prototype_weights must have non-negative elements.")
         shared.check_float_array(x=batch_info["prototype_weights"], name="prototype_weights")
         if len(batch_info["sample_index"].shape) != 1:
             raise ValueError("Parameter sample_index must be a 1D array.")
@@ -552,7 +555,6 @@ class SetManager(metaclass=ABCMeta):
         active_features = self.get_active_features()
         if self._meta["num_features"] is None:  # nothing to do as no batches were ever added
             return active_features  # this is a vector of length zero by default
-        # noinspection PyTypedDict
         self._meta["num_features"] = active_features.shape[0]
         for batch in self._batches:
             if batch is not None:
