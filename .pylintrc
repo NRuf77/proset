@@ -23,5 +23,6 @@ min-similarity-lines=45  # longest block with false positive duplicate-code has 
 disable=consider-using-f-string,
 		logging-format-interpolation,
         too-many-arguments,
+		too-many-branches,
         too-many-instance-attributes,
         too-many-locals
