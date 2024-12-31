@@ -123,18 +123,18 @@ class RegressorSetManager(SetManager):
             unscaled[:, 1] = 1.0
         return unscaled, np.ones(num_samples, **shared.FLOAT_TYPE)
 
-    @classmethod
-    def _get_batch_contribution(cls, features, batch, prediction_type, grid, meta):
-        """Compute contribution of a single batch to the prediction for one set of features.
+    @staticmethod
+    def _compute_contribution(impact, batch, prediction_type, grid, meta):
+        """Compute batch contribution as weighted sum of contributions from kernels on the target space.
 
-        :param features: see docstring of SetManager.evaluate_unscaled() for details
-        :param batch: as return value of _process_batch(); None not allowed
+        :param impact: 2D array with positive values of type specified by shared.FLOAT_TYPE with one row per sample and
+            one column per prototype; prototype impact on each sample
+        :param batch: see docstring of SetManager._get_batch_contribution() for details
         :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details
-        :param grid: see docstring of SetManager.evaluate_unscaled() for details
-        :param meta: dict; content depends on subclass implementation
-        :return: two numpy arrays as a single pair of return values from evaluate_unscaled()
+        :param meta: dict; not used by this implemenation
+        :return: as return value of SetManager._get_batch_contribution()
         """
-        pass  # TODO
+        pass # TODO
 
     @staticmethod
     def _make_dummy_grid():

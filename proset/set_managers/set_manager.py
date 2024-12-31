@@ -380,19 +380,44 @@ class SetManager(metaclass=ABCMeta):
         )
 
     @classmethod
-    @abstractmethod
-    def _get_batch_contribution(cls, features, batch, prediction_type, grid, meta):  # pragma: no cover
+    def _get_batch_contribution(cls, features, batch, prediction_type, grid, meta):
         """Compute contribution of a single batch to the prediction for one set of features.
 
         :param features: see docstring of evaluate_unscaled() for details
         :param batch: as return value of _process_batch(); None not allowed
         :param prediction_type: see docstring of evaluate_unscaled() for details
         :param grid: see docstring of evaluate_unscaled() for details
-        :param meta: dict; content depends on subclass implementation
+        :param meta: dict; must have key 'num_features' referencing the expected number of input features; other content
+            depends on subclass implementation
         :return: two numpy arrays as a single pair of return values from evaluate_unscaled()
         """
+        if batch["active_features"].shape[0] == meta["num_features"]:  # no need to reduce input
+            scaled_features = features * batch["feature_weights"]
+        else:  # reduce input to active features
+            scaled_features = features[:, batch["active_features"]] * batch["feature_weights"]
+        impact = shared.quick_compute_similarity(
+            scaled_reference=scaled_features,
+            scaled_prototypes=batch["scaled_prototypes"],
+            ssq_reference=np.sum(scaled_features ** 2.0, axis=1),
+            ssq_prototypes=batch["ssq_prototypes"]
+        ) * batch["prototype_weights"]
+        return cls._compute_contribution(impact, batch, prediction_type, grid, meta)
+
+    @staticmethod
+    @abstractmethod
+    def _compute_contribution(impact, batch, prediction_type, grid, meta):  # pragma: no cover
+        """Compute batch contribution as weighted sum of contributions from kernels on the target space.
+
+        :param impact: 2D array with positive values of type specified by shared.FLOAT_TYPE with one row per sample and
+            one column per prototype; prototype impact on each sample
+        :param batch: see docstring of _get_batch_contribution() for details
+        :param prediction_type: see docstring of evaluate_unscaled() for details
+        :param grid: see docstring of evaluate_unscaled() for details
+        :param meta: see docstring of _get_batch_contribution() for details
+        :return: as return value of _get_batch_contribution()
+        """
         raise NotImplementedError(
-            "Abstract base class SetManager has no default implementation for method _get_batch_contribution()."
+            "Abstract base class SetManager has no default implementation for method _compute_contribution()."
         )
 
     def evaluate(self, features, num_batches, prediction_type, grid, compute_familiarity):

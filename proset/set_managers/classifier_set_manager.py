@@ -93,34 +93,21 @@ class ClassifierSetManager(SetManager):
         return np.tile(meta["marginals"], (num_samples, 1)).astype(**shared.FLOAT_TYPE), \
             np.ones(num_samples, **shared.FLOAT_TYPE)
 
-    @classmethod
-    def _get_batch_contribution(cls, features, batch, prediction_type, grid, meta):
-        """Compute contribution of a single batch to the prediction for one set of features.
+    @staticmethod
+    def _compute_contribution(impact, batch, prediction_type, grid, meta):
+        """Compute batch contribution as weighted sum of contributions from kernels on the target space.
 
-        :param features: see docstring of SetManager.evaluate_unscaled() for details
-        :param batch: as return value of _process_batch(); None not allowed
-        :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details; not used by this
-            implementation
-        :param grid: see docstring of SetManager.evaluate_unscaled() for details; not used by this implementation
-        :param meta: dict; must have the following keys:
-            - num_features: referencing the expected number of input features
-            - marginals: 1D numpy array of floats in [0.0, 1.0); marginal distributions of the classes
-        :return: two numpy arrays as a single pair of return values from evaluate_unscaled(); unscaled predictions from
-            ClassifierSetManager have a 2D array in first place
+        :param impact: 2D array with positive values of type specified by shared.FLOAT_TYPE with one row per sample and
+            one column per prototype; prototype impact on each sample
+        :param batch: see docstring of SetManager._get_batch_contribution() for details
+        :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details
+        :param meta: dict; must have key 'marginals' referencing 1D numpy array of type specified by shared.FLOAT_TYPE
+            and values in (0.0, 1.0); marginal distributions of the classes
+        :return: as return value of SetManager._get_batch_contribution()
         """
-        if batch["active_features"].shape[0] == meta["num_features"]:  # no need to reduce input
-            scaled_features = features * batch["feature_weights"]
-        else:  # reduce input to active features
-            scaled_features = features[:, batch["active_features"]] * batch["feature_weights"]
-        impact = shared.quick_compute_similarity(
-            scaled_reference=scaled_features,
-            scaled_prototypes=batch["scaled_prototypes"],
-            ssq_reference=np.sum(scaled_features ** 2.0, axis=1),
-            ssq_prototypes=batch["ssq_prototypes"]
-        ) * batch["prototype_weights"]
         sort_ix = np.argsort(batch["target"])
         # np.add.reduceat() requires prototypes with the same target value grouped together
         changes = shared.find_changes(batch["target"][sort_ix])
-        contribution = np.zeros((features.shape[0], meta["marginals"].shape[0]), **shared.FLOAT_TYPE)
+        contribution = np.zeros((impact.shape[0], meta["marginals"].shape[0]), **shared.FLOAT_TYPE)
         contribution[:, np.unique(batch["target"])] = np.add.reduceat(impact[:, sort_ix], indices=changes, axis=1)
         return contribution, np.sum(contribution, axis=1)
