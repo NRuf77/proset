@@ -131,10 +131,36 @@ class RegressorSetManager(SetManager):
             one column per prototype; prototype impact on each sample
         :param batch: see docstring of SetManager._get_batch_contribution() for details
         :param prediction_type: see docstring of SetManager.evaluate_unscaled() for details
+        :param grid: see docstring of SetManager.evaluate_unscaled() for details
         :param meta: dict; not used by this implemenation
-        :return: as return value of SetManager._get_batch_contribution()
+        :return: as first return value of SetManager._get_batch_contribution()
         """
-        pass # TODO
+        scale = impact.sum(axis=1)
+        if prediction_type in [shared.PredictionType.LIKELIHOOD, shared.PredictionType.CDF]:
+            if prediction_type == shared.PredictionType.LIKELIHOOD:
+                fun = stats.norm.pdf
+            else:
+                fun = stats.norm.cdf
+            contribution = []
+            if len(grid.shape) == 1:
+                for g in range(grid.shape[0]):  # loop instead of creating potentially large 3d array
+                    q_target = fun((grid[g] - batch["target"]) * batch["target_weight"])
+                    contribution.append(np.dot(impact, q_target)[:, None])
+            else:
+                for g in range(grid.shape[1]):
+                    q_target = fun((grid[:, g:(g + 1)] - batch["target"]) * batch["target_weight"])
+                    # this is a matrix with one row per sample to be scored and one column per prototype
+                    contribution.append((impact * q_target).sum(axis=1))
+            contribution = np.hstack(contribution)
+        else:  # MEAN or MEAN_VAR
+            q_target = batch["target"][:, None]  # mean is the target itself
+            if prediction_type == shared.PredictionType.MEAN_VAR:
+                q_target = np.hstack([q_target, q_target ** 2.0])
+            contribution = np.dot(impact, q_target)
+            if prediction_type == shared.PredictionType.MEAN_VAR:
+                contribution[:, 1] -= contribution[:, 0] ** 2.0 / scale
+                # output is unscaled, but the square of weighted expectation needs to apply scaling twice
+        return contribution, scale
 
     @staticmethod
     def _make_dummy_grid():
