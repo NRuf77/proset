@@ -136,8 +136,6 @@ class RegressorSetManager(SetManager):
         """
         pass  # TODO
 
-    # TODO: adapt get_batches() so it can include parameter 'target_weight' for regression
-
     @staticmethod
     def _make_dummy_grid():
         """Create dummy grid argumet for _check_evaluate_input().
@@ -145,3 +143,14 @@ class RegressorSetManager(SetManager):
         :return: returns an 1D array containing a single zero of type specified by shared.FLOAT_TYPE
         """
         return np.zeros(1, **shared.FLOAT_TYPE)
+
+    @staticmethod
+    def _copy_batch(batch):
+        """Copy and format batch information for output by get_batches().
+
+        :param batch: dict with batch information; as output of _process_batch()
+        :return: dict; a single element from the list returned by get_batches(), not including field 'similarities'
+        """
+        batch_copy = SetManager._copy_batch(batch)
+        batch_copy["target_weight"] = batch["target_weight"]
+        return batch_copy
