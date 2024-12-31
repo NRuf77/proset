@@ -484,16 +484,9 @@ class SetManager(metaclass=ABCMeta):
             num_batches_actual=self.num_batches,
             meta=self._meta
         )
-        batches = [{
-            "active_features": self._batches[i]["active_features"].copy(),
-            "prototypes":
-                self._batches[i]["scaled_prototypes"].copy() if self._batches[i]["feature_weights"].shape[0] == 0 else
-                self._batches[i]["scaled_prototypes"] / self._batches[i]["feature_weights"],
-            "target": self._batches[i]["target"].copy(),
-            "feature_weights": self._batches[i]["feature_weights"].copy(),
-            "prototype_weights": self._batches[i]["prototype_weights"].copy(),
-            "sample_index": self._batches[i]["sample_index"].copy()
-        } if self._batches[i] is not None else None for i in range(num_batches)]
+        batches = [
+            self._copy_batch(self._batches[i]) if self._batches[i] is not None else None for i in range(num_batches)
+        ]
         if features is not None:
             for batch in batches:
                 if batch is not None:
@@ -545,6 +538,24 @@ class SetManager(metaclass=ABCMeta):
         :return: default implementation returns None
         """
         return None
+
+    @staticmethod
+    def _copy_batch(batch):
+        """Copy and format batch information for output by get_batches().
+
+        :param batch: dict with batch information; as output of _process_batch()
+        :return: dict; a single element from the list returned by get_batches(), not including field 'similarities'
+        """
+        return {
+            "active_features": batch["active_features"].copy(),
+            "prototypes":
+                batch["scaled_prototypes"].copy() if batch["feature_weights"].shape[0] == 0 else
+                batch["scaled_prototypes"] / batch["feature_weights"],
+            "target": batch["target"].copy(),
+            "feature_weights": batch["feature_weights"].copy(),
+            "prototype_weights": batch["prototype_weights"].copy(),
+            "sample_index": batch["sample_index"].copy()
+        }
 
     @staticmethod
     def _compute_feature_similarities(prototypes, features, feature_weights):
