@@ -13,9 +13,9 @@ import tensorflow as tf
 from proset import shared
 from proset.objectives.tf_classifier_objective import TfClassifierObjective
 # pylint: disable=wrong-import-order
-from test.test_shared_classifier import MockSetManager, _get_consistent_example, FEATURES, TARGET, COUNTS, WEIGHTS, \
-    UNSCALED, SCALE, GROUPS, SCALED, NUM_CANDIDATES, MAX_FRACTION, LAMBDA_V, LAMBDA_W, ALPHA_V, ALPHA_W, BETA, \
-    RANDOM_STATE
+from test.objectives.test_shared_classifier import MockSetManager, _get_consistent_example, FEATURES, TARGET, COUNTS, \
+    WEIGHTS, UNSCALED, SCALE, GROUPS, SCALED, NUM_CANDIDATES, MAX_FRACTION, LAMBDA_V, LAMBDA_W, ALPHA_V, ALPHA_W, \
+    BETA, RANDOM_STATE
 
 
 # pylint: disable=missing-function-docstring, protected-access, too-many-public-methods

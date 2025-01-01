@@ -16,8 +16,9 @@ from proset import ClassifierModel, shared
 from proset.objectives.np_classifier_objective import NpClassifierObjective
 from proset.objectives.tf_classifier_objective import TfClassifierObjective
 from proset.set_managers.classifier_set_manager import ClassifierSetManager
-from test.test_np_objective import FEATURES, TARGET, COUNTS, WEIGHTS  # pylint: disable=wrong-import-order
-from test.test_set_manager import BATCH_INFO  # pylint: disable=wrong-import-order
+# pylint: disable=wrong-import-order
+from test.objectives.test_np_objective import FEATURES, TARGET, COUNTS, WEIGHTS
+from test.set_managers.test_classifier_set_manager import BATCH_INFO
 
 
 MARGINALS = COUNTS / np.sum(COUNTS)

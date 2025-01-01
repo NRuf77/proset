@@ -11,7 +11,8 @@ import numpy as np
 from proset import ClassifierModel
 from proset.shared import check_feature_names
 from proset.utility import other, write
-from test.test_np_objective import FEATURES, TARGET  # pylint: disable=wrong-import-order
+# pylint: disable=wrong-import-order
+from test.objectives.test_np_objective import FEATURES, TARGET
 
 
 # pylint: disable=missing-function-docstring, protected-access, too-many-public-methods

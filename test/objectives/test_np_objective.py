@@ -12,7 +12,7 @@ from proset import shared
 from proset.objectives.objective import START_FEATURE_WEIGHT, START_PROTOTYPE_WEIGHT
 from proset.objectives.np_classifier_objective import NpClassifierObjective
 # pylint: disable=wrong-import-order
-from test.test_shared_classifier import MockSetManager, _get_consistent_example, FEATURES, TARGET, COUNTS, \
+from test.objectives.test_shared_classifier import MockSetManager, _get_consistent_example, FEATURES, TARGET, COUNTS, \
     COUNTS_BELOW_FIVE, WEIGHTS, UNSCALED, SCALE, SCALED, GROUPS, LARGE_GROUPS, NUM_LARGE_GROUPS, \
     SAMPLES_PER_LARGE_GROUP, NUM_CANDIDATES, NUM_CANDIDATES_2, MAX_FRACTION, MAX_FRACTION_2, \
     MAX_FRACTION_AT_LEAST_FIVE, LAMBDA_V, LAMBDA_W, ALPHA_V, ALPHA_W, BETA, RANDOM_STATE

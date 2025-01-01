@@ -1,6 +1,7 @@
 .coverage
 .idea/*
 .vscode/*
+**/__pycache__/*
 build/*
 dist/*
 doc/*.aux
@@ -9,16 +10,7 @@ doc/*.log
 doc/*.out
 doc/*.pdf
 doc/*.toc
-proset/__pycache__/*
-proset/benchmarks/__pycache__/*
-proset/models/__pycache__/*
-proset/objectives/__pycache__/*
-proset/utility/__pycache__/*
-proset/utility/plots/__pycache__/*
 proset.egg-info/*
-proset/set_managers/__pycache__/*
-test/.pytest_cache/*
-test/__pycache__/*
 scripts/data/*.gz
 scripts/data/*.h5
 scripts/reports/*.xlsx

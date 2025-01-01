@@ -9,7 +9,8 @@ from unittest import TestCase
 import numpy as np
 
 from proset import shared
-from test.test_set_manager import REFERENCE, PROTOTYPES, FEATURE_WEIGHTS  # pylint: disable=wrong-import-order
+# pylint: disable=wrong-import-order
+from test.set_managers.test_classifier_set_manager import REFERENCE, PROTOTYPES, FEATURE_WEIGHTS
 
 
 FEATURE_NAMES = ["feature_1", "feature_2"]
