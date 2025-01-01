@@ -10,7 +10,7 @@ import numpy as np
 
 from proset import shared
 # pylint: disable=wrong-import-order
-from test.set_managers.test_classifier_set_manager import REFERENCE, PROTOTYPES, FEATURE_WEIGHTS
+from test.set_managers.classifier_set_manager_constants import REFERENCE, PROTOTYPES, FEATURE_WEIGHTS
 
 
 FEATURE_NAMES = ["feature_1", "feature_2"]
